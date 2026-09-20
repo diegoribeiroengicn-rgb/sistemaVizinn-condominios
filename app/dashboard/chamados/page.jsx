@@ -32,6 +32,7 @@ const emptyForm = {
   local: "",
   dataPrevista: "",
   responsavel: "",
+  colaboradorId: "",
 };
 
 const emptyFiltro = { status: "", tipo: "", soAtrasados: false };
@@ -67,6 +68,7 @@ export default function ChamadosPage() {
 
   const [chamados, setChamados] = useState([]);
   const [membros, setMembros] = useState([]);
+  const [colaboradores, setColaboradores] = useState([]);
   const [manutencoesVinculadas, setManutencoesVinculadas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -105,42 +107,52 @@ export default function ChamadosPage() {
     setLoading(true);
     setError("");
 
-    const queries = [
-      supabase
+    const queries = {
+      chamados: supabase
         .from("chamados")
         .select("*")
         .eq("condominio_id", condominio.id)
         .order("created_at", { ascending: false }),
-    ];
+    };
 
     if (podeEditar) {
-      queries.push(
-        supabase.from("membros").select("id, nome, papel, user_id").eq("condominio_id", condominio.id)
-      );
+      queries.membros = supabase.from("membros").select("id, nome, papel, user_id").eq("condominio_id", condominio.id);
     }
     if (podeEditar && temPermissao("manutencao", "visualizar")) {
-      queries.push(
-        supabase
-          .from("manutencoes")
-          .select("id, titulo, chamado_origem_id")
-          .eq("condominio_id", condominio.id)
-          .not("chamado_origem_id", "is", null)
-      );
+      queries.manutencoes = supabase
+        .from("manutencoes")
+        .select("id, titulo, chamado_origem_id")
+        .eq("condominio_id", condominio.id)
+        .not("chamado_origem_id", "is", null);
+    }
+    if (podeEditar && temPermissao("colaboradores", "visualizar")) {
+      queries.colaboradores = supabase
+        .from("colaboradores")
+        .select("id, nome, funcao, status")
+        .eq("condominio_id", condominio.id)
+        .eq("status", "ativo")
+        .order("nome", { ascending: true });
     }
 
-    const results = await Promise.all(queries);
-    const [chamadosResult, membrosResult, manutencoesResult] = results;
+    const chaves = Object.keys(queries);
+    const resultados = await Promise.all(chaves.map((k) => queries[k]));
+    const porChave = {};
+    chaves.forEach((k, i) => {
+      porChave[k] = resultados[i];
+    });
 
-    if (chamadosResult.error) setError(chamadosResult.error.message);
-    else setChamados(chamadosResult.data || []);
+    if (porChave.chamados.error) setError(porChave.chamados.error.message);
+    else setChamados(porChave.chamados.data || []);
 
-    if (membrosResult && !membrosResult.error) setMembros(membrosResult.data || []);
+    if (porChave.membros && !porChave.membros.error) setMembros(porChave.membros.data || []);
 
-    if (manutencoesResult && !manutencoesResult.error) {
+    if (porChave.manutencoes && !porChave.manutencoes.error) {
       const mapa = {};
-      for (const m of manutencoesResult.data || []) mapa[m.chamado_origem_id] = m;
+      for (const m of porChave.manutencoes.data || []) mapa[m.chamado_origem_id] = m;
       setManutencoesVinculadas(mapa);
     }
+
+    if (porChave.colaboradores && !porChave.colaboradores.error) setColaboradores(porChave.colaboradores.data || []);
 
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,6 +182,12 @@ export default function ChamadosPage() {
     return mapa;
   }, [chamados]);
 
+  const colaboradorPorId = useMemo(() => {
+    const mapa = {};
+    for (const c of colaboradores) mapa[c.id] = c;
+    return mapa;
+  }, [colaboradores]);
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!condominio?.id || !form.titulo.trim()) return;
@@ -195,6 +213,7 @@ export default function ChamadosPage() {
       solicitante_nome: nomeUsuario,
       responsavel_id: responsavelSelecionado?.userId || null,
       responsavel_nome: responsavelSelecionado?.label || null,
+      responsavel_colaborador_id: form.colaboradorId || null,
       data_prevista: form.dataPrevista || null,
       status: "aberto",
       ocorrencia_origem_id: ocorrenciaId,
@@ -216,6 +235,7 @@ export default function ChamadosPage() {
       status: chamado.status,
       responsavel:
         responsaveis.find((r) => r.userId === chamado.responsavel_id)?.value || "",
+      colaboradorId: chamado.responsavel_colaborador_id || "",
       executorNome: chamado.executor_nome || "",
       resultado: chamado.resultado || "",
     });
@@ -238,6 +258,7 @@ export default function ChamadosPage() {
       status: gerenciarForm.status,
       responsavel_id: responsavelSelecionado?.userId || null,
       responsavel_nome: responsavelSelecionado?.label || null,
+      responsavel_colaborador_id: gerenciarForm.colaboradorId || null,
       executor_nome: gerenciarForm.executorNome.trim() || null,
       resultado: gerenciarForm.resultado.trim() || null,
     };
@@ -456,6 +477,23 @@ export default function ChamadosPage() {
                 </select>
               </div>
             )}
+            {podeEditar && colaboradores.length > 0 && (
+              <div>
+                <label className="label-field">Colaborador responsável (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.colaboradorId}
+                  onChange={(e) => setForm((f) => ({ ...f, colaboradorId: e.target.value }))}
+                >
+                  <option value="">Sem colaborador vinculado</option>
+                  {colaboradores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} — {c.funcao}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="label-field">Descrição (opcional)</label>
               <textarea
@@ -614,7 +652,9 @@ export default function ChamadosPage() {
 
                 <p className="mt-2 text-xs text-navy-500">
                   Solicitante: <strong>{c.solicitante_nome || "-"}</strong> · Responsável:{" "}
-                  <strong>{c.responsavel_nome || "Não definido"}</strong>
+                  <strong>
+                    {colaboradorPorId[c.responsavel_colaborador_id]?.nome || c.responsavel_nome || "Não definido"}
+                  </strong>
                   {c.executor_nome && (
                     <>
                       {" "}
@@ -721,6 +761,23 @@ export default function ChamadosPage() {
                           placeholder="Ex: Empresa ABC"
                         />
                       </div>
+                      {colaboradores.length > 0 && (
+                        <div>
+                          <label className="label-field">Colaborador responsável (opcional)</label>
+                          <select
+                            className="input-field"
+                            value={gerenciarForm.colaboradorId}
+                            onChange={(e) => setGerenciarForm((f) => ({ ...f, colaboradorId: e.target.value }))}
+                          >
+                            <option value="">Sem colaborador vinculado</option>
+                            {colaboradores.map((cl) => (
+                              <option key={cl.id} value={cl.id}>
+                                {cl.nome} — {cl.funcao}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                     {gerenciarForm.status === "concluido" && (
                       <div>

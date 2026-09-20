@@ -39,6 +39,7 @@ const emptyForm = {
   periodicidadeDias: "",
   dataPrevista: "",
   fornecedorId: "",
+  colaboradorId: "",
 };
 
 const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
@@ -78,6 +79,7 @@ export default function ManutencaoPage() {
   const searchParams = useSearchParams();
   const [ordens, setOrdens] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
+  const [colaboradores, setColaboradores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -90,6 +92,7 @@ export default function ManutencaoPage() {
   const podeCriar = temPermissao("manutencao", "criar");
   const podeEditar = temPermissao("manutencao", "editar");
   const podeSolicitarProposta = temPermissao("propostas", "criar");
+  const podeColaboradores = temPermissao("colaboradores", "visualizar");
   const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   useEffect(() => {
@@ -108,18 +111,27 @@ export default function ManutencaoPage() {
     if (!condominio?.id) return;
     setLoading(true);
     setError("");
-    const [ordensResult, fornecedoresResult] = await Promise.all([
+    const [ordensResult, fornecedoresResult, colaboradoresResult] = await Promise.all([
       supabase.from("manutencoes").select("*").eq("condominio_id", condominio.id).order("created_at", { ascending: false }),
       temPermissao("fornecedores", "visualizar")
         ? supabase.from("fornecedores").select("id, razao_social").eq("condominio_id", condominio.id)
+        : Promise.resolve({ data: [], error: null }),
+      podeColaboradores
+        ? supabase
+            .from("colaboradores")
+            .select("id, nome, funcao, status")
+            .eq("condominio_id", condominio.id)
+            .eq("status", "ativo")
+            .order("nome", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (ordensResult.error) setError(ordensResult.error.message);
     else setOrdens(ordensResult.data || []);
     if (!fornecedoresResult.error) setFornecedores(fornecedoresResult.data || []);
+    if (!colaboradoresResult.error) setColaboradores(colaboradoresResult.data || []);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [condominio?.id]);
+  }, [condominio?.id, podeColaboradores]);
 
   useEffect(() => {
     load();
@@ -148,6 +160,7 @@ export default function ManutencaoPage() {
       data_prevista: form.dataPrevista || null,
       fornecedor_id: form.fornecedorId || null,
       fornecedor_nome: fornecedor?.razao_social || null,
+      responsavel_colaborador_id: form.colaboradorId || null,
       status: "aberta",
       chamado_origem_id: chamadoId,
     });
@@ -167,6 +180,7 @@ export default function ManutencaoPage() {
     setGerenciarForm({
       status: ordem.status,
       fornecedorId: ordem.fornecedor_id || "",
+      colaboradorId: ordem.responsavel_colaborador_id || "",
       resultado: ordem.resultado || "",
       avaliacao: emptyAvaliacao,
     });
@@ -187,6 +201,7 @@ export default function ManutencaoPage() {
       status: gerenciarForm.status,
       fornecedor_id: gerenciarForm.fornecedorId || null,
       fornecedor_nome: fornecedor?.razao_social || null,
+      responsavel_colaborador_id: gerenciarForm.colaboradorId || null,
       resultado: gerenciarForm.resultado.trim() || null,
     };
     if (vaiConcluir) {
@@ -244,6 +259,7 @@ export default function ManutencaoPage() {
       data_prevista: proximaData,
       fornecedor_id: ordem.fornecedor_id,
       fornecedor_nome: ordem.fornecedor_nome,
+      responsavel_colaborador_id: ordem.responsavel_colaborador_id,
       status: "aberta",
       ciclo_origem_id: ordem.id,
     });
@@ -263,6 +279,12 @@ export default function ManutencaoPage() {
     });
     router.push(`/dashboard/propostas?${params.toString()}`);
   }
+
+  const colaboradorPorId = useMemo(() => {
+    const mapa = {};
+    for (const c of colaboradores) mapa[c.id] = c;
+    return mapa;
+  }, [colaboradores]);
 
   const proximosCiclosGerados = useMemo(() => {
     const set = new Set();
@@ -317,7 +339,9 @@ export default function ManutencaoPage() {
           )}
         </div>
         <p className="mt-1 text-xs text-navy-400">
-          {[o.categoria, o.unidade, o.fornecedor_nome].filter(Boolean).join(" · ")}
+          {[o.categoria, o.unidade, o.fornecedor_nome, colaboradorPorId[o.responsavel_colaborador_id]?.nome]
+            .filter(Boolean)
+            .join(" · ")}
         </p>
         {o.descricao && <p className="mt-2 text-sm text-navy-600">{o.descricao}</p>}
         <p className="mt-2 text-xs text-navy-400">
@@ -389,6 +413,23 @@ export default function ManutencaoPage() {
                     {fornecedores.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.razao_social}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {colaboradores.length > 0 && (
+                <div>
+                  <label className="label-field">Colaborador responsável</label>
+                  <select
+                    className="input-field"
+                    value={gerenciarForm.colaboradorId}
+                    onChange={(e) => setGerenciarForm((f) => ({ ...f, colaboradorId: e.target.value }))}
+                  >
+                    <option value="">Sem colaborador vinculado</option>
+                    {colaboradores.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome} — {c.funcao}
                       </option>
                     ))}
                   </select>
@@ -563,6 +604,23 @@ export default function ManutencaoPage() {
                   {fornecedores.map((f) => (
                     <option key={f.id} value={f.id}>
                       {f.razao_social}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {colaboradores.length > 0 && (
+              <div>
+                <label className="label-field">Colaborador responsável (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.colaboradorId}
+                  onChange={(e) => setForm((f) => ({ ...f, colaboradorId: e.target.value }))}
+                >
+                  <option value="">Sem colaborador vinculado</option>
+                  {colaboradores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome} — {c.funcao}
                     </option>
                   ))}
                 </select>
