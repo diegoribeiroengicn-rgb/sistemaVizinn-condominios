@@ -49,6 +49,11 @@ const ROLE_OVERVIEW = [
 
 const emptyForm = { nome: "", email: "", telefone: "", password: "", papel: "condomino", unidade: "" };
 
+// Random 8-char temporary password (letters + digits) for password resets.
+function generateTempPassword() {
+  return Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4);
+}
+
 export default function AcessosPage() {
   const { condominio } = useAuth();
   const [membros, setMembros] = useState([]);
@@ -57,7 +62,12 @@ export default function AcessosPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
   const [lastCreated, setLastCreated] = useState(null);
+  const [lastReset, setLastReset] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -127,6 +137,70 @@ export default function AcessosPage() {
       setError(err.message);
     } finally {
       setRemovingId(null);
+    }
+  }
+
+  function openEdit(membro) {
+    setError("");
+    setEditing(membro);
+    setEditForm({
+      nome: membro.nome,
+      telefone: membro.telefone || "",
+      papel: membro.papel,
+      unidade: membro.unidade || "",
+    });
+  }
+
+  async function handleEditSave(e) {
+    e.preventDefault();
+    setSavingEdit(true);
+    setError("");
+    try {
+      const res = await authedFetch("/api/members/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condominioId: condominio.id,
+          memberId: editing.id,
+          ...editForm,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao editar acesso.");
+      setEditing(null);
+      setEditForm(null);
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function handleResetPassword(membro) {
+    if (!confirm(`Gerar uma nova senha temporária para "${membro.nome}"?`)) return;
+    setResettingId(membro.id);
+    setError("");
+    setLastReset(null);
+    const newPassword = generateTempPassword();
+    try {
+      const res = await authedFetch("/api/members/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condominioId: condominio.id,
+          memberId: membro.id,
+          userId: membro.user_id,
+          newPassword,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao redefinir senha.");
+      setLastReset({ nome: membro.nome, loginEmail: membro.email, newPassword });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResettingId(null);
     }
   }
 
@@ -273,6 +347,16 @@ export default function AcessosPage() {
         </div>
       )}
 
+      {lastReset && (
+        <div className="card border-emerald-200 bg-emerald-50">
+          <p className="text-sm text-emerald-800">
+            Nova senha temporária para <strong>{lastReset.nome}</strong> ({lastReset.loginEmail}
+            ): <strong className="font-mono">{lastReset.newPassword}</strong> — repasse pra
+            pessoa entrar de novo.
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-navy-500">Carregando acessos...</p>
       ) : membros.length === 0 ? (
@@ -299,18 +383,107 @@ export default function AcessosPage() {
                   <td className="px-4 py-3 text-navy-600">{PAPEL_LABELS[m.papel]}</td>
                   <td className="px-4 py-3 text-navy-600">{m.unidade || "-"}</td>
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => handleRemove(m)}
-                      disabled={removingId === m.id}
-                      className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                    >
-                      {removingId === m.id ? "Removendo..." : "Remover acesso"}
-                    </button>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => openEdit(m)}
+                        className="text-xs font-semibold text-navy-700 hover:underline"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleResetPassword(m)}
+                        disabled={resettingId === m.id}
+                        className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                      >
+                        {resettingId === m.id ? "Gerando..." : "Redefinir senha"}
+                      </button>
+                      <button
+                        onClick={() => handleRemove(m)}
+                        disabled={removingId === m.id}
+                        className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                      >
+                        {removingId === m.id ? "Removendo..." : "Remover acesso"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {editing && editForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-900/40 p-4">
+          <div className="card w-full max-w-md">
+            <h2 className="font-display text-lg font-bold text-navy-900">
+              Editar acesso de {editing.nome}
+            </h2>
+            <p className="mt-1 text-sm text-navy-500">
+              Altere o papel, a unidade ou o telefone. Login (e-mail) e senha não mudam aqui — use
+              &quot;Redefinir senha&quot; para gerar uma nova senha.
+            </p>
+
+            <form onSubmit={handleEditSave} className="mt-4 space-y-3">
+              <div>
+                <label className="label-field">Nome</label>
+                <input
+                  className="input-field"
+                  value={editForm.nome}
+                  onChange={(e) => setEditForm((f) => ({ ...f, nome: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label-field">Telefone</label>
+                <input
+                  className="input-field"
+                  value={editForm.telefone}
+                  onChange={(e) => setEditForm((f) => ({ ...f, telefone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+              <div>
+                <label className="label-field">Papel</label>
+                <select
+                  className="input-field"
+                  value={editForm.papel}
+                  onChange={(e) => setEditForm((f) => ({ ...f, papel: e.target.value }))}
+                >
+                  <option value="condomino">Condômino</option>
+                  <option value="porteiro">Porteiro</option>
+                  <option value="conselheiro">Conselheiro</option>
+                  <option value="zelador">Zelador</option>
+                </select>
+              </div>
+              {editForm.papel === "condomino" && (
+                <div>
+                  <label className="label-field">Unidade</label>
+                  <input
+                    className="input-field"
+                    value={editForm.unidade}
+                    onChange={(e) => setEditForm((f) => ({ ...f, unidade: e.target.value }))}
+                    placeholder="Ex: Apto 32"
+                  />
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={savingEdit} className="btn-primary">
+                  {savingEdit ? "Salvando..." : "Salvar alterações"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(null);
+                    setEditForm(null);
+                  }}
+                  className="text-sm font-semibold text-navy-500 hover:underline"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
