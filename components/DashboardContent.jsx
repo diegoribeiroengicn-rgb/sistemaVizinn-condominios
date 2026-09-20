@@ -73,6 +73,14 @@ export default function DashboardContent() {
     }
     if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
     if (podePropostas) queries.propostas = supabase.from("propostas").select("status").eq("condominio_id", condominio.id);
+    // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
+    // o campo condominios.unidades_ativas nunca é atualizado automaticamente,
+    // então usamos a contagem real em vez dele.
+    queries.condominos = supabase
+      .from("membros")
+      .select("id")
+      .eq("condominio_id", condominio.id)
+      .eq("papel", "condomino");
 
     const chaves = Object.keys(queries);
     const resultados = await Promise.all(chaves.map((k) => queries[k]));
@@ -96,7 +104,7 @@ export default function DashboardContent() {
   };
 
   const plan = getPlan(data.plano);
-  const unidadesAtivas = data.unidades_ativas ?? 0;
+  const unidadesAtivas = indicadores?.condominos?.length ?? 0;
 
   const inicioDoMes = new Date();
   inicioDoMes.setDate(1);
