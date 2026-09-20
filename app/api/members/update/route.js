@@ -19,7 +19,7 @@ const VALID_PAPEIS = new Set([
 // login (e-mail/senha); see /api/members/reset-password for that.
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, memberId, nome, telefone, papel, unidade, permissoes, requerAprovacao } = body;
+  const { condominioId, memberId, nome, telefone, papel, unidade, bloco, permissoes, requerAprovacao } = body;
 
   const auth = await requireCondominioAccess(request, condominioId, "acessos", "editar");
   if (auth.error) {
@@ -56,6 +56,7 @@ export async function POST(request) {
       telefone: telefone || null,
       papel,
       unidade: unidade || null,
+      bloco: bloco || null,
       permissoes: permissoesValidas,
       requerAprovacao: requerAprovacaoValido,
     };
@@ -83,6 +84,7 @@ export async function POST(request) {
         telefone: telefone || null,
         papel,
         unidade: unidade || null,
+        bloco: bloco || null,
         permissoes: permissoesValidas,
         requer_aprovacao: requerAprovacaoValido,
       })

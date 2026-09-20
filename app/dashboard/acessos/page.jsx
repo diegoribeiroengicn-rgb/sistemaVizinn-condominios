@@ -23,6 +23,7 @@ const emptyForm = {
   password: "",
   papel: "condomino",
   unidade: "",
+  bloco: "",
   permissoes: DEFAULT_PERMISSOES_BY_PAPEL.condomino,
   requerAprovacao: true,
 };
@@ -206,6 +207,7 @@ export default function AcessosPage() {
       telefone: membro.telefone || "",
       papel: membro.papel,
       unidade: membro.unidade || "",
+      bloco: membro.bloco || "",
       permissoes: membro.permissoes || {},
       requerAprovacao: membro.requer_aprovacao,
     });
@@ -459,15 +461,26 @@ export default function AcessosPage() {
             </select>
           </div>
           {form.papel === "condomino" && (
-            <div>
-              <label className="label-field">Unidade</label>
-              <input
-                className="input-field"
-                value={form.unidade}
-                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-                placeholder="Ex: Apto 32"
-              />
-            </div>
+            <>
+              <div>
+                <label className="label-field">Unidade (apartamento)</label>
+                <input
+                  className="input-field"
+                  value={form.unidade}
+                  onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                  placeholder="Ex: 32"
+                />
+              </div>
+              <div>
+                <label className="label-field">Bloco</label>
+                <input
+                  className="input-field"
+                  value={form.bloco}
+                  onChange={(e) => setForm((f) => ({ ...f, bloco: e.target.value }))}
+                  placeholder="Ex: B"
+                />
+              </div>
+            </>
           )}
           {papelPodeRequererAprovacao(form.papel) && (
             <div className="sm:col-span-2">
@@ -588,7 +601,11 @@ export default function AcessosPage() {
                         : "Livre"
                       : "-"}
                   </td>
-                  <td className="px-4 py-3 text-navy-600">{m.unidade || "-"}</td>
+                  <td className="px-4 py-3 text-navy-600">
+                    {[m.bloco && `Bloco ${m.bloco}`, m.unidade && `Apto ${m.unidade}`]
+                      .filter(Boolean)
+                      .join(" — ") || "-"}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-3">
                       <button
@@ -693,15 +710,26 @@ export default function AcessosPage() {
                   </select>
                 </div>
                 {editForm.papel === "condomino" && (
-                  <div>
-                    <label className="label-field">Unidade</label>
-                    <input
-                      className="input-field"
-                      value={editForm.unidade}
-                      onChange={(e) => setEditForm((f) => ({ ...f, unidade: e.target.value }))}
-                      placeholder="Ex: Apto 32"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="label-field">Unidade (apartamento)</label>
+                      <input
+                        className="input-field"
+                        value={editForm.unidade}
+                        onChange={(e) => setEditForm((f) => ({ ...f, unidade: e.target.value }))}
+                        placeholder="Ex: 32"
+                      />
+                    </div>
+                    <div>
+                      <label className="label-field">Bloco</label>
+                      <input
+                        className="input-field"
+                        value={editForm.bloco}
+                        onChange={(e) => setEditForm((f) => ({ ...f, bloco: e.target.value }))}
+                        placeholder="Ex: B"
+                      />
+                    </div>
+                  </>
                 )}
               </div>
               {papelPodeRequererAprovacao(editForm.papel) && (

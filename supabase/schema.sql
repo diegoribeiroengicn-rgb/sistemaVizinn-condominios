@@ -150,6 +150,7 @@ create table if not exists public.membros (
     papel in ('condomino', 'porteiro', 'conselheiro', 'zelador', 'subsindico', 'administrador')
   ),
   unidade text,
+  bloco text,
   modulos text[] not null default '{}',
   permissoes jsonb not null default '{}'::jsonb,
   requer_aprovacao boolean not null default false,
@@ -159,6 +160,7 @@ create table if not exists public.membros (
 -- Safe to re-run: adds the column / widens the check constraint if this
 -- script already ran before they existed.
 alter table public.membros add column if not exists telefone text;
+alter table public.membros add column if not exists bloco text;
 alter table public.membros add column if not exists modulos text[] not null default '{}';
 alter table public.membros add column if not exists permissoes jsonb not null default '{}'::jsonb;
 alter table public.membros add column if not exists requer_aprovacao boolean not null default false;
@@ -263,6 +265,7 @@ create table if not exists public.chamados (
   categoria text,
   prioridade text not null default 'normal' check (prioridade in ('baixa', 'normal', 'alta', 'urgente')),
   unidade text,
+  bloco text,
   local text,
   solicitante_id uuid references auth.users (id) on delete set null,
   solicitante_nome text,
@@ -292,6 +295,7 @@ create table if not exists public.chamados (
 alter table public.chamados add column if not exists tipo text not null default 'condominio';
 alter table public.chamados add column if not exists categoria text;
 alter table public.chamados add column if not exists prioridade text not null default 'normal';
+alter table public.chamados add column if not exists bloco text;
 alter table public.chamados add column if not exists local text;
 alter table public.chamados add column if not exists solicitante_id uuid references auth.users (id) on delete set null;
 alter table public.chamados add column if not exists solicitante_nome text;

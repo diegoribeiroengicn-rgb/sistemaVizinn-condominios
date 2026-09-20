@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import { PAPEIS_EQUIPE } from "@/lib/permissoes";
 import {
   CATEGORIA_SUGESTOES,
   PRAZO_BADGE_STYLES,
@@ -27,6 +28,7 @@ const emptyForm = {
   categoria: "",
   prioridade: "normal",
   unidade: "",
+  bloco: "",
   local: "",
   dataPrevista: "",
   responsavel: "",
@@ -148,9 +150,12 @@ export default function ChamadosPage() {
     load();
   }, [load]);
 
+  // Responsável só pode ser quem trabalha no prédio (síndico, subsíndico,
+  // administrador, zelador, porteiro) — nunca condômino ou conselheiro.
   const responsaveis = useMemo(() => {
     const lista = [{ value: `sindico:${condominio?.owner_id}`, label: "Síndico", userId: condominio?.owner_id }];
     for (const m of membros) {
+      if (!PAPEIS_EQUIPE.includes(m.papel)) continue;
       lista.push({ value: `membro:${m.user_id}`, label: `${m.nome}`, userId: m.user_id });
     }
     return lista;
@@ -174,16 +179,18 @@ export default function ChamadosPage() {
 
     const responsavelSelecionado = responsaveis.find((r) => r.value === form.responsavel);
     const ocorrenciaId = searchParams.get("ocorrenciaId") || null;
+    const tipoFinal = isCondomino ? "condominio" : form.tipo;
 
     const { error: insertError } = await supabase.from("chamados").insert({
       condominio_id: condominio.id,
-      tipo: isCondomino ? "condominio" : form.tipo,
+      tipo: tipoFinal,
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
       categoria: form.categoria.trim() || null,
       prioridade: form.prioridade,
-      unidade: form.unidade.trim() || null,
-      local: form.local.trim() || null,
+      unidade: tipoFinal === "condominio" ? form.unidade.trim() || null : null,
+      bloco: tipoFinal === "condominio" ? form.bloco.trim() || null : null,
+      local: tipoFinal === "interno" ? form.local.trim() || null : null,
       solicitante_id: user?.id || null,
       solicitante_nome: nomeUsuario,
       responsavel_id: responsavelSelecionado?.userId || null,
@@ -390,24 +397,38 @@ export default function ChamadosPage() {
                 ))}
               </datalist>
             </div>
-            <div>
-              <label className="label-field">Unidade (opcional)</label>
-              <input
-                className="input-field"
-                value={form.unidade}
-                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-                placeholder="Ex: Apto 32"
-              />
-            </div>
-            <div>
-              <label className="label-field">Local (opcional)</label>
-              <input
-                className="input-field"
-                value={form.local}
-                onChange={(e) => setForm((f) => ({ ...f, local: e.target.value }))}
-                placeholder="Ex: Garagem, subsolo"
-              />
-            </div>
+            {(isCondomino ? "condominio" : form.tipo) === "condominio" ? (
+              <>
+                <div>
+                  <label className="label-field">Unidade (opcional)</label>
+                  <input
+                    className="input-field"
+                    value={form.unidade}
+                    onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                    placeholder="Ex: 32"
+                  />
+                </div>
+                <div>
+                  <label className="label-field">Bloco (opcional)</label>
+                  <input
+                    className="input-field"
+                    value={form.bloco}
+                    onChange={(e) => setForm((f) => ({ ...f, bloco: e.target.value }))}
+                    placeholder="Ex: B"
+                  />
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="label-field">Local (opcional)</label>
+                <input
+                  className="input-field"
+                  value={form.local}
+                  onChange={(e) => setForm((f) => ({ ...f, local: e.target.value }))}
+                  placeholder="Ex: Garagem, subsolo"
+                />
+              </div>
+            )}
             <div>
               <label className="label-field">Data prevista (opcional)</label>
               <input
@@ -577,7 +598,14 @@ export default function ChamadosPage() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-navy-400">
-                      {[c.categoria, c.unidade, c.local].filter(Boolean).join(" · ")}
+                      {[
+                        c.categoria,
+                        c.unidade && `Apto ${c.unidade}`,
+                        c.bloco && `Bloco ${c.bloco}`,
+                        c.local,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   </div>
                 </div>

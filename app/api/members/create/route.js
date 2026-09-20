@@ -29,7 +29,7 @@ const VALID_PAPEIS = new Set([
 // nada, porque não existe conteúdo em `membros` pra RLS liberar.
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, nome, email, telefone, password, papel, unidade, permissoes, requerAprovacao } =
+  const { condominioId, nome, email, telefone, password, papel, unidade, bloco, permissoes, requerAprovacao } =
     body;
 
   const auth = await requireCondominioAccess(request, condominioId, "acessos", "criar");
@@ -99,6 +99,7 @@ export async function POST(request) {
           telefone: telefone || null,
           papel,
           unidade: unidade || null,
+          bloco: bloco || null,
           permissoes: permissoesValidas,
           requerAprovacao: requerAprovacaoValido,
         },
@@ -119,6 +120,7 @@ export async function POST(request) {
       telefone: telefone || null,
       papel,
       unidade: unidade || null,
+      bloco: bloco || null,
       permissoes: permissoesValidas,
       requer_aprovacao: requerAprovacaoValido,
     });
@@ -138,7 +140,7 @@ export async function POST(request) {
       acao: "criar",
       modulo: "acessos",
       registroId: userData.user.id,
-      dadosNovos: { nome, email: loginEmail, telefone, papel, unidade, permissoes: permissoesValidas },
+      dadosNovos: { nome, email: loginEmail, telefone, papel, unidade, bloco, permissoes: permissoesValidas },
     });
 
     return NextResponse.json({ success: true, loginEmail });
