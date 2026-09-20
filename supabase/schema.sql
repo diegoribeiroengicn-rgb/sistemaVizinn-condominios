@@ -45,10 +45,13 @@ alter table public.condominios enable row level security;
 -- Owners can read and update their own condominio.
 -- Row creation on signup is done server-side with the service role key
 -- (see /app/api/complete-signup), which bypasses RLS by design.
+-- Drop-then-create makes this script safe to run more than once.
+drop policy if exists "Owners can view their condominio" on public.condominios;
 create policy "Owners can view their condominio"
   on public.condominios for select
   using (auth.uid() = owner_id);
 
+drop policy if exists "Owners can update their condominio" on public.condominios;
 create policy "Owners can update their condominio"
   on public.condominios for update
   using (auth.uid() = owner_id);
