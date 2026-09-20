@@ -26,13 +26,16 @@ const NEXT_STATUS = {
 const emptyForm = { titulo: "", descricao: "", unidade: "" };
 
 export default function ChamadosPage() {
-  const { condominio } = useAuth();
+  const { condominio, temPermissao } = useAuth();
   const [chamados, setChamados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
+
+  const podeCriar = temPermissao("chamados", "criar");
+  const podeEditar = temPermissao("chamados", "editar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -99,41 +102,43 @@ export default function ChamadosPage() {
           Registre e acompanhe solicitações dos condôminos.
         </p>
 
-        <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="label-field">Título</label>
-            <input
-              className="input-field"
-              value={form.titulo}
-              onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-              placeholder="Ex: Vazamento na garagem"
-              required
-            />
-          </div>
-          <div>
-            <label className="label-field">Unidade (opcional)</label>
-            <input
-              className="input-field"
-              value={form.unidade}
-              onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-              placeholder="Ex: Apto 32"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label-field">Descrição (opcional)</label>
-            <textarea
-              className="input-field"
-              rows={2}
-              value={form.descricao}
-              onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button type="submit" disabled={submitting} className="btn-primary">
-              {submitting ? "Criando..." : "Novo chamado"}
-            </button>
-          </div>
-        </form>
+        {podeCriar && (
+          <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label-field">Título</label>
+              <input
+                className="input-field"
+                value={form.titulo}
+                onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                placeholder="Ex: Vazamento na garagem"
+                required
+              />
+            </div>
+            <div>
+              <label className="label-field">Unidade (opcional)</label>
+              <input
+                className="input-field"
+                value={form.unidade}
+                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                placeholder="Ex: Apto 32"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label-field">Descrição (opcional)</label>
+              <textarea
+                className="input-field"
+                rows={2}
+                value={form.descricao}
+                onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <button type="submit" disabled={submitting} className="btn-primary">
+                {submitting ? "Criando..." : "Novo chamado"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
@@ -161,13 +166,15 @@ export default function ChamadosPage() {
                   {new Date(c.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
-              <button
-                onClick={() => handleAdvanceStatus(c)}
-                disabled={updatingId === c.id}
-                className="btn-secondary flex-none text-sm disabled:opacity-50"
-              >
-                {updatingId === c.id ? "..." : `Marcar como ${STATUS_LABELS[NEXT_STATUS[c.status]]}`}
-              </button>
+              {podeEditar && (
+                <button
+                  onClick={() => handleAdvanceStatus(c)}
+                  disabled={updatingId === c.id}
+                  className="btn-secondary flex-none text-sm disabled:opacity-50"
+                >
+                  {updatingId === c.id ? "..." : `Marcar como ${STATUS_LABELS[NEXT_STATUS[c.status]]}`}
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -8,7 +8,7 @@ import ModuloGuard from "@/components/ModuloGuard";
 const emptyForm = { titulo: "", mensagem: "" };
 
 export default function AvisosPage() {
-  const { condominio, role } = useAuth();
+  const { condominio, temPermissao } = useAuth();
   const [avisos, setAvisos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,7 +16,8 @@ export default function AvisosPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
 
-  const canManage = role === "sindico";
+  const podeCriar = temPermissao("avisos", "criar");
+  const podeExcluir = temPermissao("avisos", "excluir");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -76,12 +77,12 @@ export default function AvisosPage() {
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Avisos</h1>
         <p className="mt-1 text-sm text-navy-500">
-          {canManage
+          {podeCriar
             ? "Publique comunicados para todos os condôminos."
             : "Comunicados do síndico para o condomínio."}
         </p>
 
-        {canManage && (
+        {podeCriar && (
           <form onSubmit={handleCreate} className="mt-4 space-y-3">
             <div>
               <label className="label-field">Título</label>
@@ -127,7 +128,7 @@ export default function AvisosPage() {
                   {new Date(a.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
-              {canManage && (
+              {podeExcluir && (
                 <button
                   onClick={() => handleDelete(a.id)}
                   disabled={deletingId === a.id}

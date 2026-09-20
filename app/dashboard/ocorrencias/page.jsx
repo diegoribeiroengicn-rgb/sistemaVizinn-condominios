@@ -8,13 +8,14 @@ import ModuloGuard from "@/components/ModuloGuard";
 const emptyForm = { titulo: "", descricao: "" };
 
 export default function OcorrenciasPage() {
-  const { condominio, user, member } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
   const [ocorrencias, setOcorrencias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
 
+  const podeCriar = temPermissao("ocorrencias", "criar");
   const registradoPor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   const load = useCallback(async () => {
@@ -70,30 +71,32 @@ export default function OcorrenciasPage() {
           Registro da portaria — visitantes, encomendas, incidentes e afins.
         </p>
 
-        <form onSubmit={handleCreate} className="mt-4 space-y-3">
-          <div>
-            <label className="label-field">Título</label>
-            <input
-              className="input-field"
-              value={form.titulo}
-              onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-              placeholder="Ex: Entrega de encomenda - Apto 12"
-              required
-            />
-          </div>
-          <div>
-            <label className="label-field">Descrição (opcional)</label>
-            <textarea
-              className="input-field"
-              rows={2}
-              value={form.descricao}
-              onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-            />
-          </div>
-          <button type="submit" disabled={submitting} className="btn-primary">
-            {submitting ? "Registrando..." : "Registrar ocorrência"}
-          </button>
-        </form>
+        {podeCriar && (
+          <form onSubmit={handleCreate} className="mt-4 space-y-3">
+            <div>
+              <label className="label-field">Título</label>
+              <input
+                className="input-field"
+                value={form.titulo}
+                onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                placeholder="Ex: Entrega de encomenda - Apto 12"
+                required
+              />
+            </div>
+            <div>
+              <label className="label-field">Descrição (opcional)</label>
+              <textarea
+                className="input-field"
+                rows={2}
+                value={form.descricao}
+                onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+              />
+            </div>
+            <button type="submit" disabled={submitting} className="btn-primary">
+              {submitting ? "Registrando..." : "Registrar ocorrência"}
+            </button>
+          </form>
+        )}
       </div>
 
       {error && <p className="text-sm text-coral-700">{error}</p>}

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
-import { requireCondominioOwner } from "@/lib/memberAuth";
+import { requireCondominioAccess } from "@/lib/memberAuth";
+import { registrarAuditoria } from "@/lib/auditoria";
 
-// Síndico-only: sets a new temporary password for a member who lost
-// theirs. Verifies the membro really belongs to this condominio before
-// touching their auth account.
+// Sets a new temporary password for a member who lost theirs. Verifies
+// the membro really belongs to this condominio before touching their
+// auth account. Reaproveita a permissão de "editar" em "acessos" — mas,
+// diferente de criar/editar/excluir, redefinir senha não entra na fila de
+// pendências (não dá pra "revisar" uma senha antes de aprovar), então um
+// delegado só pode fazer isso quando está liberado sem aprovação
+// (requer_aprovacao=false).
 export async function POST(request) {
   const body = await request.json();
   const { condominioId, memberId, userId, newPassword } = body;
 
-  const auth = await requireCondominioOwner(request, condominioId);
+  const auth = await requireCondominioAccess(request, condominioId, "acessos", "editar");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -20,18 +25,27 @@ export async function POST(request) {
     );
   }
 
-  const { supabaseAdmin } = auth;
+  const { supabaseAdmin, isOwner, membro, user } = auth;
+  if (!isOwner && membro?.requer_aprovacao) {
+    return NextResponse.json(
+      {
+        error:
+          "Redefinir senha exige liberação total do síndico (sem aprovação pendente) — peça pra ele fazer isso ou te liberar em Acessos.",
+      },
+      { status: 403 }
+    );
+  }
 
   try {
-    const { data: membro, error: membroError } = await supabaseAdmin
+    const { data: alvoAtual, error: membroError } = await supabaseAdmin
       .from("membros")
-      .select("id")
+      .select("id, nome")
       .eq("id", memberId)
       .eq("condominio_id", condominioId)
       .maybeSingle();
 
     if (membroError) throw membroError;
-    if (!membro) {
+    if (!alvoAtual) {
       return NextResponse.json(
         { error: "Acesso não encontrado neste condomínio." },
         { status: 404 }
@@ -42,6 +56,17 @@ export async function POST(request) {
       password: newPassword,
     });
     if (updateError) throw updateError;
+
+    await registrarAuditoria(supabaseAdmin, {
+      condominioId,
+      usuarioId: user.id,
+      usuarioNome: isOwner ? user.user_metadata?.full_name || user.email : membro.nome,
+      papel: isOwner ? "sindico" : membro.papel,
+      acao: "editar",
+      modulo: "acessos",
+      registroId: memberId,
+      dadosNovos: { acao: "redefinir_senha", alvo: alvoAtual.nome },
+    });
 
     return NextResponse.json({ success: true });
   } catch (err) {

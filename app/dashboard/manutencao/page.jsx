@@ -26,13 +26,16 @@ const NEXT_STATUS = {
 const emptyForm = { titulo: "", descricao: "", unidade: "" };
 
 export default function ManutencaoPage() {
-  const { condominio } = useAuth();
+  const { condominio, temPermissao } = useAuth();
   const [ordens, setOrdens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
+
+  const podeCriar = temPermissao("manutencao", "criar");
+  const podeEditar = temPermissao("manutencao", "editar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -99,41 +102,43 @@ export default function ManutencaoPage() {
           Ordens de serviço: reparos, limpeza e manutenção preventiva.
         </p>
 
-        <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="label-field">Título</label>
-            <input
-              className="input-field"
-              value={form.titulo}
-              onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-              placeholder="Ex: Troca de lâmpada do hall"
-              required
-            />
-          </div>
-          <div>
-            <label className="label-field">Unidade / Local (opcional)</label>
-            <input
-              className="input-field"
-              value={form.unidade}
-              onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-              placeholder="Ex: Bloco B, térreo"
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label-field">Descrição (opcional)</label>
-            <textarea
-              className="input-field"
-              rows={2}
-              value={form.descricao}
-              onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button type="submit" disabled={submitting} className="btn-primary">
-              {submitting ? "Criando..." : "Nova ordem de serviço"}
-            </button>
-          </div>
-        </form>
+        {podeCriar && (
+          <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label-field">Título</label>
+              <input
+                className="input-field"
+                value={form.titulo}
+                onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                placeholder="Ex: Troca de lâmpada do hall"
+                required
+              />
+            </div>
+            <div>
+              <label className="label-field">Unidade / Local (opcional)</label>
+              <input
+                className="input-field"
+                value={form.unidade}
+                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                placeholder="Ex: Bloco B, térreo"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label-field">Descrição (opcional)</label>
+              <textarea
+                className="input-field"
+                rows={2}
+                value={form.descricao}
+                onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <button type="submit" disabled={submitting} className="btn-primary">
+                {submitting ? "Criando..." : "Nova ordem de serviço"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
@@ -161,13 +166,15 @@ export default function ManutencaoPage() {
                   {new Date(o.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
-              <button
-                onClick={() => handleAdvanceStatus(o)}
-                disabled={updatingId === o.id}
-                className="btn-secondary flex-none text-sm disabled:opacity-50"
-              >
-                {updatingId === o.id ? "..." : `Marcar como ${STATUS_LABELS[NEXT_STATUS[o.status]]}`}
-              </button>
+              {podeEditar && (
+                <button
+                  onClick={() => handleAdvanceStatus(o)}
+                  disabled={updatingId === o.id}
+                  className="btn-secondary flex-none text-sm disabled:opacity-50"
+                >
+                  {updatingId === o.id ? "..." : `Marcar como ${STATUS_LABELS[NEXT_STATUS[o.status]]}`}
+                </button>
+              )}
             </div>
           ))}
         </div>

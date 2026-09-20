@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { ALL_MODULOS, MODULO_LABELS, MODULO_ROUTES } from "@/lib/modulos";
+import { MODULO_LABELS, MODULO_ROUTES, PAPEL_LABELS } from "@/lib/permissoes";
 
-// O síndico sempre vê o menu completo (inclui Acessos/Configurações, que
-// não são módulos concedíveis). Qualquer outro papel vê só os módulos que
-// o síndico marcou pra ele em Acessos — ver hooks/useAuth.js (modulos).
+// O síndico sempre vê o menu completo (inclui Configurações, que não é um
+// módulo concedível). Qualquer outro papel vê só os módulos onde tem
+// permissão de "visualizar" — ver hooks/useAuth.js (modulosVisiveis).
 const SINDICO_NAV = [
   { href: "/dashboard", label: "Visão geral" },
   { href: "/dashboard/boletos", label: "Boletos" },
@@ -17,24 +17,20 @@ const SINDICO_NAV = [
   { href: "/dashboard/manutencao", label: "Manutenção" },
   { href: "/dashboard/propostas", label: "Propostas" },
   { href: "/dashboard/acessos", label: "Acessos" },
+  { href: "/dashboard/portaria", label: "Portaria" },
+  { href: "/dashboard/auditoria", label: "Auditoria" },
   { href: "/dashboard/configuracoes", label: "Configurações" },
 ];
 
-const ROLE_LABELS = {
-  sindico: "Síndico",
-  condomino: "Condômino",
-  porteiro: "Porteiro",
-  conselheiro: "Conselheiro",
-  zelador: "Zelador",
-};
+const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
 
 export default function DashboardHeader() {
-  const { user, condominio, role, modulos, isAdmin, logout } = useAuth();
+  const { user, condominio, role, modulosVisiveis, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const navItems =
     role === "sindico"
       ? SINDICO_NAV
-      : ALL_MODULOS.filter((m) => modulos.includes(m)).map((m) => ({
+      : modulosVisiveis.map((m) => ({
           href: MODULO_ROUTES[m],
           label: MODULO_LABELS[m],
         }));

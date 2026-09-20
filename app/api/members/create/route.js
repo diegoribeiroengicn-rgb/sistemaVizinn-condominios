@@ -1,18 +1,38 @@
 import { NextResponse } from "next/server";
-import { requireCondominioOwner } from "@/lib/memberAuth";
-import { ALL_MODULOS, DEFAULT_MODULOS_BY_PAPEL } from "@/lib/modulos";
+import { requireCondominioAccess } from "@/lib/memberAuth";
+import { registrarAuditoria } from "@/lib/auditoria";
+import {
+  DEFAULT_PERMISSOES_BY_PAPEL,
+  papelPodeRequererAprovacao,
+  sanitizePermissoes,
+} from "@/lib/permissoes";
 
-const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro", "zelador"]);
+const VALID_PAPEIS = new Set([
+  "condomino",
+  "porteiro",
+  "conselheiro",
+  "zelador",
+  "subsindico",
+  "administrador",
+]);
 
-// Síndico-only: creates a delimited-access account (condômino, porteiro,
-// conselheiro or zelador) for their condominio — a real Supabase login the
-// síndico hands to that person, scoped by Row Level Security to just the
-// módulos concedidos (ver membros.modulos / membro_tem_modulo() no banco).
+// Creates a delimited-access account — a real Supabase login the
+// síndico (ou um subsíndico/administrador com permissão de "criar" em
+// "acessos") hands to that person, scoped by Row Level Security às
+// permissões concedidas (ver membros.permissoes / membro_tem_permissao()
+// no banco).
+//
+// Quando quem cria é um delegado (não o síndico) com requer_aprovacao
+// ligado, a conta de login já é criada (não dá pra guardar senha em texto
+// puro numa fila de pendência), mas o acesso em si (a linha em membros)
+// só é criado quando o síndico aprovar — até lá esse login não enxerga
+// nada, porque não existe conteúdo em `membros` pra RLS liberar.
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, nome, email, telefone, password, papel, unidade, modulos } = body;
+  const { condominioId, nome, email, telefone, password, papel, unidade, permissoes, requerAprovacao } =
+    body;
 
-  const auth = await requireCondominioOwner(request, condominioId);
+  const auth = await requireCondominioAccess(request, condominioId, "acessos", "criar");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -30,20 +50,22 @@ export async function POST(request) {
     return NextResponse.json({ error: "A senha deve ter ao menos 6 caracteres." }, { status: 400 });
   }
 
-  // Sem lista explícita de módulos, usa o padrão sugerido pro papel; com
-  // lista, filtra pra só aceitar chaves conhecidas (nunca confia no que o
-  // cliente manda sem validar).
-  const modulosValidos = Array.isArray(modulos)
-    ? modulos.filter((m) => ALL_MODULOS.includes(m))
-    : DEFAULT_MODULOS_BY_PAPEL[papel] || [];
+  const permissoesValidas =
+    permissoes && typeof permissoes === "object"
+      ? sanitizePermissoes(permissoes)
+      : DEFAULT_PERMISSOES_BY_PAPEL[papel] || {};
 
-  const { supabaseAdmin } = auth;
+  const requerAprovacaoValido = papelPodeRequererAprovacao(papel)
+    ? requerAprovacao === undefined
+      ? true
+      : Boolean(requerAprovacao)
+    : false;
 
-  // The login system is email-based (no phone/SMS auth configured), so
-  // when the síndico leaves e-mail blank we still need one to create the
-  // Supabase auth user — generate a stable placeholder from the phone
-  // number and store it as `email` so it's visible in Acessos for the
-  // síndico to hand over as the login.
+  const { supabaseAdmin, isOwner, membro, user } = auth;
+  const precisaAprovacao = !isOwner && membro?.requer_aprovacao;
+
+  // O login é sempre baseado em e-mail (sem SMS/telefone configurado), com
+  // um placeholder gerado a partir do telefone quando não informado.
   const loginEmail = email || `tel-${telefone.replace(/\D/g, "")}@membro.vizinn.local`;
 
   try {
@@ -61,6 +83,34 @@ export async function POST(request) {
       throw userError;
     }
 
+    if (precisaAprovacao) {
+      const { error: pendenciaError } = await supabaseAdmin.from("pendencias").insert({
+        condominio_id: condominioId,
+        solicitante_id: user.id,
+        solicitante_nome: membro.nome,
+        acao: "criar",
+        tabela: "membros",
+        registro_id: null,
+        dados_anteriores: null,
+        dados_novos: {
+          userId: userData.user.id,
+          nome,
+          email: loginEmail,
+          telefone: telefone || null,
+          papel,
+          unidade: unidade || null,
+          permissoes: permissoesValidas,
+          requerAprovacao: requerAprovacaoValido,
+        },
+      });
+      if (pendenciaError) {
+        await supabaseAdmin.auth.admin.deleteUser(userData.user.id).catch(() => {});
+        throw pendenciaError;
+      }
+
+      return NextResponse.json({ success: true, pending: true, loginEmail });
+    }
+
     const { error: memberError } = await supabaseAdmin.from("membros").insert({
       condominio_id: condominioId,
       user_id: userData.user.id,
@@ -69,7 +119,8 @@ export async function POST(request) {
       telefone: telefone || null,
       papel,
       unidade: unidade || null,
-      modulos: modulosValidos,
+      permissoes: permissoesValidas,
+      requer_aprovacao: requerAprovacaoValido,
     });
 
     if (memberError) {
@@ -78,6 +129,17 @@ export async function POST(request) {
       await supabaseAdmin.auth.admin.deleteUser(userData.user.id).catch(() => {});
       throw memberError;
     }
+
+    await registrarAuditoria(supabaseAdmin, {
+      condominioId,
+      usuarioId: user.id,
+      usuarioNome: isOwner ? user.user_metadata?.full_name || user.email : membro.nome,
+      papel: isOwner ? "sindico" : membro.papel,
+      acao: "criar",
+      modulo: "acessos",
+      registroId: userData.user.id,
+      dadosNovos: { nome, email: loginEmail, telefone, papel, unidade, permissoes: permissoesValidas },
+    });
 
     return NextResponse.json({ success: true, loginEmail });
   } catch (err) {

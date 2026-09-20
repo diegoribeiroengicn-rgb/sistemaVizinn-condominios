@@ -15,7 +15,7 @@ const STATUS_STYLES = {
 const emptyForm = { titulo: "", descricao: "", valor: "" };
 
 export default function PropostasPage() {
-  const { condominio, user, member, role, modulos } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
   const [propostas, setPropostas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -23,11 +23,11 @@ export default function PropostasPage() {
   const [submitting, setSubmitting] = useState(false);
   const [decidingId, setDecidingId] = useState(null);
 
-  const isSindico = role === "sindico";
-  // Quem decide (aprova/reprova) é quem tem o módulo "propostas" — o
-  // síndico sempre tem (ALL_MODULOS), e qualquer outro papel que o
-  // síndico conceda esse módulo também pode, não só o conselheiro.
-  const podeDecidir = modulos.includes("propostas");
+  // Quem cadastra e quem decide (aprova/reprova) agora é definido pela
+  // permissão de cada pessoa nesse módulo, não mais fixo pro síndico ou
+  // pro papel "conselheiro" — o síndico continua sempre podendo os dois.
+  const podeCriar = temPermissao("propostas", "criar");
+  const podeDecidir = temPermissao("propostas", "aprovar");
   const decisor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   const load = useCallback(async () => {
@@ -96,12 +96,12 @@ export default function PropostasPage() {
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Propostas comerciais</h1>
         <p className="mt-1 text-sm text-navy-500">
-          {isSindico
+          {podeCriar
             ? "Cadastre propostas para o conselho avaliar."
             : "Avalie as propostas comerciais pendentes."}
         </p>
 
-        {isSindico && (
+        {podeCriar && (
           <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label-field">Título</label>

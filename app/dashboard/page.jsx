@@ -4,16 +4,19 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import DashboardContent from "@/components/DashboardContent";
-import { ALL_MODULOS, MODULO_ROUTES } from "@/lib/modulos";
+import { MODULO_ROUTES } from "@/lib/permissoes";
 
 export default function DashboardPage() {
-  const { role, modulos, loading } = useAuth();
+  const { role, modulosVisiveis, loading } = useAuth();
   const router = useRouter();
 
-  // Delimited members (any papel) don't have a "visão geral" — send them
-  // straight to the first módulo their acesso has, in a fixed order.
-  const firstModuloRoute = ALL_MODULOS.find((m) => modulos.includes(m));
-  const home = role && role !== "sindico" ? MODULO_ROUTES[firstModuloRoute] : null;
+  const isMember = Boolean(role) && role !== "sindico";
+  // "visao_geral" agora é um módulo concedível como qualquer outro — se a
+  // pessoa tem, ela fica aqui mesmo. Se não tem, manda pro primeiro
+  // módulo que ela enxerga (em ordem fixa).
+  const temVisaoGeral = isMember && modulosVisiveis.includes("visao_geral");
+  const primeiroModulo = isMember ? modulosVisiveis.find((m) => m !== "visao_geral") : null;
+  const home = isMember && !temVisaoGeral ? MODULO_ROUTES[primeiroModulo] : null;
 
   useEffect(() => {
     if (home) router.replace(home);
@@ -27,7 +30,7 @@ export default function DashboardPage() {
     return <p className="text-navy-500">Redirecionando...</p>;
   }
 
-  if (role && role !== "sindico" && !firstModuloRoute) {
+  if (isMember && !temVisaoGeral && !primeiroModulo) {
     return (
       <div className="card text-center text-navy-500">
         Seu acesso ainda não tem nenhum módulo liberado. Fale com o síndico.

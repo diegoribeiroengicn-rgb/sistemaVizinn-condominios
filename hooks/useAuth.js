@@ -3,14 +3,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { parseEmailList } from "@/lib/emailList";
-import { ALL_MODULOS } from "@/lib/modulos";
+import { ALL_MODULOS } from "@/lib/permissoes";
 
 const AuthContext = createContext({
   user: null,
   condominio: null,
   member: null,
   role: null,
-  modulos: [],
+  permissoes: {},
+  modulosVisiveis: [],
+  temPermissao: () => false,
   loading: true,
   isAdmin: false,
   logout: async () => {},
@@ -77,12 +79,29 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         const { condominio: c, member: m } = await fetchAccess(session.user.id);
         setCondominio(c);
         setMember(m);
+        if (event === "SIGNED_IN" && c) {
+          const usuarioNome = m?.nome || session.user.user_metadata?.full_name || session.user.email;
+          const papel = m?.papel || "sindico";
+          supabase
+            .from("auditoria")
+            .insert({
+              condominio_id: c.id,
+              usuario_id: session.user.id,
+              usuario_nome: usuarioNome,
+              papel,
+              acao: "login",
+              modulo: "sistema",
+            })
+            .then(({ error }) => {
+              if (error) console.error("Erro ao registrar login na auditoria:", error.message);
+            });
+        }
       } else {
         setCondominio(null);
         setMember(null);
@@ -124,18 +143,53 @@ export function AuthProvider({ children }) {
     return null;
   }, [user, member, condominio]);
 
-  // The síndico (owner) always has every módulo; a delimited member's
-  // access is whatever the síndico picked for them in Acessos, stored on
-  // their membros row — this is just a client-side read for the UI, the
-  // real enforcement is the membro_tem_modulo() check in every RLS policy.
-  const modulos = useMemo(() => {
+  // The síndico (owner) always has every ação em todo módulo; a delimited
+  // member's access is whatever the síndico picked for them in Acessos,
+  // stored on their membros row (permissoes: { modulo: [ações] }) — this
+  // is just a client-side read for the UI, the real enforcement is the
+  // membro_tem_permissao()/membro_tem_modulo() check in every RLS policy.
+  const permissoes = useMemo(() => member?.permissoes || {}, [member]);
+
+  const temPermissao = useCallback(
+    (modulo, acao) => {
+      if (role === "sindico") return true;
+      return Boolean(permissoes[modulo]?.includes(acao));
+    },
+    [role, permissoes]
+  );
+
+  const modulosVisiveis = useMemo(() => {
     if (role === "sindico") return ALL_MODULOS;
-    return member?.modulos || [];
-  }, [role, member]);
+    return ALL_MODULOS.filter((m) => permissoes[m]?.includes("visualizar"));
+  }, [role, permissoes]);
 
   const value = useMemo(
-    () => ({ user, condominio, member, role, modulos, loading, isAdmin, logout, refreshCondominio }),
-    [user, condominio, member, role, modulos, loading, isAdmin, logout, refreshCondominio]
+    () => ({
+      user,
+      condominio,
+      member,
+      role,
+      permissoes,
+      modulosVisiveis,
+      temPermissao,
+      loading,
+      isAdmin,
+      logout,
+      refreshCondominio,
+    }),
+    [
+      user,
+      condominio,
+      member,
+      role,
+      permissoes,
+      modulosVisiveis,
+      temPermissao,
+      loading,
+      isAdmin,
+      logout,
+      refreshCondominio,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
