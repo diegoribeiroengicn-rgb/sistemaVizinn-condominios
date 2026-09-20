@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { MODULO_LABELS, MODULO_ROUTES, PAPEL_LABELS } from "@/lib/permissoes";
 import { getStoredTheme, setStoredTheme } from "@/lib/theme";
+import { useFormDirty } from "@/lib/formDirtyContext";
 import {
   IconVisaoGeral,
   IconFinanceiro,
@@ -78,9 +79,20 @@ const SIDEBAR_COLLAPSE_KEY = "vizinn-sidebar-collapsed";
 export default function DashboardSidebar() {
   const { user, condominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
   const pathname = usePathname();
+  const { dirty } = useFormDirty();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [tema, setTema] = useState("light");
+
+  // Chamado antes de qualquer navegação/saída que possa perder dados —
+  // devolve false (e cancela o clique) se a pessoa desistir de sair.
+  function confirmarSaida(e) {
+    if (dirty && !window.confirm("Você tem alterações não salvas nesta página. Sair mesmo assim?")) {
+      e.preventDefault();
+      return false;
+    }
+    return true;
+  }
 
   useEffect(() => {
     try {
@@ -133,7 +145,7 @@ export default function DashboardSidebar() {
   const conteudo = (
     <>
       <div className="flex items-center gap-2.5 px-4 py-6">
-        <Link href="/dashboard" className="flex items-center gap-2.5">
+        <Link href="/dashboard" onClick={confirmarSaida} className="flex items-center gap-2.5">
           <svg width="40" height="40" viewBox="0 0 1920 1920" fill="none" aria-hidden="true" className="flex-none">
             <path
               d="M804 402c40-40 108-12 108 44v378c0 30 12 59 34 80l7 6 7-6c22-21 34-50 34-80V446c0-56 68-84 108-44l236 236c78 78 122 184 122 294v378c0 92-75 167-167 167h-134V1231a153 153 0 0 0-306 0v270H610c-92 0-167-75-167-167V976c0-110 44-216 122-294l239-236z"
@@ -152,6 +164,7 @@ export default function DashboardSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={confirmarSaida}
               title={collapsed ? item.label : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                 active ? "bg-coral text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
@@ -165,6 +178,7 @@ export default function DashboardSidebar() {
         {isAdmin && (
           <Link
             href="/admin"
+            onClick={confirmarSaida}
             title={collapsed ? "Painel admin" : undefined}
             className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
           >
@@ -195,7 +209,10 @@ export default function DashboardSidebar() {
         </button>
 
         <button
-          onClick={logout}
+          onClick={() => {
+            if (dirty && !window.confirm("Você tem alterações não salvas nesta página. Sair mesmo assim?")) return;
+            logout();
+          }}
           className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
         >
           <IconSair className="h-5 w-5 flex-none" />
@@ -216,7 +233,7 @@ export default function DashboardSidebar() {
     <>
       {/* Barra fina no celular/tablet — abre o menu lateral como gaveta */}
       <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
-        <Link href="/dashboard" className="flex items-center gap-2">
+        <Link href="/dashboard" onClick={confirmarSaida} className="flex items-center gap-2">
           <svg width="32" height="32" viewBox="0 0 1920 1920" fill="none" aria-hidden="true">
             <path
               d="M804 402c40-40 108-12 108 44v378c0 30 12 59 34 80l7 6 7-6c22-21 34-50 34-80V446c0-56 68-84 108-44l236 236c78 78 122 184 122 294v378c0 92-75 167-167 167h-134V1231a153 153 0 0 0-306 0v270H610c-92 0-167-75-167-167V976c0-110 44-216 122-294l239-236z"

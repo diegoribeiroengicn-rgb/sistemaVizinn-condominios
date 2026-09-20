@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   ACOES,
   ACAO_LABELS,
@@ -101,6 +102,7 @@ export default function AcessosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
+  useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState(null);
   const [resettingId, setResettingId] = useState(null);

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
 
@@ -93,6 +94,7 @@ export default function ManutencaoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
+  useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [gerenciandoId, setGerenciandoId] = useState(null);
   const [gerenciarForm, setGerenciarForm] = useState(null);

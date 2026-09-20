@@ -1112,3 +1112,39 @@ create policy "Members with financeiro can delete documentos"
     bucket_id = 'financeiro-documentos'
     and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'financeiro', 'excluir')
   );
+
+-- Notificações automáticas (e-mail via Resend, WhatsApp via Meta Cloud
+-- API) — ver /app/api/notificar. "unidade"/"bloco" em ocorrencias e
+-- "notificar_morador" permitem à portaria marcar "isso é uma entrega,
+-- avisar o morador" sem criar um módulo à parte.
+alter table public.ocorrencias add column if not exists unidade text;
+alter table public.ocorrencias add column if not exists bloco text;
+alter table public.ocorrencias add column if not exists notificar_morador boolean not null default false;
+
+-- Log das tentativas de envio (auditoria própria, além da tabela
+-- `auditoria` genérica) — guarda o que foi mandado, pra quem e se deu
+-- certo, sem guardar o conteúdo da mensagem (só o evento e a referência).
+create table if not exists public.notificacoes_log (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  evento text not null,
+  referencia_id uuid,
+  canal text not null check (canal in ('email', 'whatsapp')),
+  destinatario_nome text,
+  destinatario_contato text,
+  status text not null check (status in ('enviado', 'erro')),
+  erro_mensagem text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notificacoes_log_condominio_id_idx on public.notificacoes_log (condominio_id, created_at desc);
+
+alter table public.notificacoes_log enable row level security;
+
+drop policy if exists "Owners and auditoria can view notificacoes_log" on public.notificacoes_log;
+create policy "Owners and auditoria can view notificacoes_log"
+  on public.notificacoes_log for select
+  using (public.membro_tem_modulo(condominio_id, 'auditoria'));
+
+grant select on public.notificacoes_log to authenticated;
+grant all on public.notificacoes_log to service_role;

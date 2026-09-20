@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { FUNCAO_SUGESTOES, STATUS_LABELS, STATUS_ORDER, STATUS_STYLES, formatarWhatsapp } from "@/lib/colaboradores";
 
 const emptyForm = {
@@ -33,6 +34,7 @@ export default function ColaboradoresPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
+  useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);

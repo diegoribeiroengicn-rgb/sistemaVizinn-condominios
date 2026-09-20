@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 
 const STATUS_LABELS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada" };
 const STATUS_STYLES = {
@@ -24,6 +25,7 @@ export default function PropostasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
+  useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [decidingId, setDecidingId] = useState(null);
 

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   CATEGORIAS_DESPESA,
   CATEGORIAS_RECEITA,
@@ -117,8 +118,10 @@ export default function FinanceiroPage() {
   const [periodoFim, setPeriodoFim] = useState("");
 
   const [formPagar, setFormPagar] = useState(emptyContaPagar);
+  useAvisoSaidaSemSalvar(formPagar, emptyContaPagar);
   const [submittingPagar, setSubmittingPagar] = useState(false);
   const [formReceber, setFormReceber] = useState(emptyContaReceber);
+  useAvisoSaidaSemSalvar(formReceber, emptyContaReceber);
   const [submittingReceber, setSubmittingReceber] = useState(false);
   const [filtroStatusPagar, setFiltroStatusPagar] = useState("");
   const [filtroStatusReceber, setFiltroStatusReceber] = useState("");

@@ -122,6 +122,8 @@ cp .env.example .env.local
 | `STRIPE_WEBHOOK_SECRET` | Stripe CLI (`stripe listen`) ou Dashboard → Webhooks |
 | `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_PRO` | Stripe → Product catalog (crie um Price recorrente mensal para cada plano) |
 | `ADMIN_EMAILS` / `NEXT_PUBLIC_ADMIN_EMAILS` | E-mail(s) com acesso ao painel `/admin` (defina os dois com o mesmo valor) |
+| `RESEND_API_KEY` / `EMAIL_FROM` | [resend.com](https://resend.com) → API Keys (plano grátis, 3 mil e-mails/mês) |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | [developers.facebook.com/apps](https://developers.facebook.com/apps) → seu app → WhatsApp → API Setup |
 | `ALLOW_TEST_SIGNUP` / `NEXT_PUBLIC_TEST_MODE` | `true` para liberar o cadastro sem Stripe (ver seção acima) — **desligue em produção** |
 
 ### 3. Banco de dados
@@ -145,6 +147,52 @@ Abra [http://localhost:3000](http://localhost:3000).
    Vercel.
 4. Configure o endpoint de webhook do Stripe apontando para
    `https://SEU_DOMINIO/api/webhook`.
+
+## Notificações automáticas (e-mail + WhatsApp)
+
+`lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
+(Meta Cloud API) para dois eventos hoje:
+
+- **Encomenda chegou**: ao registrar uma Ocorrência marcando "avisar o
+  morador", todo condômino daquela unidade/bloco recebe a notificação.
+- **Chamado atribuído**: ao definir um responsável (colaborador ou membro)
+  num chamado, essa pessoa recebe a notificação.
+
+Cada tentativa fica registrada em `notificacoes_log` (visível em quem tem
+acesso a Auditoria).
+
+### Configurar o Resend (e-mail)
+
+1. Crie uma conta grátis em [resend.com](https://resend.com).
+2. Gere uma API key e coloque em `RESEND_API_KEY`.
+3. Sem domínio próprio verificado, deixe `EMAIL_FROM=onboarding@resend.dev`
+   (funciona pra testar, mas mostra "via resend.dev" pro destinatário —
+   verifique seu domínio no Resend quando for pra produção).
+
+### Configurar o WhatsApp (Meta Cloud API)
+
+1. Crie um app em [developers.facebook.com/apps](https://developers.facebook.com/apps),
+   adicione o produto "WhatsApp".
+2. Em "API Setup", copie o **Temporary access token** (ou gere um permanente
+   depois) e o **Phone number ID** — vão em `WHATSAPP_TOKEN` e
+   `WHATSAPP_PHONE_NUMBER_ID`.
+3. No modo de desenvolvimento, a Meta libera um número de teste grátis e até
+   5 números de destino verificados — dá pra testar tudo sem pagar nada.
+4. **Crie os dois templates de mensagem** em WhatsApp Manager → Message
+   Templates (categoria "Utility"), com estes textos exatos (as variáveis
+   `{{1}}`, `{{2}}`... viram os dados reais na hora do envio):
+
+   - **Nome:** `encomenda_chegou`
+     **Corpo:** `Olá {{1}}, chegou uma encomenda para você em {{2}}. {{3}}`
+
+   - **Nome:** `chamado_atribuido`
+     **Corpo:** `Olá {{1}}, um novo chamado foi atribuído a você: {{2}} (prioridade: {{3}}).`
+
+   A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
+   não estiver aprovado, o envio de WhatsApp falha (fica registrado como
+   "erro" em `notificacoes_log`) — o e-mail continua funcionando normalmente.
+5. Pra produção (enviar pra qualquer número, não só os 5 de teste), é
+   preciso verificar a empresa no Meta Business Manager.
 
 ## Estrutura
 

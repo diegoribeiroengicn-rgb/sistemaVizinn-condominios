@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
+import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { PAPEIS_EQUIPE } from "@/lib/permissoes";
 import {
   CATEGORIA_SUGESTOES,
@@ -73,6 +75,7 @@ export default function ChamadosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
+  useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [filtro, setFiltro] = useState(emptyFiltro);
   const [gerenciandoId, setGerenciandoId] = useState(null);
@@ -205,6 +208,23 @@ export default function ChamadosPage() {
     return [...colaboradores].sort((a, b) => (carga[a.id] || 0) - (carga[b.id] || 0))[0];
   }
 
+  function notificarResponsavel(chamado, { colaboradorId, membroUserId }) {
+    if (!colaboradorId && !membroUserId) return;
+    authedFetch("/api/notificar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        condominioId: condominio.id,
+        evento: "chamado_atribuido",
+        chamadoId: chamado.id,
+        titulo: chamado.titulo,
+        prioridade: chamado.prioridade,
+        colaboradorId: colaboradorId || null,
+        membroUserId: membroUserId || null,
+      }),
+    }).catch((err) => console.error("Erro ao notificar responsável:", err));
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!condominio?.id || !form.titulo.trim()) return;
@@ -221,31 +241,41 @@ export default function ChamadosPage() {
       colaboradorId = escolherColaboradorAutomatico()?.id || null;
     }
 
-    const { error: insertError } = await supabase.from("chamados").insert({
-      condominio_id: condominio.id,
-      tipo: tipoFinal,
-      titulo: form.titulo.trim(),
-      descricao: form.descricao.trim() || null,
-      categoria: form.categoria.trim() || null,
-      prioridade: form.prioridade,
-      unidade: tipoFinal === "condominio" ? form.unidade.trim() || null : null,
-      bloco: tipoFinal === "condominio" ? form.bloco.trim() || null : null,
-      local: tipoFinal === "interno" ? form.local.trim() || null : null,
-      solicitante_id: user?.id || null,
-      solicitante_nome: nomeUsuario,
-      responsavel_id: responsavelSelecionado?.userId || null,
-      responsavel_nome: responsavelSelecionado?.label || null,
-      responsavel_colaborador_id: colaboradorId,
-      data_prevista: form.dataPrevista || null,
-      status: "aberto",
-      ocorrencia_origem_id: ocorrenciaId,
-    });
+    const { data: chamadoCriado, error: insertError } = await supabase
+      .from("chamados")
+      .insert({
+        condominio_id: condominio.id,
+        tipo: tipoFinal,
+        titulo: form.titulo.trim(),
+        descricao: form.descricao.trim() || null,
+        categoria: form.categoria.trim() || null,
+        prioridade: form.prioridade,
+        unidade: tipoFinal === "condominio" ? form.unidade.trim() || null : null,
+        bloco: tipoFinal === "condominio" ? form.bloco.trim() || null : null,
+        local: tipoFinal === "interno" ? form.local.trim() || null : null,
+        solicitante_id: user?.id || null,
+        solicitante_nome: nomeUsuario,
+        responsavel_id: responsavelSelecionado?.userId || null,
+        responsavel_nome: responsavelSelecionado?.label || null,
+        responsavel_colaborador_id: colaboradorId,
+        data_prevista: form.dataPrevista || null,
+        status: "aberto",
+        ocorrencia_origem_id: ocorrenciaId,
+      })
+      .select()
+      .single();
     setSubmitting(false);
 
     if (insertError) {
       setError(insertError.message);
       return;
     }
+
+    notificarResponsavel(chamadoCriado, {
+      colaboradorId,
+      membroUserId: !colaboradorId ? responsavelSelecionado?.userId : null,
+    });
+
     setForm(emptyForm);
     if (ocorrenciaId) router.replace("/dashboard/chamados");
     load();
@@ -293,6 +323,20 @@ export default function ChamadosPage() {
       setError(updateError.message);
       return;
     }
+
+    const responsavelMudou =
+      updates.responsavel_colaborador_id !== chamado.responsavel_colaborador_id ||
+      updates.responsavel_id !== chamado.responsavel_id;
+    if (responsavelMudou) {
+      notificarResponsavel(
+        { ...chamado, ...updates },
+        {
+          colaboradorId: updates.responsavel_colaborador_id,
+          membroUserId: !updates.responsavel_colaborador_id ? updates.responsavel_id : null,
+        }
+      );
+    }
+
     setGerenciandoId(null);
     setGerenciarForm(null);
     load();
