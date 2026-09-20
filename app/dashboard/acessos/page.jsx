@@ -12,6 +12,41 @@ const PAPEL_LABELS = {
   zelador: "Zelador",
 };
 
+// O que cada papel enxerga no sistema. Fixo no código por enquanto — não é
+// customizável pelo síndico (ver README para o motivo dessa decisão).
+const ROLE_OVERVIEW = [
+  {
+    papel: "sindico",
+    label: "Síndico (você)",
+    description: "Acesso total: todos os módulos, todos os dados do condomínio.",
+    modulos: ["Visão geral", "Boletos*", "Chamados", "Avisos", "Ocorrências", "Manutenção", "Propostas", "Acessos", "Configurações"],
+  },
+  {
+    papel: "condomino",
+    label: "Condômino",
+    description: "Só consulta avisos publicados pelo síndico.",
+    modulos: ["Avisos (leitura)"],
+  },
+  {
+    papel: "porteiro",
+    label: "Porteiro",
+    description: "Registra e consulta o livro de ocorrências da portaria.",
+    modulos: ["Ocorrências"],
+  },
+  {
+    papel: "zelador",
+    label: "Zelador",
+    description: "Gerencia ordens de manutenção e também registra ocorrências.",
+    modulos: ["Manutenção", "Ocorrências"],
+  },
+  {
+    papel: "conselheiro",
+    label: "Conselheiro",
+    description: "Avalia e aprova/reprova propostas comerciais cadastradas pelo síndico.",
+    modulos: ["Propostas"],
+  },
+];
+
 const emptyForm = { nome: "", email: "", telefone: "", password: "", papel: "condomino", unidade: "" };
 
 export default function AcessosPage() {
@@ -99,10 +134,47 @@ export default function AcessosPage() {
     return <p className="text-navy-500">Carregando condomínio...</p>;
   }
 
+  const countByPapel = (papel) =>
+    papel === "sindico" ? 1 : membros.filter((m) => m.papel === papel).length;
+
   return (
     <div className="space-y-6">
-      <div className="card">
+      <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Acessos</h1>
+        <p className="mt-1 text-sm text-navy-500">
+          Quem vê o quê no seu condomínio — cada papel só enxerga os módulos listados abaixo.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {ROLE_OVERVIEW.map((r) => (
+          <div key={r.papel} className="card">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-navy-900">{r.label}</h3>
+              <span className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600">
+                {countByPapel(r.papel)} {countByPapel(r.papel) === 1 ? "pessoa" : "pessoas"}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-navy-500">{r.description}</p>
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {r.modulos.map((m) => (
+                <li
+                  key={m}
+                  className="rounded-full bg-coral-50 px-2 py-0.5 text-xs font-medium text-coral-700"
+                >
+                  {m}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-navy-400">
+        * Boletos ainda é um módulo em construção (depende de integração bancária).
+      </p>
+
+      <div className="card">
+        <h2 className="font-display text-lg font-bold text-navy-900">Criar novo acesso</h2>
         <p className="mt-1 text-sm text-navy-500">
           Crie contas com acesso delimitado: condômino (só avisos, por enquanto), porteiro
           (ocorrências), conselheiro (propostas comerciais) ou zelador (manutenção e
