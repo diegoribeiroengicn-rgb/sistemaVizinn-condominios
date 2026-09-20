@@ -287,3 +287,16 @@ create policy "Owners and conselheiros can update propostas"
   );
 
 grant select, insert, update on public.propostas to authenticated;
+
+-- The service_role key (used server-side by /app/api/* via
+-- lib/supabaseAdmin.js) BYPASSES RLS POLICIES, but — same gotcha as the
+-- "authenticated" GRANTs above — bypassing RLS is not the same as having
+-- the base table privilege. Without these, every server-side admin/signup
+-- route fails with "permission denied for table X" even though the
+-- service_role key is supposed to have full access.
+grant all on public.condominios to service_role;
+grant all on public.chamados to service_role;
+grant all on public.avisos to service_role;
+grant all on public.membros to service_role;
+grant all on public.ocorrencias to service_role;
+grant all on public.propostas to service_role;
