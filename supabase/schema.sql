@@ -184,17 +184,23 @@ grant select, insert, delete on public.avisos to authenticated;
 -- condominio owner (condominios.owner_id) already has full access and is
 -- NOT a row here — this table is only for roles the síndico explicitly
 -- creates: condômino (read-only, own unit), porteiro (ocorrências),
--- conselheiro (approve/reject propostas).
+-- conselheiro (approve/reject propostas), zelador (manutenção + ocorrências).
 create table if not exists public.membros (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
   nome text not null,
   email text not null,
-  papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro')),
+  papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador')),
   unidade text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: widens the check constraint if this script already ran
+-- before "zelador" existed as a papel.
+alter table public.membros drop constraint if exists membros_papel_check;
+alter table public.membros add constraint membros_papel_check
+  check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador'));
 
 create unique index if not exists membros_user_id_key on public.membros (user_id);
 create index if not exists membros_condominio_id_idx on public.membros (condominio_id);
@@ -213,8 +219,9 @@ create policy "Owners can delete their membros"
 
 grant select, delete on public.membros to authenticated;
 
--- Ocorrências: portaria log. Registered by porteiro (or the síndico),
--- visible to the síndico and porteiros of that condominio.
+-- Ocorrências: portaria log. Registered by porteiro/zelador (or the
+-- síndico), visible to the síndico, porteiros and zeladores of that
+-- condominio.
 create table if not exists public.ocorrencias (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
@@ -229,22 +236,69 @@ create index if not exists ocorrencias_condominio_id_idx on public.ocorrencias (
 alter table public.ocorrencias enable row level security;
 
 drop policy if exists "Owners and porteiros can view ocorrencias" on public.ocorrencias;
-create policy "Owners and porteiros can view ocorrencias"
+drop policy if exists "Owners porteiros and zeladores can view ocorrencias" on public.ocorrencias;
+create policy "Owners porteiros and zeladores can view ocorrencias"
   on public.ocorrencias for select
   using (
     public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'porteiro'
+    or public.membro_papel(condominio_id) in ('porteiro', 'zelador')
   );
 
 drop policy if exists "Owners and porteiros can insert ocorrencias" on public.ocorrencias;
-create policy "Owners and porteiros can insert ocorrencias"
+drop policy if exists "Owners porteiros and zeladores can insert ocorrencias" on public.ocorrencias;
+create policy "Owners porteiros and zeladores can insert ocorrencias"
   on public.ocorrencias for insert
   with check (
     public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'porteiro'
+    or public.membro_papel(condominio_id) in ('porteiro', 'zelador')
   );
 
 grant select, insert on public.ocorrencias to authenticated;
+grant all on public.ocorrencias to service_role;
+
+-- Manutenção: work orders for the zelador/funcionário. Síndico and
+-- zeladores can create/view/edit; only the zelador role closes them (but
+-- the síndico can too, since owners can do everything a member can).
+create table if not exists public.manutencoes (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  unidade text,
+  status text not null default 'aberta' check (status in ('aberta', 'em_andamento', 'concluida')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists manutencoes_condominio_id_idx on public.manutencoes (condominio_id);
+
+alter table public.manutencoes enable row level security;
+
+drop policy if exists "Owners and zeladores can view manutencoes" on public.manutencoes;
+create policy "Owners and zeladores can view manutencoes"
+  on public.manutencoes for select
+  using (
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'zelador'
+  );
+
+drop policy if exists "Owners and zeladores can insert manutencoes" on public.manutencoes;
+create policy "Owners and zeladores can insert manutencoes"
+  on public.manutencoes for insert
+  with check (
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'zelador'
+  );
+
+drop policy if exists "Owners and zeladores can update manutencoes" on public.manutencoes;
+create policy "Owners and zeladores can update manutencoes"
+  on public.manutencoes for update
+  using (
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'zelador'
+  );
+
+grant select, insert, update on public.manutencoes to authenticated;
+grant all on public.manutencoes to service_role;
 
 -- Propostas comerciais: created by the síndico, decided (aprovar/reprovar)
 -- by the síndico or a conselheiro.
@@ -298,5 +352,5 @@ grant all on public.condominios to service_role;
 grant all on public.chamados to service_role;
 grant all on public.avisos to service_role;
 grant all on public.membros to service_role;
-grant all on public.ocorrencias to service_role;
 grant all on public.propostas to service_role;
+-- (ocorrencias and manutencoes already granted above, next to their tables)

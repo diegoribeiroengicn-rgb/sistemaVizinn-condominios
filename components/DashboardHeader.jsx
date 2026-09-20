@@ -11,6 +11,7 @@ const NAV_BY_ROLE = {
     { href: "/dashboard/chamados", label: "Chamados" },
     { href: "/dashboard/avisos", label: "Avisos" },
     { href: "/dashboard/ocorrencias", label: "Ocorrências" },
+    { href: "/dashboard/manutencao", label: "Manutenção" },
     { href: "/dashboard/propostas", label: "Propostas" },
     { href: "/dashboard/acessos", label: "Acessos" },
     { href: "/dashboard/configuracoes", label: "Configurações" },
@@ -18,6 +19,10 @@ const NAV_BY_ROLE = {
   condomino: [{ href: "/dashboard/avisos", label: "Avisos" }],
   porteiro: [{ href: "/dashboard/ocorrencias", label: "Ocorrências" }],
   conselheiro: [{ href: "/dashboard/propostas", label: "Propostas" }],
+  zelador: [
+    { href: "/dashboard/manutencao", label: "Manutenção" },
+    { href: "/dashboard/ocorrencias", label: "Ocorrências" },
+  ],
 };
 
 const ROLE_LABELS = {
@@ -25,6 +30,7 @@ const ROLE_LABELS = {
   condomino: "Condômino",
   porteiro: "Porteiro",
   conselheiro: "Conselheiro",
+  zelador: "Zelador",
 };
 
 export default function DashboardHeader() {

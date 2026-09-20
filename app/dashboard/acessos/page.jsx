@@ -9,6 +9,7 @@ const PAPEL_LABELS = {
   condomino: "Condômino",
   porteiro: "Porteiro",
   conselheiro: "Conselheiro",
+  zelador: "Zelador",
 };
 
 const emptyForm = { nome: "", email: "", password: "", papel: "condomino", unidade: "" };
@@ -96,7 +97,8 @@ export default function AcessosPage() {
         <h1 className="font-display text-xl font-bold text-navy-900">Acessos</h1>
         <p className="mt-1 text-sm text-navy-500">
           Crie contas com acesso delimitado: condômino (só avisos, por enquanto), porteiro
-          (ocorrências) ou conselheiro (propostas comerciais).
+          (ocorrências), conselheiro (propostas comerciais) ou zelador (manutenção e
+          ocorrências).
         </p>
 
         <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -140,6 +142,7 @@ export default function AcessosPage() {
               <option value="condomino">Condômino</option>
               <option value="porteiro">Porteiro</option>
               <option value="conselheiro">Conselheiro</option>
+              <option value="zelador">Zelador</option>
             </select>
           </div>
           {form.papel === "condomino" && (

@@ -9,6 +9,7 @@ const ROLE_HOME = {
   condomino: "/dashboard/avisos",
   porteiro: "/dashboard/ocorrencias",
   conselheiro: "/dashboard/propostas",
+  zelador: "/dashboard/manutencao",
 };
 
 export default function DashboardPage() {

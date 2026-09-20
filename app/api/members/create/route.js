@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireCondominioOwner } from "@/lib/memberAuth";
 
-const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro"]);
+const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro", "zelador"]);
 
-// Síndico-only: creates a delimited-access account (condômino, porteiro or
-// conselheiro) for their condominio — a real Supabase login the síndico
-// hands to that person, scoped by Row Level Security to just their papel.
+// Síndico-only: creates a delimited-access account (condômino, porteiro,
+// conselheiro or zelador) for their condominio — a real Supabase login the
+// síndico hands to that person, scoped by Row Level Security to just their
+// papel.
 export async function POST(request) {
   const body = await request.json();
   const { condominioId, nome, email, password, papel, unidade } = body;
