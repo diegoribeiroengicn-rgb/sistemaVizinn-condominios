@@ -18,6 +18,7 @@ import {
   IconAcessos,
   IconPortaria,
   IconAuditoria,
+  IconColaboradores,
   IconConfiguracoes,
   IconSol,
   IconLua,
@@ -43,6 +44,7 @@ const SINDICO_NAV = [
   { href: "/dashboard/acessos", label: "Acessos", Icon: IconAcessos },
   { href: "/dashboard/portaria", label: "Portaria", Icon: IconPortaria },
   { href: "/dashboard/auditoria", label: "Auditoria", Icon: IconAuditoria },
+  { href: "/dashboard/colaboradores", label: "Colaboradores", Icon: IconColaboradores },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
 ];
 
@@ -58,6 +60,7 @@ const ICON_BY_MODULO = {
   acessos: IconAcessos,
   portaria: IconPortaria,
   auditoria: IconAuditoria,
+  colaboradores: IconColaboradores,
 };
 
 const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };

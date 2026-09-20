@@ -129,6 +129,17 @@ export function IconAuditoria(props) {
   );
 }
 
+export function IconColaboradores(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="8" r="3" />
+      <circle cx="16.5" cy="9" r="2.3" />
+      <path d="M3 20c0-3.3 2.4-5.5 5-5.5s5 2.2 5 5.5" />
+      <path d="M14.5 15.2c2.4 0.4 3.8 2.3 3.8 4.8" />
+    </Icon>
+  );
+}
+
 export function IconConfiguracoes(props) {
   return (
     <Icon {...props}>

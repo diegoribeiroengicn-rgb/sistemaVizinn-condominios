@@ -637,6 +637,66 @@ alter table public.manutencoes add column if not exists fornecedor_id uuid refer
 alter table public.propostas add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
 alter table public.propostas add column if not exists fornecedor_nome text;
 
+-- Colaboradores: pessoas que trabalham no condomínio (zelador, porteiro,
+-- equipe de limpeza etc.), separado de `membros` (quem tem login no
+-- Vizinn). Um colaborador pode não ter login algum — por isso
+-- `membro_id` é opcional e só é preenchido quando `possui_acesso` = true.
+create table if not exists public.colaboradores (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  nome text not null,
+  cpf text,
+  funcao text not null,
+  setor text,
+  telefone text,
+  whatsapp_ddi text,
+  whatsapp_ddd text,
+  whatsapp_numero text,
+  tem_whatsapp boolean not null default false,
+  email text,
+  data_inicio date,
+  status text not null default 'ativo' check (status in ('ativo', 'inativo', 'ferias', 'afastado')),
+  observacoes text,
+  possui_acesso boolean not null default false,
+  membro_id uuid references public.membros (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists colaboradores_condominio_id_idx on public.colaboradores (condominio_id);
+
+alter table public.colaboradores enable row level security;
+
+drop policy if exists "Members can view colaboradores" on public.colaboradores;
+create policy "Members can view colaboradores"
+  on public.colaboradores for select
+  using (public.membro_tem_modulo(condominio_id, 'colaboradores'));
+
+drop policy if exists "Members can insert colaboradores" on public.colaboradores;
+create policy "Members can insert colaboradores"
+  on public.colaboradores for insert
+  with check (public.membro_tem_permissao(condominio_id, 'colaboradores', 'criar'));
+
+drop policy if exists "Members can update colaboradores" on public.colaboradores;
+create policy "Members can update colaboradores"
+  on public.colaboradores for update
+  using (public.membro_tem_permissao(condominio_id, 'colaboradores', 'editar'));
+
+drop policy if exists "Members can delete colaboradores" on public.colaboradores;
+create policy "Members can delete colaboradores"
+  on public.colaboradores for delete
+  using (public.membro_tem_permissao(condominio_id, 'colaboradores', 'excluir'));
+
+grant select, insert, update, delete on public.colaboradores to authenticated;
+grant all on public.colaboradores to service_role;
+
+-- Liga chamados e manutenções a um colaborador (responsável), sem mexer
+-- nos campos responsavel_id/responsavel_nome já existentes (que
+-- continuam funcionando pra registros antigos) — é um vínculo adicional
+-- opcional, preenchido quando o responsável escolhido é um colaborador
+-- cadastrado (com ou sem login).
+alter table public.chamados add column if not exists responsavel_colaborador_id uuid references public.colaboradores (id) on delete set null;
+alter table public.manutencoes add column if not exists responsavel_colaborador_id uuid references public.colaboradores (id) on delete set null;
+
 -- Contas a Pagar.
 create table if not exists public.contas_pagar (
   id uuid primary key default gen_random_uuid(),
@@ -944,6 +1004,11 @@ create trigger trg_auditoria_contas_pagar
 drop trigger if exists trg_auditoria_contas_receber on public.contas_receber;
 create trigger trg_auditoria_contas_receber
   after insert or update or delete on public.contas_receber
+  for each row execute function public.registrar_auditoria_generica();
+
+drop trigger if exists trg_auditoria_colaboradores on public.colaboradores;
+create trigger trg_auditoria_colaboradores
+  after insert or update or delete on public.colaboradores
   for each row execute function public.registrar_auditoria_generica();
 
 -- Nota: não há trigger de auditoria em `membros` — as mudanças ali passam

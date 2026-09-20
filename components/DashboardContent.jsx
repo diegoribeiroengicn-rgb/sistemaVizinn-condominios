@@ -60,6 +60,7 @@ export default function DashboardContent() {
   const podeFinanceiro = temPermissao("financeiro", "visualizar");
   const podeFornecedores = temPermissao("fornecedores", "visualizar");
   const podePropostas = temPermissao("propostas", "visualizar");
+  const podeColaboradores = temPermissao("colaboradores", "visualizar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -73,6 +74,7 @@ export default function DashboardContent() {
     }
     if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
     if (podePropostas) queries.propostas = supabase.from("propostas").select("status").eq("condominio_id", condominio.id);
+    if (podeColaboradores) queries.colaboradores = supabase.from("colaboradores").select("status").eq("condominio_id", condominio.id);
     // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
     // o campo condominios.unidades_ativas nunca é atualizado automaticamente,
     // então usamos a contagem real em vez dele.
@@ -89,7 +91,7 @@ export default function DashboardContent() {
       dados[k] = resultados[i].data || [];
     });
     setIndicadores(dados);
-  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas]);
+  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas, podeColaboradores]);
 
   useEffect(() => {
     load();
@@ -136,6 +138,8 @@ export default function DashboardContent() {
   const fornecedoresEmAvaliacao = indicadores?.fornecedores?.filter((f) => f.status === "em_avaliacao") || [];
 
   const propostasPendentes = indicadores?.propostas?.filter((p) => p.status === "pendente") || [];
+
+  const colaboradoresAtivos = indicadores?.colaboradores?.filter((c) => c.status === "ativo") || [];
 
   return (
     <div className="space-y-8">
@@ -205,6 +209,15 @@ export default function DashboardContent() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Propostas</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Indicador href="/dashboard/propostas" label="Aguardando aprovação" value={propostasPendentes.length} />
+          </div>
+        </section>
+      )}
+
+      {podeColaboradores && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Colaboradores</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/colaboradores" label="Ativos" value={colaboradoresAtivos.length} />
           </div>
         </section>
       )}
