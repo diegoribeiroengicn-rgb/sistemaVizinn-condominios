@@ -59,3 +59,241 @@ create policy "Owners can update their condominio"
 -- The platform admin dashboard (/admin) reads through the service role key
 -- server-side (see /app/api/admin), which bypasses RLS by design — no
 -- extra policy is needed for the owner to see every condominio.
+
+-- Chamados (support tickets), scoped to one condominio.
+create table if not exists public.chamados (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  unidade text,
+  status text not null default 'aberto' check (status in ('aberto', 'em_andamento', 'resolvido')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists chamados_condominio_id_idx on public.chamados (condominio_id);
+
+alter table public.chamados enable row level security;
+
+drop policy if exists "Owners can view their chamados" on public.chamados;
+create policy "Owners can view their chamados"
+  on public.chamados for select
+  using (exists (
+    select 1 from public.condominios c
+    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
+  ));
+
+drop policy if exists "Owners can insert their chamados" on public.chamados;
+create policy "Owners can insert their chamados"
+  on public.chamados for insert
+  with check (exists (
+    select 1 from public.condominios c
+    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
+  ));
+
+drop policy if exists "Owners can update their chamados" on public.chamados;
+create policy "Owners can update their chamados"
+  on public.chamados for update
+  using (exists (
+    select 1 from public.condominios c
+    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
+  ));
+
+-- Avisos (announcements), scoped to one condominio.
+create table if not exists public.avisos (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  mensagem text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists avisos_condominio_id_idx on public.avisos (condominio_id);
+
+alter table public.avisos enable row level security;
+
+drop policy if exists "Owners can view their avisos" on public.avisos;
+create policy "Owners can view their avisos"
+  on public.avisos for select
+  using (exists (
+    select 1 from public.condominios c
+    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
+  ));
+
+drop policy if exists "Owners can insert their avisos" on public.avisos;
+create policy "Owners can insert their avisos"
+  on public.avisos for insert
+  with check (exists (
+    select 1 from public.condominios c
+    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
+  ));
+
+drop policy if exists "Owners can delete their avisos" on public.avisos;
+create policy "Owners can delete their avisos"
+  on public.avisos for delete
+  using (exists (
+    select 1 from public.condominios c
+    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
+  ));
+
+-- Membros: delimited sub-accounts the síndico grants access to. The
+-- condominio owner (condominios.owner_id) already has full access and is
+-- NOT a row here — this table is only for roles the síndico explicitly
+-- creates: condômino (read-only, own unit), porteiro (ocorrências),
+-- conselheiro (approve/reject propostas).
+create table if not exists public.membros (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  nome text not null,
+  email text not null,
+  papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro')),
+  unidade text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists membros_user_id_key on public.membros (user_id);
+create index if not exists membros_condominio_id_idx on public.membros (condominio_id);
+
+alter table public.membros enable row level security;
+
+drop policy if exists "Owners can view their membros" on public.membros;
+create policy "Owners can view their membros"
+  on public.membros for select
+  using (
+    exists (
+      select 1 from public.condominios c
+      where c.id = membros.condominio_id and c.owner_id = auth.uid()
+    )
+    or user_id = auth.uid()
+  );
+
+drop policy if exists "Owners can delete their membros" on public.membros;
+create policy "Owners can delete their membros"
+  on public.membros for delete
+  using (exists (
+    select 1 from public.condominios c
+    where c.id = membros.condominio_id and c.owner_id = auth.uid()
+  ));
+
+-- Members (não-owners) also need to read the condominio they belong to.
+-- Postgres OR's multiple permissive policies for the same command, so this
+-- adds to (doesn't replace) "Owners can view their condominio" above.
+drop policy if exists "Members can view their condominio" on public.condominios;
+create policy "Members can view their condominio"
+  on public.condominios for select
+  using (exists (
+    select 1 from public.membros m
+    where m.condominio_id = condominios.id and m.user_id = auth.uid()
+  ));
+
+-- Every member (any papel) can read avisos — same idea, additive policy.
+drop policy if exists "Members can view avisos" on public.avisos;
+create policy "Members can view avisos"
+  on public.avisos for select
+  using (exists (
+    select 1 from public.membros m
+    where m.condominio_id = avisos.condominio_id and m.user_id = auth.uid()
+  ));
+
+-- Ocorrências: portaria log. Registered by porteiro (or the síndico),
+-- visible to the síndico and porteiros of that condominio.
+create table if not exists public.ocorrencias (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  registrado_por text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists ocorrencias_condominio_id_idx on public.ocorrencias (condominio_id);
+
+alter table public.ocorrencias enable row level security;
+
+drop policy if exists "Owners and porteiros can view ocorrencias" on public.ocorrencias;
+create policy "Owners and porteiros can view ocorrencias"
+  on public.ocorrencias for select
+  using (
+    exists (
+      select 1 from public.condominios c
+      where c.id = ocorrencias.condominio_id and c.owner_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.membros m
+      where m.condominio_id = ocorrencias.condominio_id
+        and m.user_id = auth.uid() and m.papel = 'porteiro'
+    )
+  );
+
+drop policy if exists "Owners and porteiros can insert ocorrencias" on public.ocorrencias;
+create policy "Owners and porteiros can insert ocorrencias"
+  on public.ocorrencias for insert
+  with check (
+    exists (
+      select 1 from public.condominios c
+      where c.id = ocorrencias.condominio_id and c.owner_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.membros m
+      where m.condominio_id = ocorrencias.condominio_id
+        and m.user_id = auth.uid() and m.papel = 'porteiro'
+    )
+  );
+
+-- Propostas comerciais: created by the síndico, decided (aprovar/reprovar)
+-- by the síndico or a conselheiro.
+create table if not exists public.propostas (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  valor numeric,
+  status text not null default 'pendente' check (status in ('pendente', 'aprovada', 'reprovada')),
+  decidido_por text,
+  decidido_em timestamptz,
+  comentario text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists propostas_condominio_id_idx on public.propostas (condominio_id);
+
+alter table public.propostas enable row level security;
+
+drop policy if exists "Owners and conselheiros can view propostas" on public.propostas;
+create policy "Owners and conselheiros can view propostas"
+  on public.propostas for select
+  using (
+    exists (
+      select 1 from public.condominios c
+      where c.id = propostas.condominio_id and c.owner_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.membros m
+      where m.condominio_id = propostas.condominio_id
+        and m.user_id = auth.uid() and m.papel = 'conselheiro'
+    )
+  );
+
+drop policy if exists "Owners can insert propostas" on public.propostas;
+create policy "Owners can insert propostas"
+  on public.propostas for insert
+  with check (exists (
+    select 1 from public.condominios c
+    where c.id = propostas.condominio_id and c.owner_id = auth.uid()
+  ));
+
+drop policy if exists "Owners and conselheiros can update propostas" on public.propostas;
+create policy "Owners and conselheiros can update propostas"
+  on public.propostas for update
+  using (
+    exists (
+      select 1 from public.condominios c
+      where c.id = propostas.condominio_id and c.owner_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.membros m
+      where m.condominio_id = propostas.condominio_id
+        and m.user_id = auth.uid() and m.papel = 'conselheiro'
+    )
+  );

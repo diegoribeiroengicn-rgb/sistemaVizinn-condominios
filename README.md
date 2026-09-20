@@ -22,6 +22,31 @@ cobrança via Stripe e dashboard do síndico, tudo em uma única URL.
 6. Usuários já logados que acessam `/` são redirecionados direto para o
    dashboard.
 
+## Dashboard do síndico e acessos delimitados
+
+O síndico (dono do condomínio, `condominios.owner_id`) tem acesso total ao
+dashboard: Chamados, Avisos, Ocorrências, Propostas, Acessos e
+Configurações.
+
+Em **`/dashboard/acessos`**, o síndico cria contas de login delimitadas
+(e-mail + senha, sem convite por e-mail) para três papéis, cada um só
+enxergando sua própria área:
+
+- **Condômino**: só a aba Avisos (leitura). Consulta de boletos ainda não
+  existe (depende de integração bancária — ver nota abaixo).
+- **Porteiro**: só a aba Ocorrências (registra e vê o livro de ocorrências
+  da portaria).
+- **Conselheiro**: só a aba Propostas (aprova/reprova propostas comerciais
+  cadastradas pelo síndico).
+
+Essas contas (tabela `membros`) apontam para o mesmo condomínio, mas nunca
+têm acesso a `/dashboard/acessos`, `/admin` ou aos dados de outro tenant —
+isso é garantido por Row Level Security no Postgres, não só pela interface.
+
+**Boletos**: a tela existe mas continua um placeholder — emitir boletos de
+verdade (código de barras/PIX) exige integração com um banco ou gateway de
+pagamento, que ainda não está configurada.
+
 ## Painel do administrador (`/admin`)
 
 Rota exclusiva do dono da plataforma (Diego), separada do dashboard de cada
@@ -130,7 +155,12 @@ Abra [http://localhost:3000](http://localhost:3000).
   dashboard/
     layout.jsx               # Rota protegida + header/nav do dashboard
     page.jsx                 # Visão geral
-    boletos/, chamados/, avisos/, configuracoes/
+    boletos/                 # Placeholder (depende de integração bancária)
+    chamados/, avisos/       # CRUD real, síndico + papéis relevantes
+    ocorrencias/              # Porteiro registra, síndico acompanha
+    propostas/                # Síndico cadastra, conselheiro aprova/reprova
+    acessos/                  # Síndico cria/remove contas delimitadas (só síndico)
+    configuracoes/
   admin/
     layout.jsx                # AdminGuard + AdminHeader
     page.jsx                  # Painel do administrador (owner)
@@ -139,6 +169,9 @@ Abra [http://localhost:3000](http://localhost:3000).
     complete-signup/         # Cria cliente/assinatura Stripe + usuário/condomínio
     dev-signup/               # Cadastro sem Stripe (modo de teste, ALLOW_TEST_SIGNUP)
     webhook/                 # Sincroniza status da assinatura
+    members/
+      create/                  # Cria conta delimitada (condômino/porteiro/conselheiro)
+      delete/                  # Remove acesso delimitado
     admin/
       overview/                # Todos os condomínios + MRR + analytics (owner only)
       cancel-subscription/     # Cancela assinatura de um tenant (owner only)
@@ -148,7 +181,8 @@ Abra [http://localhost:3000](http://localhost:3000).
       grant-courtesy/          # Concede cortesia/acesso grátis (owner only)
 
 /components                 # Header, LandingHero, Pricing, SignupForm, etc.
-/hooks/useAuth.js            # Contexto de autenticação (Supabase)
-/lib                         # Clientes Supabase/Stripe e definição dos planos
-/supabase/schema.sql          # Schema da tabela condominios
+/hooks/useAuth.js            # Contexto de autenticação + papel (sindico/condomino/...)
+/lib                         # Clientes Supabase/Stripe, definição dos planos, memberAuth
+/supabase/schema.sql          # Schema: condominios, membros, chamados, avisos,
+                               # ocorrencias, propostas — todos com RLS
 ```

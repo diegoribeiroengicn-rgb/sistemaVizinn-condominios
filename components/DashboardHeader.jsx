@@ -4,17 +4,33 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Visão geral" },
-  { href: "/dashboard/boletos", label: "Boletos" },
-  { href: "/dashboard/chamados", label: "Chamados" },
-  { href: "/dashboard/avisos", label: "Avisos" },
-  { href: "/dashboard/configuracoes", label: "Configurações" },
-];
+const NAV_BY_ROLE = {
+  sindico: [
+    { href: "/dashboard", label: "Visão geral" },
+    { href: "/dashboard/boletos", label: "Boletos" },
+    { href: "/dashboard/chamados", label: "Chamados" },
+    { href: "/dashboard/avisos", label: "Avisos" },
+    { href: "/dashboard/ocorrencias", label: "Ocorrências" },
+    { href: "/dashboard/propostas", label: "Propostas" },
+    { href: "/dashboard/acessos", label: "Acessos" },
+    { href: "/dashboard/configuracoes", label: "Configurações" },
+  ],
+  condomino: [{ href: "/dashboard/avisos", label: "Avisos" }],
+  porteiro: [{ href: "/dashboard/ocorrencias", label: "Ocorrências" }],
+  conselheiro: [{ href: "/dashboard/propostas", label: "Propostas" }],
+};
+
+const ROLE_LABELS = {
+  sindico: "Síndico",
+  condomino: "Condômino",
+  porteiro: "Porteiro",
+  conselheiro: "Conselheiro",
+};
 
 export default function DashboardHeader() {
-  const { user, condominio, isAdmin, logout } = useAuth();
+  const { user, condominio, role, isAdmin, logout } = useAuth();
   const pathname = usePathname();
+  const navItems = NAV_BY_ROLE[role] || [];
 
   const displayName =
     user?.user_metadata?.full_name || condominio?.responsavel_nome || user?.email || "Síndico";
@@ -35,6 +51,11 @@ export default function DashboardHeader() {
 
         <span className="hidden text-sm text-navy-500 sm:inline">
           Bem-vindo, <strong className="text-navy-800">{displayName}</strong>
+          {role && role !== "sindico" && (
+            <span className="ml-2 rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600">
+              {ROLE_LABELS[role]}
+            </span>
+          )}
         </span>
 
         <div className="flex items-center gap-2">
@@ -50,7 +71,7 @@ export default function DashboardHeader() {
       </div>
 
       <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = pathname === item.href;
           return (
             <Link

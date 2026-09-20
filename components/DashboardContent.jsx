@@ -6,22 +6,22 @@ import { getPlan } from "@/lib/plans";
 
 const nextSteps = [
   {
-    title: "Importar condôminos",
-    description: "Cadastre as unidades manualmente ou importe uma planilha CSV.",
-    href: "/dashboard/configuracoes",
-    cta: "Importar condôminos",
+    title: "Dar acesso a condôminos e equipe",
+    description: "Crie logins delimitados: condômino, porteiro ou conselheiro.",
+    href: "/dashboard/acessos",
+    cta: "Criar acesso",
   },
   {
-    title: "Gerar primeiro boleto",
-    description: "Crie e envie o primeiro boleto para as unidades cadastradas.",
-    href: "/dashboard/boletos",
-    cta: "Gerar boleto",
+    title: "Publicar um aviso",
+    description: "Envie um comunicado para todos os condôminos.",
+    href: "/dashboard/avisos",
+    cta: "Publicar aviso",
   },
   {
-    title: "Convidar síndico",
-    description: "Adicione outro administrador para ajudar na gestão do condomínio.",
-    href: "/dashboard/configuracoes",
-    cta: "Convidar",
+    title: "Abrir um chamado de teste",
+    description: "Veja como fica o acompanhamento de solicitações.",
+    href: "/dashboard/chamados",
+    cta: "Ver chamados",
   },
   {
     title: "Ver tutorial",
@@ -32,9 +32,9 @@ const nextSteps = [
 ];
 
 const quickActions = [
-  { label: "Novo Boleto", href: "/dashboard/boletos" },
   { label: "Novo Chamado", href: "/dashboard/chamados" },
-  { label: "Avisos", href: "/dashboard/avisos" },
+  { label: "Novo Aviso", href: "/dashboard/avisos" },
+  { label: "Acessos", href: "/dashboard/acessos" },
 ];
 
 export default function DashboardContent() {
