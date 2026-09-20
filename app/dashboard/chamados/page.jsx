@@ -1,59 +1,169 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import {
+  CATEGORIA_SUGESTOES,
+  PRAZO_BADGE_STYLES,
+  PRIORIDADE_LABELS,
+  PRIORIDADE_ORDER,
+  PRIORIDADE_STYLES,
+  STATUS_FINAIS,
+  STATUS_LABELS,
+  STATUS_ORDER,
+  STATUS_STYLES,
+  TIPO_LABELS,
+  calcularStatusPrazo,
+  sugerirDataPrevista,
+} from "@/lib/chamados";
 
-const STATUS_LABELS = {
-  aberto: "Aberto",
-  em_andamento: "Em andamento",
-  resolvido: "Resolvido",
+const emptyForm = {
+  tipo: "condominio",
+  titulo: "",
+  descricao: "",
+  categoria: "",
+  prioridade: "normal",
+  unidade: "",
+  local: "",
+  dataPrevista: "",
+  responsavel: "",
 };
 
-const STATUS_STYLES = {
-  aberto: "bg-coral-100 text-coral-700",
-  em_andamento: "bg-amber-100 text-amber-700",
-  resolvido: "bg-emerald-100 text-emerald-700",
-};
+const emptyFiltro = { status: "", tipo: "", soAtrasados: false };
 
-const NEXT_STATUS = {
-  aberto: "em_andamento",
-  em_andamento: "resolvido",
-  resolvido: "aberto",
-};
+function formatarData(valor, comHora = false) {
+  if (!valor) return "-";
+  const data = new Date(valor);
+  return comHora ? data.toLocaleString("pt-BR") : data.toLocaleDateString("pt-BR");
+}
 
-const emptyForm = { titulo: "", descricao: "", unidade: "" };
+function Estrelas({ nota, onChange, tamanho = "text-lg" }) {
+  return (
+    <div className={`flex gap-0.5 ${tamanho}`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={!onChange}
+          onClick={() => onChange?.(n)}
+          className={n <= nota ? "text-amber-500" : "text-navy-200"}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ChamadosPage() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, user, member, role, temPermissao } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [chamados, setChamados] = useState([]);
+  const [membros, setMembros] = useState([]);
+  const [manutencoesVinculadas, setManutencoesVinculadas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [updatingId, setUpdatingId] = useState(null);
+  const [filtro, setFiltro] = useState(emptyFiltro);
+  const [gerenciandoId, setGerenciandoId] = useState(null);
+  const [gerenciarForm, setGerenciarForm] = useState(null);
+  const [salvandoGerenciamento, setSalvandoGerenciamento] = useState(false);
+  const [avaliandoId, setAvaliandoId] = useState(null);
+  const [avaliacaoForm, setAvaliacaoForm] = useState({ nota: 5, comentario: "" });
+  const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(false);
 
   const podeCriar = temPermissao("chamados", "criar");
   const podeEditar = temPermissao("chamados", "editar");
+  const podeGerarManutencao = podeEditar && temPermissao("manutencao", "criar");
+  const isCondomino = role === "condomino";
+  const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
+
+  // Pré-preenche o formulário quando chega vindo de "Gerar chamado" numa
+  // ocorrência (?ocorrenciaId=...&titulo=...&descricao=...&unidade=...).
+  useEffect(() => {
+    const ocorrenciaId = searchParams.get("ocorrenciaId");
+    if (!ocorrenciaId) return;
+    setForm((f) => ({
+      ...f,
+      titulo: searchParams.get("titulo") || f.titulo,
+      descricao: searchParams.get("descricao") || f.descricao,
+      unidade: searchParams.get("unidade") || f.unidade,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
     setLoading(true);
     setError("");
-    const { data, error: fetchError } = await supabase
-      .from("chamados")
-      .select("*")
-      .eq("condominio_id", condominio.id)
-      .order("created_at", { ascending: false });
-    if (fetchError) setError(fetchError.message);
-    else setChamados(data || []);
+
+    const queries = [
+      supabase
+        .from("chamados")
+        .select("*")
+        .eq("condominio_id", condominio.id)
+        .order("created_at", { ascending: false }),
+    ];
+
+    if (podeEditar) {
+      queries.push(
+        supabase.from("membros").select("id, nome, papel, user_id").eq("condominio_id", condominio.id)
+      );
+    }
+    if (podeEditar && temPermissao("manutencao", "visualizar")) {
+      queries.push(
+        supabase
+          .from("manutencoes")
+          .select("id, titulo, chamado_origem_id")
+          .eq("condominio_id", condominio.id)
+          .not("chamado_origem_id", "is", null)
+      );
+    }
+
+    const results = await Promise.all(queries);
+    const [chamadosResult, membrosResult, manutencoesResult] = results;
+
+    if (chamadosResult.error) setError(chamadosResult.error.message);
+    else setChamados(chamadosResult.data || []);
+
+    if (membrosResult && !membrosResult.error) setMembros(membrosResult.data || []);
+
+    if (manutencoesResult && !manutencoesResult.error) {
+      const mapa = {};
+      for (const m of manutencoesResult.data || []) mapa[m.chamado_origem_id] = m;
+      setManutencoesVinculadas(mapa);
+    }
+
     setLoading(false);
-  }, [condominio?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [condominio?.id, podeEditar]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const responsaveis = useMemo(() => {
+    const lista = [{ value: `sindico:${condominio?.owner_id}`, label: "Síndico", userId: condominio?.owner_id }];
+    for (const m of membros) {
+      lista.push({ value: `membro:${m.user_id}`, label: `${m.nome}`, userId: m.user_id });
+    }
+    return lista;
+  }, [membros, condominio?.owner_id]);
+
+  const cargaPorResponsavel = useMemo(() => {
+    const mapa = {};
+    for (const c of chamados) {
+      if (STATUS_FINAIS.includes(c.status) || !c.responsavel_id) continue;
+      mapa[c.responsavel_id] = (mapa[c.responsavel_id] || 0) + 1;
+    }
+    return mapa;
+  }, [chamados]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -61,12 +171,26 @@ export default function ChamadosPage() {
 
     setSubmitting(true);
     setError("");
+
+    const responsavelSelecionado = responsaveis.find((r) => r.value === form.responsavel);
+    const ocorrenciaId = searchParams.get("ocorrenciaId") || null;
+
     const { error: insertError } = await supabase.from("chamados").insert({
       condominio_id: condominio.id,
+      tipo: isCondomino ? "condominio" : form.tipo,
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
+      categoria: form.categoria.trim() || null,
+      prioridade: form.prioridade,
       unidade: form.unidade.trim() || null,
+      local: form.local.trim() || null,
+      solicitante_id: user?.id || null,
+      solicitante_nome: nomeUsuario,
+      responsavel_id: responsavelSelecionado?.userId || null,
+      responsavel_nome: responsavelSelecionado?.label || null,
+      data_prevista: form.dataPrevista || null,
       status: "aberto",
+      ocorrencia_origem_id: ocorrenciaId,
     });
     setSubmitting(false);
 
@@ -75,19 +199,121 @@ export default function ChamadosPage() {
       return;
     }
     setForm(emptyForm);
+    if (ocorrenciaId) router.replace("/dashboard/chamados");
     load();
   }
 
-  async function handleAdvanceStatus(chamado) {
-    setUpdatingId(chamado.id);
+  function abrirGerenciamento(chamado) {
+    setGerenciandoId(chamado.id);
+    setGerenciarForm({
+      status: chamado.status,
+      responsavel:
+        responsaveis.find((r) => r.userId === chamado.responsavel_id)?.value || "",
+      executorNome: chamado.executor_nome || "",
+      resultado: chamado.resultado || "",
+    });
+  }
+
+  async function handleSalvarGerenciamento(chamado) {
+    setSalvandoGerenciamento(true);
+    setError("");
+
+    const responsavelSelecionado = responsaveis.find((r) => r.value === gerenciarForm.responsavel);
+    const vaiConcluir = gerenciarForm.status === "concluido" && chamado.status !== "concluido";
+
+    if (vaiConcluir && !gerenciarForm.resultado.trim()) {
+      setError("Descreva o resultado antes de marcar como concluído.");
+      setSalvandoGerenciamento(false);
+      return;
+    }
+
+    const updates = {
+      status: gerenciarForm.status,
+      responsavel_id: responsavelSelecionado?.userId || null,
+      responsavel_nome: responsavelSelecionado?.label || null,
+      executor_nome: gerenciarForm.executorNome.trim() || null,
+      resultado: gerenciarForm.resultado.trim() || null,
+    };
+    if (vaiConcluir) updates.data_conclusao = new Date().toISOString();
+
+    const { error: updateError } = await supabase.from("chamados").update(updates).eq("id", chamado.id);
+    setSalvandoGerenciamento(false);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setGerenciandoId(null);
+    setGerenciarForm(null);
+    load();
+  }
+
+  async function handleEnviarAvaliacao(chamado) {
+    setEnviandoAvaliacao(true);
+    setError("");
     const { error: updateError } = await supabase
       .from("chamados")
-      .update({ status: NEXT_STATUS[chamado.status] })
+      .update({
+        avaliacao_nota: avaliacaoForm.nota,
+        avaliacao_comentario: avaliacaoForm.comentario.trim() || null,
+      })
       .eq("id", chamado.id);
-    setUpdatingId(null);
-    if (updateError) setError(updateError.message);
-    else load();
+    setEnviandoAvaliacao(false);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setAvaliandoId(null);
+    setAvaliacaoForm({ nota: 5, comentario: "" });
+    load();
   }
+
+  function gerarManutencao(chamado) {
+    const params = new URLSearchParams({
+      chamadoId: chamado.id,
+      titulo: chamado.titulo,
+      descricao: chamado.descricao || "",
+      unidade: chamado.unidade || "",
+    });
+    router.push(`/dashboard/manutencao?${params.toString()}`);
+  }
+
+  const chamadosFiltrados = useMemo(() => {
+    return chamados.filter((c) => {
+      if (filtro.status && c.status !== filtro.status) return false;
+      if (filtro.tipo && c.tipo !== filtro.tipo) return false;
+      if (filtro.soAtrasados) {
+        const prazo = calcularStatusPrazo(c.data_prevista, c.status);
+        if (!prazo?.atrasado) return false;
+      }
+      return true;
+    });
+  }, [chamados, filtro]);
+
+  const resumo = useMemo(() => {
+    if (!podeEditar) return null;
+    const abertos = chamados.filter((c) => !STATUS_FINAIS.includes(c.status));
+    const atrasados = abertos.filter((c) => calcularStatusPrazo(c.data_prevista, c.status)?.atrasado);
+    const porStatus = {};
+    for (const c of chamados) porStatus[c.status] = (porStatus[c.status] || 0) + 1;
+    const concluidos = chamados.filter((c) => c.status === "concluido" && c.data_conclusao);
+    const tempoMedioDias = concluidos.length
+      ? (
+          concluidos.reduce(
+            (soma, c) => soma + (new Date(c.data_conclusao) - new Date(c.created_at)) / 86400000,
+            0
+          ) / concluidos.length
+        ).toFixed(1)
+      : null;
+    const avaliados = chamados.filter((c) => c.avaliacao_nota);
+    const notaMedia = avaliados.length
+      ? (avaliados.reduce((s, c) => s + c.avaliacao_nota, 0) / avaliados.length).toFixed(1)
+      : null;
+    const internos = chamados.filter((c) => c.tipo === "interno").length;
+
+    return { abertos: abertos.length, atrasados: atrasados.length, porStatus, tempoMedioDias, notaMedia, internos };
+  }, [chamados, podeEditar]);
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -99,7 +325,8 @@ export default function ChamadosPage() {
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Chamados</h1>
         <p className="mt-1 text-sm text-navy-500">
-          Registre e acompanhe solicitações dos condôminos.
+          Registre e acompanhe solicitações — de condomínio (moradores e áreas comuns) ou internas
+          (entre síndico, subsíndico, administradora, porteiro e zelador).
         </p>
 
         {podeCriar && (
@@ -114,6 +341,55 @@ export default function ChamadosPage() {
                 required
               />
             </div>
+            {!isCondomino && (
+              <div>
+                <label className="label-field">Tipo</label>
+                <select
+                  className="input-field"
+                  value={form.tipo}
+                  onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}
+                >
+                  <option value="condominio">{TIPO_LABELS.condominio}</option>
+                  <option value="interno">{TIPO_LABELS.interno}</option>
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="label-field">Prioridade</label>
+              <select
+                className="input-field"
+                value={form.prioridade}
+                onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value }))}
+              >
+                {PRIORIDADE_ORDER.map((p) => (
+                  <option key={p} value={p}>
+                    {PRIORIDADE_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label-field">Categoria (opcional)</label>
+              <input
+                className="input-field"
+                list="categorias-sugeridas"
+                value={form.categoria}
+                onChange={(e) => {
+                  const categoria = e.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    categoria,
+                    dataPrevista: f.dataPrevista || sugerirDataPrevista(categoria),
+                  }));
+                }}
+                placeholder="Ex: Hidráulica"
+              />
+              <datalist id="categorias-sugeridas">
+                {CATEGORIA_SUGESTOES.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
             <div>
               <label className="label-field">Unidade (opcional)</label>
               <input
@@ -123,6 +399,42 @@ export default function ChamadosPage() {
                 placeholder="Ex: Apto 32"
               />
             </div>
+            <div>
+              <label className="label-field">Local (opcional)</label>
+              <input
+                className="input-field"
+                value={form.local}
+                onChange={(e) => setForm((f) => ({ ...f, local: e.target.value }))}
+                placeholder="Ex: Garagem, subsolo"
+              />
+            </div>
+            <div>
+              <label className="label-field">Data prevista (opcional)</label>
+              <input
+                type="date"
+                className="input-field"
+                value={form.dataPrevista}
+                onChange={(e) => setForm((f) => ({ ...f, dataPrevista: e.target.value }))}
+              />
+            </div>
+            {podeEditar && (
+              <div>
+                <label className="label-field">Responsável (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.responsavel}
+                  onChange={(e) => setForm((f) => ({ ...f, responsavel: e.target.value }))}
+                >
+                  <option value="">Sem responsável definido</option>
+                  {responsaveis.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                      {cargaPorResponsavel[r.userId] ? ` — ${cargaPorResponsavel[r.userId]} em aberto` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="label-field">Descrição (opcional)</label>
               <textarea
@@ -143,40 +455,313 @@ export default function ChamadosPage() {
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
 
+      {resumo && (
+        <div className="card">
+          <h2 className="font-display text-lg font-bold text-navy-900">Resumo gerencial</h2>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <p className="text-xs text-navy-500">Em aberto</p>
+              <p className="text-xl font-bold text-navy-900">{resumo.abertos}</p>
+            </div>
+            <div>
+              <p className="text-xs text-navy-500">Atrasados</p>
+              <p className="text-xl font-bold text-coral-700">{resumo.atrasados}</p>
+            </div>
+            <div>
+              <p className="text-xs text-navy-500">Tempo médio de resolução</p>
+              <p className="text-xl font-bold text-navy-900">
+                {resumo.tempoMedioDias ? `${resumo.tempoMedioDias} dias` : "-"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-navy-500">Avaliação média</p>
+              <p className="text-xl font-bold text-navy-900">{resumo.notaMedia ? `${resumo.notaMedia} ★` : "-"}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {Object.entries(resumo.porStatus).map(([status, qtd]) => (
+              <span
+                key={status}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[status]}`}
+              >
+                {STATUS_LABELS[status]}: {qtd}
+              </span>
+            ))}
+          </div>
+          {responsaveis.some((r) => cargaPorResponsavel[r.userId]) && (
+            <div className="mt-3 text-xs text-navy-500">
+              {responsaveis
+                .filter((r) => cargaPorResponsavel[r.userId])
+                .map((r) => (
+                  <div key={r.value}>
+                    {r.label} — {cargaPorResponsavel[r.userId]} chamados em aberto
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <select
+          className="input-field w-auto"
+          value={filtro.status}
+          onChange={(e) => setFiltro((f) => ({ ...f, status: e.target.value }))}
+        >
+          <option value="">Todos os status</option>
+          {STATUS_ORDER.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        {!isCondomino && (
+          <select
+            className="input-field w-auto"
+            value={filtro.tipo}
+            onChange={(e) => setFiltro((f) => ({ ...f, tipo: e.target.value }))}
+          >
+            <option value="">Condomínio e interno</option>
+            <option value="condominio">{TIPO_LABELS.condominio}</option>
+            <option value="interno">{TIPO_LABELS.interno}</option>
+          </select>
+        )}
+        <label className="flex items-center gap-1.5 text-sm text-navy-600">
+          <input
+            type="checkbox"
+            checked={filtro.soAtrasados}
+            onChange={(e) => setFiltro((f) => ({ ...f, soAtrasados: e.target.checked }))}
+            className="h-4 w-4 rounded border-navy-300 text-coral focus:ring-coral"
+          />
+          Só atrasados
+        </label>
+      </div>
+
       {loading ? (
         <p className="text-navy-500">Carregando chamados...</p>
-      ) : chamados.length === 0 ? (
-        <div className="card text-center text-navy-400">Nenhum chamado registrado ainda.</div>
+      ) : chamadosFiltrados.length === 0 ? (
+        <div className="card text-center text-navy-400">Nenhum chamado encontrado.</div>
       ) : (
         <div className="space-y-3">
-          {chamados.map((c) => (
-            <div key={c.id} className="card flex items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-navy-900">{c.titulo}</h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status]}`}
-                  >
-                    {STATUS_LABELS[c.status]}
-                  </span>
+          {chamadosFiltrados.map((c) => {
+            const prazo = calcularStatusPrazo(c.data_prevista, c.status);
+            const manutencaoVinculada = manutencoesVinculadas[c.id];
+            const podeAvaliar =
+              c.status === "concluido" && c.solicitante_id === user?.id && !c.avaliacao_nota;
+
+            return (
+              <div key={c.id} className="card">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-navy-900">{c.titulo}</h3>
+                      {c.tipo === "interno" && (
+                        <span className="rounded-full bg-navy-700 px-2 py-0.5 text-xs font-medium text-white">
+                          Interno
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[c.status]}`}>
+                        {STATUS_LABELS[c.status]}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRIORIDADE_STYLES[c.prioridade]}`}
+                      >
+                        {PRIORIDADE_LABELS[c.prioridade]}
+                      </span>
+                      {prazo && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRAZO_BADGE_STYLES[prazo.nivel]}`}
+                        >
+                          {prazo.emoji} {prazo.label}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-navy-400">
+                      {[c.categoria, c.unidade, c.local].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
                 </div>
-                {c.unidade && <p className="mt-1 text-xs text-navy-400">Unidade: {c.unidade}</p>}
+
                 {c.descricao && <p className="mt-2 text-sm text-navy-600">{c.descricao}</p>}
-                <p className="mt-2 text-xs text-navy-400">
-                  {new Date(c.created_at).toLocaleString("pt-BR")}
+
+                <p className="mt-2 text-xs text-navy-500">
+                  Solicitante: <strong>{c.solicitante_nome || "-"}</strong> · Responsável:{" "}
+                  <strong>{c.responsavel_nome || "Não definido"}</strong>
+                  {c.executor_nome && (
+                    <>
+                      {" "}
+                      · Executor: <strong>{c.executor_nome}</strong>
+                    </>
+                  )}
                 </p>
+
+                <p className="mt-1 text-xs text-navy-400">
+                  Aberto em {formatarData(c.created_at)}
+                  {c.data_prevista && <> · Previsto para {formatarData(c.data_prevista)}</>}
+                  {c.data_conclusao && <> · Concluído em {formatarData(c.data_conclusao, true)}</>}
+                </p>
+
+                {c.resultado && (
+                  <p className="mt-2 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">
+                    <strong>Resultado:</strong> {c.resultado}
+                  </p>
+                )}
+
+                {c.ocorrencia_origem_id && (
+                  <p className="mt-1 text-xs text-navy-400">Originado de uma ocorrência.</p>
+                )}
+                {manutencaoVinculada && (
+                  <p className="mt-1 text-xs text-navy-400">
+                    Manutenção vinculada: {manutencaoVinculada.titulo}
+                  </p>
+                )}
+
+                {c.avaliacao_nota && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <Estrelas nota={c.avaliacao_nota} />
+                    {c.avaliacao_comentario && (
+                      <span className="text-xs text-navy-500">&quot;{c.avaliacao_comentario}&quot;</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {podeEditar && gerenciandoId !== c.id && (
+                    <button
+                      onClick={() => abrirGerenciamento(c)}
+                      className="text-xs font-semibold text-navy-700 hover:underline"
+                    >
+                      Gerenciar
+                    </button>
+                  )}
+                  {podeGerarManutencao && !manutencaoVinculada && (
+                    <button
+                      onClick={() => gerarManutencao(c)}
+                      className="text-xs font-semibold text-navy-700 hover:underline"
+                    >
+                      Gerar manutenção
+                    </button>
+                  )}
+                  {podeAvaliar && avaliandoId !== c.id && (
+                    <button
+                      onClick={() => setAvaliandoId(c.id)}
+                      className="text-xs font-semibold text-coral hover:underline"
+                    >
+                      Avaliar atendimento
+                    </button>
+                  )}
+                </div>
+
+                {gerenciandoId === c.id && gerenciarForm && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-navy-100 p-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="label-field">Status</label>
+                        <select
+                          className="input-field"
+                          value={gerenciarForm.status}
+                          onChange={(e) => setGerenciarForm((f) => ({ ...f, status: e.target.value }))}
+                        >
+                          {STATUS_ORDER.map((s) => (
+                            <option key={s} value={s}>
+                              {STATUS_LABELS[s]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label-field">Responsável</label>
+                        <select
+                          className="input-field"
+                          value={gerenciarForm.responsavel}
+                          onChange={(e) => setGerenciarForm((f) => ({ ...f, responsavel: e.target.value }))}
+                        >
+                          <option value="">Sem responsável definido</option>
+                          {responsaveis.map((r) => (
+                            <option key={r.value} value={r.value}>
+                              {r.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label-field">Executor (opcional)</label>
+                        <input
+                          className="input-field"
+                          value={gerenciarForm.executorNome}
+                          onChange={(e) => setGerenciarForm((f) => ({ ...f, executorNome: e.target.value }))}
+                          placeholder="Ex: Empresa ABC"
+                        />
+                      </div>
+                    </div>
+                    {gerenciarForm.status === "concluido" && (
+                      <div>
+                        <label className="label-field">Resultado</label>
+                        <textarea
+                          className="input-field"
+                          rows={2}
+                          value={gerenciarForm.resultado}
+                          onChange={(e) => setGerenciarForm((f) => ({ ...f, resultado: e.target.value }))}
+                          placeholder="O que foi feito pra resolver"
+                        />
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleSalvarGerenciamento(c)}
+                        disabled={salvandoGerenciamento}
+                        className="btn-primary text-sm"
+                      >
+                        {salvandoGerenciamento ? "Salvando..." : "Salvar"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGerenciandoId(null);
+                          setGerenciarForm(null);
+                        }}
+                        className="text-sm font-semibold text-navy-500 hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {avaliandoId === c.id && (
+                  <div className="mt-3 space-y-2 rounded-xl border border-navy-100 p-3">
+                    <Estrelas
+                      nota={avaliacaoForm.nota}
+                      onChange={(nota) => setAvaliacaoForm((f) => ({ ...f, nota }))}
+                    />
+                    <textarea
+                      className="input-field"
+                      rows={2}
+                      value={avaliacaoForm.comentario}
+                      onChange={(e) => setAvaliacaoForm((f) => ({ ...f, comentario: e.target.value }))}
+                      placeholder="Comentário (opcional)"
+                    />
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleEnviarAvaliacao(c)}
+                        disabled={enviandoAvaliacao}
+                        className="btn-primary text-sm"
+                      >
+                        {enviandoAvaliacao ? "Enviando..." : "Enviar avaliação"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAvaliandoId(null)}
+                        className="text-sm font-semibold text-navy-500 hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              {podeEditar && (
-                <button
-                  onClick={() => handleAdvanceStatus(c)}
-                  disabled={updatingId === c.id}
-                  className="btn-secondary flex-none text-sm disabled:opacity-50"
-                >
-                  {updatingId === c.id ? "..." : `Marcar como ${STATUS_LABELS[NEXT_STATUS[c.status]]}`}
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

@@ -239,35 +239,139 @@ as $$
   select public.membro_tem_permissao(p_condominio_id, p_modulo, 'visualizar');
 $$;
 
--- Chamados (support tickets), scoped to one condominio.
+-- Quem gerencia chamados (ação "editar") precisa ver a lista de pessoas
+-- pra poder escolher um responsável — mesmo sem permissão em "acessos".
+-- Fica aqui (depois de membro_tem_permissao existir) por causa da mesma
+-- regra de ordenação explicada no topo do arquivo.
+drop policy if exists "Members with chamados edit can view membros" on public.membros;
+create policy "Members with chamados edit can view membros"
+  on public.membros for select
+  using (public.membro_tem_permissao(condominio_id, 'chamados', 'editar'));
+
+-- Chamados (support tickets), scoped to one condominio. Distingue chamado
+-- de condomínio (aberto por morador/síndico/equipe, sobre moradores/áreas
+-- comuns) de chamado interno (entre responsáveis pela operação — nunca
+-- visível pra quem tem o papel "condomino"). Solicitante, responsável e
+-- executor são pessoas distintas (ver README): quem abriu, quem
+-- acompanha, quem resolveu de fato.
 create table if not exists public.chamados (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
+  tipo text not null default 'condominio' check (tipo in ('condominio', 'interno')),
   titulo text not null,
   descricao text,
+  categoria text,
+  prioridade text not null default 'normal' check (prioridade in ('baixa', 'normal', 'alta', 'urgente')),
   unidade text,
-  status text not null default 'aberto' check (status in ('aberto', 'em_andamento', 'resolvido')),
+  local text,
+  solicitante_id uuid references auth.users (id) on delete set null,
+  solicitante_nome text,
+  responsavel_id uuid references auth.users (id) on delete set null,
+  responsavel_nome text,
+  executor_nome text,
+  status text not null default 'aberto' check (
+    status in (
+      'aberto', 'em_analise', 'em_atendimento', 'aguardando_informacao',
+      'aguardando_morador', 'aguardando_prestador', 'aguardando_aprovacao',
+      'concluido', 'cancelado'
+    )
+  ),
+  data_prevista date,
+  data_conclusao timestamptz,
+  resultado text,
+  -- FK pra ocorrencias adicionada mais abaixo (chamados_ocorrencia_origem_id_fkey)
+  -- porque a tabela ocorrencias só é criada depois de chamados neste script.
+  ocorrencia_origem_id uuid,
+  avaliacao_nota integer check (avaliacao_nota between 1 and 5),
+  avaliacao_comentario text,
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the columns if this script already ran before a
+-- chamado era só título/descrição/unidade/status.
+alter table public.chamados add column if not exists tipo text not null default 'condominio';
+alter table public.chamados add column if not exists categoria text;
+alter table public.chamados add column if not exists prioridade text not null default 'normal';
+alter table public.chamados add column if not exists local text;
+alter table public.chamados add column if not exists solicitante_id uuid references auth.users (id) on delete set null;
+alter table public.chamados add column if not exists solicitante_nome text;
+alter table public.chamados add column if not exists responsavel_id uuid references auth.users (id) on delete set null;
+alter table public.chamados add column if not exists responsavel_nome text;
+alter table public.chamados add column if not exists executor_nome text;
+alter table public.chamados add column if not exists data_prevista date;
+alter table public.chamados add column if not exists data_conclusao timestamptz;
+alter table public.chamados add column if not exists resultado text;
+alter table public.chamados add column if not exists ocorrencia_origem_id uuid;
+alter table public.chamados add column if not exists avaliacao_nota integer;
+alter table public.chamados add column if not exists avaliacao_comentario text;
+
+alter table public.chamados drop constraint if exists chamados_tipo_check;
+alter table public.chamados add constraint chamados_tipo_check check (tipo in ('condominio', 'interno'));
+alter table public.chamados drop constraint if exists chamados_prioridade_check;
+alter table public.chamados add constraint chamados_prioridade_check
+  check (prioridade in ('baixa', 'normal', 'alta', 'urgente'));
+alter table public.chamados drop constraint if exists chamados_avaliacao_nota_check;
+alter table public.chamados add constraint chamados_avaliacao_nota_check
+  check (avaliacao_nota is null or avaliacao_nota between 1 and 5);
+
+-- Migra os valores antigos de status (3 estados) pros novos (9 estados)
+-- antes de trocar a constraint — senão linhas existentes quebrariam o
+-- check novo.
+update public.chamados set status = 'em_atendimento' where status = 'em_andamento';
+update public.chamados set status = 'concluido' where status = 'resolvido';
+
+alter table public.chamados drop constraint if exists chamados_status_check;
+alter table public.chamados add constraint chamados_status_check
+  check (
+    status in (
+      'aberto', 'em_analise', 'em_atendimento', 'aguardando_informacao',
+      'aguardando_morador', 'aguardando_prestador', 'aguardando_aprovacao',
+      'concluido', 'cancelado'
+    )
+  );
 
 create index if not exists chamados_condominio_id_idx on public.chamados (condominio_id);
 
 alter table public.chamados enable row level security;
 
+-- Chamado interno nunca é visível pra quem tem o papel "condomino"; um
+-- morador só vê os próprios chamados (não os de outros moradores) mesmo
+-- quando tem permissão de "visualizar" em chamados — dono do condomínio e
+-- os demais papéis (síndico, subsíndico, administrador, porteiro,
+-- zelador, conselheiro) continuam vendo tudo normalmente.
 drop policy if exists "Owners can view their chamados" on public.chamados;
 create policy "Owners can view their chamados"
   on public.chamados for select
-  using (public.membro_tem_modulo(condominio_id, 'chamados'));
+  using (
+    public.membro_tem_modulo(condominio_id, 'chamados')
+    and (
+      public.membro_papel(condominio_id) is distinct from 'condomino'
+      or solicitante_id = auth.uid()
+    )
+  );
 
 drop policy if exists "Owners can insert their chamados" on public.chamados;
 create policy "Owners can insert their chamados"
   on public.chamados for insert
-  with check (public.membro_tem_permissao(condominio_id, 'chamados', 'criar'));
+  with check (
+    public.membro_tem_permissao(condominio_id, 'chamados', 'criar')
+    and (
+      public.membro_papel(condominio_id) is distinct from 'condomino'
+      or (tipo = 'condominio' and solicitante_id = auth.uid())
+    )
+  );
 
+-- Além de quem tem a ação "editar" (status, responsável, conclusão...), o
+-- próprio solicitante pode atualizar um chamado já concluído — só pra
+-- registrar a avaliação do atendimento (o front só manda os campos de
+-- avaliação nesse caso).
 drop policy if exists "Owners can update their chamados" on public.chamados;
 create policy "Owners can update their chamados"
   on public.chamados for update
-  using (public.membro_tem_permissao(condominio_id, 'chamados', 'editar'));
+  using (
+    public.membro_tem_permissao(condominio_id, 'chamados', 'editar')
+    or (solicitante_id = auth.uid() and status = 'concluido')
+  );
 
 grant select, insert, update on public.chamados to authenticated;
 
@@ -315,6 +419,13 @@ create table if not exists public.ocorrencias (
 
 create index if not exists ocorrencias_condominio_id_idx on public.ocorrencias (condominio_id);
 
+-- FK adiada de chamados.ocorrencia_origem_id (Ocorrência → Chamado) — só
+-- dá pra criar agora que a tabela ocorrencias já existe (ver nota lá).
+alter table public.chamados drop constraint if exists chamados_ocorrencia_origem_id_fkey;
+alter table public.chamados add constraint chamados_ocorrencia_origem_id_fkey
+  foreign key (ocorrencia_origem_id) references public.ocorrencias (id) on delete set null;
+create index if not exists chamados_ocorrencia_origem_id_idx on public.chamados (ocorrencia_origem_id);
+
 alter table public.ocorrencias enable row level security;
 
 drop policy if exists "Owners and porteiros can view ocorrencias" on public.ocorrencias;
@@ -332,7 +443,9 @@ create policy "Owners porteiros and zeladores can insert ocorrencias"
 grant select, insert on public.ocorrencias to authenticated;
 grant all on public.ocorrencias to service_role;
 
--- Manutenção: work orders for the zelador/funcionário.
+-- Manutenção: work orders for the zelador/funcionário. chamado_origem_id
+-- guarda o vínculo quando a manutenção nasceu de um "Gerar manutenção" em
+-- cima de um chamado (Chamado → Manutenção).
 create table if not exists public.manutencoes (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
@@ -340,8 +453,11 @@ create table if not exists public.manutencoes (
   descricao text,
   unidade text,
   status text not null default 'aberta' check (status in ('aberta', 'em_andamento', 'concluida')),
+  chamado_origem_id uuid references public.chamados (id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.manutencoes add column if not exists chamado_origem_id uuid references public.chamados (id) on delete set null;
 
 create index if not exists manutencoes_condominio_id_idx on public.manutencoes (condominio_id);
 
@@ -378,8 +494,11 @@ create table if not exists public.propostas (
   decidido_por text,
   decidido_em timestamptz,
   comentario text,
+  manutencao_origem_id uuid references public.manutencoes (id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.propostas add column if not exists manutencao_origem_id uuid references public.manutencoes (id) on delete set null;
 
 create index if not exists propostas_condominio_id_idx on public.propostas (condominio_id);
 

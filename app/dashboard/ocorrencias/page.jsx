@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -9,6 +10,7 @@ const emptyForm = { titulo: "", descricao: "" };
 
 export default function OcorrenciasPage() {
   const { condominio, user, member, temPermissao } = useAuth();
+  const router = useRouter();
   const [ocorrencias, setOcorrencias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -16,7 +18,17 @@ export default function OcorrenciasPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const podeCriar = temPermissao("ocorrencias", "criar");
+  const podeGerarChamado = temPermissao("chamados", "criar");
   const registradoPor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
+
+  function gerarChamado(ocorrencia) {
+    const params = new URLSearchParams({
+      ocorrenciaId: ocorrencia.id,
+      titulo: ocorrencia.titulo,
+      descricao: ocorrencia.descricao || "",
+    });
+    router.push(`/dashboard/chamados?${params.toString()}`);
+  }
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -114,6 +126,14 @@ export default function OcorrenciasPage() {
               <p className="mt-2 text-xs text-navy-400">
                 {o.registrado_por} · {new Date(o.created_at).toLocaleString("pt-BR")}
               </p>
+              {podeGerarChamado && (
+                <button
+                  onClick={() => gerarChamado(o)}
+                  className="mt-2 text-xs font-semibold text-navy-700 hover:underline"
+                >
+                  Gerar chamado
+                </button>
+              )}
             </div>
           ))}
         </div>

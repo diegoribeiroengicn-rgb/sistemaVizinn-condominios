@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -16,12 +17,27 @@ const emptyForm = { titulo: "", descricao: "", valor: "" };
 
 export default function PropostasPage() {
   const { condominio, user, member, temPermissao } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [propostas, setPropostas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [decidingId, setDecidingId] = useState(null);
+
+  // Pré-preenche quando chega vindo de "Solicitar proposta" numa
+  // manutenção (?manutencaoId=...&titulo=...&descricao=...).
+  useEffect(() => {
+    const manutencaoId = searchParams.get("manutencaoId");
+    if (!manutencaoId) return;
+    setForm((f) => ({
+      ...f,
+      titulo: searchParams.get("titulo") || f.titulo,
+      descricao: searchParams.get("descricao") || f.descricao,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Quem cadastra e quem decide (aprova/reprova) agora é definido pela
   // permissão de cada pessoa nesse módulo, não mais fixo pro síndico ou
@@ -54,12 +70,14 @@ export default function PropostasPage() {
 
     setSubmitting(true);
     setError("");
+    const manutencaoId = searchParams.get("manutencaoId") || null;
     const { error: insertError } = await supabase.from("propostas").insert({
       condominio_id: condominio.id,
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
       valor: form.valor ? Number(form.valor) : null,
       status: "pendente",
+      manutencao_origem_id: manutencaoId,
     });
     setSubmitting(false);
 
@@ -68,6 +86,7 @@ export default function PropostasPage() {
       return;
     }
     setForm(emptyForm);
+    if (manutencaoId) router.replace("/dashboard/propostas");
     load();
   }
 
@@ -173,6 +192,7 @@ export default function PropostasPage() {
                   {p.descricao && <p className="mt-2 text-sm text-navy-600">{p.descricao}</p>}
                   <p className="mt-2 text-xs text-navy-400">
                     Criada em {new Date(p.created_at).toLocaleString("pt-BR")}
+                    {p.manutencao_origem_id && " · Vinculada a uma manutenção"}
                     {p.decidido_por && p.status !== "pendente" && (
                       <>
                         {" · "}

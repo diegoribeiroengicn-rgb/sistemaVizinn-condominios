@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -27,6 +28,8 @@ const emptyForm = { titulo: "", descricao: "", unidade: "" };
 
 export default function ManutencaoPage() {
   const { condominio, temPermissao } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [ordens, setOrdens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,6 +39,21 @@ export default function ManutencaoPage() {
 
   const podeCriar = temPermissao("manutencao", "criar");
   const podeEditar = temPermissao("manutencao", "editar");
+  const podeSolicitarProposta = temPermissao("propostas", "criar");
+
+  // Pré-preenche quando chega vindo de "Gerar manutenção" num chamado
+  // (?chamadoId=...&titulo=...&descricao=...&unidade=...).
+  useEffect(() => {
+    const chamadoId = searchParams.get("chamadoId");
+    if (!chamadoId) return;
+    setForm((f) => ({
+      ...f,
+      titulo: searchParams.get("titulo") || f.titulo,
+      descricao: searchParams.get("descricao") || f.descricao,
+      unidade: searchParams.get("unidade") || f.unidade,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -61,12 +79,14 @@ export default function ManutencaoPage() {
 
     setSubmitting(true);
     setError("");
+    const chamadoId = searchParams.get("chamadoId") || null;
     const { error: insertError } = await supabase.from("manutencoes").insert({
       condominio_id: condominio.id,
       titulo: form.titulo.trim(),
       descricao: form.descricao.trim() || null,
       unidade: form.unidade.trim() || null,
       status: "aberta",
+      chamado_origem_id: chamadoId,
     });
     setSubmitting(false);
 
@@ -75,6 +95,7 @@ export default function ManutencaoPage() {
       return;
     }
     setForm(emptyForm);
+    if (chamadoId) router.replace("/dashboard/manutencao");
     load();
   }
 
@@ -87,6 +108,15 @@ export default function ManutencaoPage() {
     setUpdatingId(null);
     if (updateError) setError(updateError.message);
     else load();
+  }
+
+  function solicitarProposta(ordem) {
+    const params = new URLSearchParams({
+      manutencaoId: ordem.id,
+      titulo: ordem.titulo,
+      descricao: ordem.descricao || "",
+    });
+    router.push(`/dashboard/propostas?${params.toString()}`);
   }
 
   if (!condominio) {
@@ -164,7 +194,16 @@ export default function ManutencaoPage() {
                 {o.descricao && <p className="mt-2 text-sm text-navy-600">{o.descricao}</p>}
                 <p className="mt-2 text-xs text-navy-400">
                   {new Date(o.created_at).toLocaleString("pt-BR")}
+                  {o.chamado_origem_id && " · Vinculada a um chamado"}
                 </p>
+                {podeSolicitarProposta && (
+                  <button
+                    onClick={() => solicitarProposta(o)}
+                    className="mt-2 text-xs font-semibold text-navy-700 hover:underline"
+                  >
+                    Solicitar proposta
+                  </button>
+                )}
               </div>
               {podeEditar && (
                 <button
