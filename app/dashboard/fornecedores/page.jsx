@@ -231,10 +231,20 @@ export default function FornecedoresPage() {
     return mapa;
   }, [fornecedores, manutencoes, contasPagar, avaliacoes]);
 
+  // Ranking simples: quem tem nota média entra ordenado do melhor pro
+  // pior; quem ainda não tem avaliação nenhuma fica no fim, em ordem
+  // alfabética. Sem algoritmo de peso/complexidade — só a média mesmo.
   const fornecedoresFiltrados = useMemo(() => {
-    if (!filtroStatus) return fornecedores;
-    return fornecedores.filter((f) => f.status === filtroStatus);
-  }, [fornecedores, filtroStatus]);
+    const lista = filtroStatus ? fornecedores.filter((f) => f.status === filtroStatus) : fornecedores;
+    return [...lista].sort((a, b) => {
+      const notaA = historicoPorFornecedor[a.id]?.notaMedia;
+      const notaB = historicoPorFornecedor[b.id]?.notaMedia;
+      if (notaA == null && notaB == null) return a.razao_social.localeCompare(b.razao_social);
+      if (notaA == null) return 1;
+      if (notaB == null) return -1;
+      return notaB - notaA;
+    });
+  }, [fornecedores, filtroStatus, historicoPorFornecedor]);
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -246,8 +256,9 @@ export default function FornecedoresPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Fornecedores</h1>
         <p className="mt-1 text-sm text-navy-500">
-          Cadastro único de empresas e profissionais que prestam serviço pro condomínio, com
-          histórico de contratações e avaliações.
+          Cadastro único de empresas e profissionais que prestam serviço pro condomínio. Ao
+          concluir uma manutenção, a avaliação é pedida na hora e entra automaticamente no
+          ranking abaixo (ordenado do melhor pro pior).
         </p>
       </div>
 
@@ -410,13 +421,19 @@ export default function FornecedoresPage() {
         <div className="card text-center text-navy-400">Nenhum fornecedor cadastrado ainda.</div>
       ) : (
         <div className="space-y-3">
-          {fornecedoresFiltrados.map((f) => {
+          {fornecedoresFiltrados.map((f, index) => {
             const hist = historicoPorFornecedor[f.id] || {};
+            const posicaoRanking = hist.notaMedia != null ? index + 1 : null;
             return (
               <div key={f.id} className="card">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {posicaoRanking && (
+                        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-navy-900 text-xs font-bold text-white">
+                          {posicaoRanking}
+                        </span>
+                      )}
                       <h3 className="font-semibold text-navy-900">{f.razao_social}</h3>
                       {f.nome_fantasia && <span className="text-sm text-navy-500">({f.nome_fantasia})</span>}
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[f.status]}`}>

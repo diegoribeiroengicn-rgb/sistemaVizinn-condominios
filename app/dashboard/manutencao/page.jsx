@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
-import { CATEGORIAS_SUGERIDAS } from "@/lib/fornecedores";
+import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
 
 const STATUS_ORDER = ["aberta", "em_andamento", "concluida"];
 const STATUS_LABELS = { aberta: "Aberta", em_andamento: "Em andamento", concluida: "Concluída" };
@@ -40,6 +40,25 @@ const emptyForm = {
   dataPrevista: "",
   fornecedorId: "",
 };
+
+const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
+
+function Estrelas({ nota, onChange }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          className={n <= nota ? "text-amber-500" : "text-navy-200"}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function calcularProximaData(periodicidade, periodicidadeDias, dataBase) {
   const data = new Date(`${dataBase}T00:00:00`);
@@ -149,6 +168,7 @@ export default function ManutencaoPage() {
       status: ordem.status,
       fornecedorId: ordem.fornecedor_id || "",
       resultado: ordem.resultado || "",
+      avaliacao: emptyAvaliacao,
     });
   }
 
@@ -175,6 +195,27 @@ export default function ManutencaoPage() {
     }
 
     const { error: updateError } = await supabase.from("manutencoes").update(updates).eq("id", ordem.id);
+
+    // Ao concluir uma manutenção com fornecedor, gera automaticamente a
+    // avaliação dele (entra no ranking de Fornecedores) — sem isso não dá
+    // pra montar o histórico de qualidade/prazo/custo/atendimento.
+    if (!updateError && vaiConcluir && gerenciarForm.fornecedorId) {
+      const a = gerenciarForm.avaliacao;
+      const { error: avaliacaoError } = await supabase.from("avaliacoes_fornecedor").insert({
+        condominio_id: condominio.id,
+        fornecedor_id: gerenciarForm.fornecedorId,
+        manutencao_id: ordem.id,
+        avaliador_id: user?.id || null,
+        avaliador_nome: nomeUsuario,
+        nota_qualidade: a.nota_qualidade,
+        nota_prazo: a.nota_prazo,
+        nota_custo: a.nota_custo,
+        nota_atendimento: a.nota_atendimento,
+        observacao: a.observacao.trim() || null,
+      });
+      if (avaliacaoError) console.error("Erro ao registrar avaliação do fornecedor:", avaliacaoError.message);
+    }
+
     setSalvando(false);
 
     if (updateError) {
@@ -363,6 +404,34 @@ export default function ManutencaoPage() {
                   value={gerenciarForm.resultado}
                   onChange={(e) => setGerenciarForm((f) => ({ ...f, resultado: e.target.value }))}
                   placeholder="O que foi feito"
+                />
+              </div>
+            )}
+            {gerenciarForm.status === "concluida" && o.status !== "concluida" && gerenciarForm.fornecedorId && (
+              <div className="rounded-lg bg-navy-50/50 p-3">
+                <p className="text-sm font-semibold text-navy-800">Avalie o fornecedor</p>
+                <p className="text-xs text-navy-500">Entra no histórico e no ranking de Fornecedores.</p>
+                <div className="mt-2 space-y-1.5">
+                  {CRITERIOS_AVALIACAO.map((c) => (
+                    <div key={c.chave} className="flex items-center justify-between">
+                      <span className="text-sm text-navy-600">{c.label}</span>
+                      <Estrelas
+                        nota={gerenciarForm.avaliacao[c.chave]}
+                        onChange={(nota) =>
+                          setGerenciarForm((f) => ({ ...f, avaliacao: { ...f.avaliacao, [c.chave]: nota } }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+                <textarea
+                  className="input-field mt-2"
+                  rows={2}
+                  placeholder="Observação (opcional)"
+                  value={gerenciarForm.avaliacao.observacao}
+                  onChange={(e) =>
+                    setGerenciarForm((f) => ({ ...f, avaliacao: { ...f.avaliacao, observacao: e.target.value } }))
+                  }
                 />
               </div>
             )}
