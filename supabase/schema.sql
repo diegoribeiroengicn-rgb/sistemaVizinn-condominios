@@ -1,12 +1,45 @@
 -- Vizinn: full schema, run this in the Supabase SQL editor for your project.
 --
--- IMPORTANT: tables created via the SQL editor (unlike the Table Editor UI)
--- do NOT automatically get base privileges for Supabase's "authenticated"
--- role — only RLS policies. Without the GRANTs below, every query from a
--- logged-in user fails with "permission denied for table X" even when RLS
--- would otherwise allow it. This script grants exactly what each table's
--- policies need, nothing more (e.g. no DELETE grant on a table nothing
--- ever deletes from).
+-- IMPORTANT #1: tables created via the SQL editor (unlike the Table Editor
+-- UI) do NOT automatically get base privileges for Supabase's
+-- "authenticated" role — only RLS policies. Without the GRANTs below,
+-- every query from a logged-in user fails with "permission denied for
+-- table X" even when RLS would otherwise allow it.
+--
+-- IMPORTANT #2: condominios and membros each have a policy that checks the
+-- OTHER table (an owner needs to see their membros; a membro needs to see
+-- their condominio). A plain `exists (select 1 from other_table ...)`
+-- subquery re-triggers RLS on that other table, and if IT also queries
+-- back, Postgres detects the cycle and raises "infinite recursion
+-- detected in policy". The two helper functions below break that cycle:
+-- they're SECURITY DEFINER, so Postgres does not re-apply RLS inside
+-- them, and every policy below calls them instead of writing the
+-- cross-table subquery directly.
+
+create or replace function public.is_condominio_owner(p_condominio_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.condominios c
+    where c.id = p_condominio_id and c.owner_id = auth.uid()
+  );
+$$;
+
+create or replace function public.membro_papel(p_condominio_id uuid)
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select papel from public.membros
+  where condominio_id = p_condominio_id and user_id = auth.uid()
+  limit 1;
+$$;
 
 create table if not exists public.condominios (
   id uuid primary key default gen_random_uuid(),
@@ -63,6 +96,16 @@ create policy "Owners can update their condominio"
   on public.condominios for update
   using (auth.uid() = owner_id);
 
+-- Members (não-owners) also need to read the condominio they belong to.
+-- Postgres OR's multiple permissive policies for the same command, so this
+-- adds to (doesn't replace) "Owners can view their condominio" above.
+-- Uses membro_papel() instead of a direct membros subquery — see note at
+-- the top of this file about RLS recursion.
+drop policy if exists "Members can view their condominio" on public.condominios;
+create policy "Members can view their condominio"
+  on public.condominios for select
+  using (public.membro_papel(id) is not null);
+
 -- The platform admin dashboard (/admin) reads through the service role key
 -- server-side (see /app/api/admin), which bypasses RLS by design — no
 -- extra policy is needed for the owner to see every condominio.
@@ -87,26 +130,17 @@ alter table public.chamados enable row level security;
 drop policy if exists "Owners can view their chamados" on public.chamados;
 create policy "Owners can view their chamados"
   on public.chamados for select
-  using (exists (
-    select 1 from public.condominios c
-    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
-  ));
+  using (public.is_condominio_owner(condominio_id));
 
 drop policy if exists "Owners can insert their chamados" on public.chamados;
 create policy "Owners can insert their chamados"
   on public.chamados for insert
-  with check (exists (
-    select 1 from public.condominios c
-    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
-  ));
+  with check (public.is_condominio_owner(condominio_id));
 
 drop policy if exists "Owners can update their chamados" on public.chamados;
 create policy "Owners can update their chamados"
   on public.chamados for update
-  using (exists (
-    select 1 from public.condominios c
-    where c.id = chamados.condominio_id and c.owner_id = auth.uid()
-  ));
+  using (public.is_condominio_owner(condominio_id));
 
 grant select, insert, update on public.chamados to authenticated;
 
@@ -126,26 +160,23 @@ alter table public.avisos enable row level security;
 drop policy if exists "Owners can view their avisos" on public.avisos;
 create policy "Owners can view their avisos"
   on public.avisos for select
-  using (exists (
-    select 1 from public.condominios c
-    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
-  ));
+  using (public.is_condominio_owner(condominio_id));
 
 drop policy if exists "Owners can insert their avisos" on public.avisos;
 create policy "Owners can insert their avisos"
   on public.avisos for insert
-  with check (exists (
-    select 1 from public.condominios c
-    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
-  ));
+  with check (public.is_condominio_owner(condominio_id));
 
 drop policy if exists "Owners can delete their avisos" on public.avisos;
 create policy "Owners can delete their avisos"
   on public.avisos for delete
-  using (exists (
-    select 1 from public.condominios c
-    where c.id = avisos.condominio_id and c.owner_id = auth.uid()
-  ));
+  using (public.is_condominio_owner(condominio_id));
+
+-- Every member (any papel) can read avisos — same idea, additive policy.
+drop policy if exists "Members can view avisos" on public.avisos;
+create policy "Members can view avisos"
+  on public.avisos for select
+  using (public.membro_papel(condominio_id) is not null);
 
 grant select, insert, delete on public.avisos to authenticated;
 
@@ -173,43 +204,14 @@ alter table public.membros enable row level security;
 drop policy if exists "Owners can view their membros" on public.membros;
 create policy "Owners can view their membros"
   on public.membros for select
-  using (
-    exists (
-      select 1 from public.condominios c
-      where c.id = membros.condominio_id and c.owner_id = auth.uid()
-    )
-    or user_id = auth.uid()
-  );
+  using (public.is_condominio_owner(condominio_id) or user_id = auth.uid());
 
 drop policy if exists "Owners can delete their membros" on public.membros;
 create policy "Owners can delete their membros"
   on public.membros for delete
-  using (exists (
-    select 1 from public.condominios c
-    where c.id = membros.condominio_id and c.owner_id = auth.uid()
-  ));
+  using (public.is_condominio_owner(condominio_id));
 
 grant select, delete on public.membros to authenticated;
-
--- Members (não-owners) also need to read the condominio they belong to.
--- Postgres OR's multiple permissive policies for the same command, so this
--- adds to (doesn't replace) "Owners can view their condominio" above.
-drop policy if exists "Members can view their condominio" on public.condominios;
-create policy "Members can view their condominio"
-  on public.condominios for select
-  using (exists (
-    select 1 from public.membros m
-    where m.condominio_id = condominios.id and m.user_id = auth.uid()
-  ));
-
--- Every member (any papel) can read avisos — same idea, additive policy.
-drop policy if exists "Members can view avisos" on public.avisos;
-create policy "Members can view avisos"
-  on public.avisos for select
-  using (exists (
-    select 1 from public.membros m
-    where m.condominio_id = avisos.condominio_id and m.user_id = auth.uid()
-  ));
 
 -- Ocorrências: portaria log. Registered by porteiro (or the síndico),
 -- visible to the síndico and porteiros of that condominio.
@@ -230,30 +232,16 @@ drop policy if exists "Owners and porteiros can view ocorrencias" on public.ocor
 create policy "Owners and porteiros can view ocorrencias"
   on public.ocorrencias for select
   using (
-    exists (
-      select 1 from public.condominios c
-      where c.id = ocorrencias.condominio_id and c.owner_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.membros m
-      where m.condominio_id = ocorrencias.condominio_id
-        and m.user_id = auth.uid() and m.papel = 'porteiro'
-    )
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'porteiro'
   );
 
 drop policy if exists "Owners and porteiros can insert ocorrencias" on public.ocorrencias;
 create policy "Owners and porteiros can insert ocorrencias"
   on public.ocorrencias for insert
   with check (
-    exists (
-      select 1 from public.condominios c
-      where c.id = ocorrencias.condominio_id and c.owner_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.membros m
-      where m.condominio_id = ocorrencias.condominio_id
-        and m.user_id = auth.uid() and m.papel = 'porteiro'
-    )
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'porteiro'
   );
 
 grant select, insert on public.ocorrencias to authenticated;
@@ -281,38 +269,21 @@ drop policy if exists "Owners and conselheiros can view propostas" on public.pro
 create policy "Owners and conselheiros can view propostas"
   on public.propostas for select
   using (
-    exists (
-      select 1 from public.condominios c
-      where c.id = propostas.condominio_id and c.owner_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.membros m
-      where m.condominio_id = propostas.condominio_id
-        and m.user_id = auth.uid() and m.papel = 'conselheiro'
-    )
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'conselheiro'
   );
 
 drop policy if exists "Owners can insert propostas" on public.propostas;
 create policy "Owners can insert propostas"
   on public.propostas for insert
-  with check (exists (
-    select 1 from public.condominios c
-    where c.id = propostas.condominio_id and c.owner_id = auth.uid()
-  ));
+  with check (public.is_condominio_owner(condominio_id));
 
 drop policy if exists "Owners and conselheiros can update propostas" on public.propostas;
 create policy "Owners and conselheiros can update propostas"
   on public.propostas for update
   using (
-    exists (
-      select 1 from public.condominios c
-      where c.id = propostas.condominio_id and c.owner_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.membros m
-      where m.condominio_id = propostas.condominio_id
-        and m.user_id = auth.uid() and m.papel = 'conselheiro'
-    )
+    public.is_condominio_owner(condominio_id)
+    or public.membro_papel(condominio_id) = 'conselheiro'
   );
 
 grant select, insert, update on public.propostas to authenticated;
