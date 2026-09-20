@@ -1,5 +1,12 @@
--- Vizinn: schema for the "condominios" table.
--- Run this in the Supabase SQL editor for your project.
+-- Vizinn: full schema, run this in the Supabase SQL editor for your project.
+--
+-- IMPORTANT: tables created via the SQL editor (unlike the Table Editor UI)
+-- do NOT automatically get base privileges for Supabase's "authenticated"
+-- role — only RLS policies. Without the GRANTs below, every query from a
+-- logged-in user fails with "permission denied for table X" even when RLS
+-- would otherwise allow it. This script grants exactly what each table's
+-- policies need, nothing more (e.g. no DELETE grant on a table nothing
+-- ever deletes from).
 
 create table if not exists public.condominios (
   id uuid primary key default gen_random_uuid(),
@@ -60,6 +67,8 @@ create policy "Owners can update their condominio"
 -- server-side (see /app/api/admin), which bypasses RLS by design — no
 -- extra policy is needed for the owner to see every condominio.
 
+grant select, update on public.condominios to authenticated;
+
 -- Chamados (support tickets), scoped to one condominio.
 create table if not exists public.chamados (
   id uuid primary key default gen_random_uuid(),
@@ -99,6 +108,8 @@ create policy "Owners can update their chamados"
     where c.id = chamados.condominio_id and c.owner_id = auth.uid()
   ));
 
+grant select, insert, update on public.chamados to authenticated;
+
 -- Avisos (announcements), scoped to one condominio.
 create table if not exists public.avisos (
   id uuid primary key default gen_random_uuid(),
@@ -135,6 +146,8 @@ create policy "Owners can delete their avisos"
     select 1 from public.condominios c
     where c.id = avisos.condominio_id and c.owner_id = auth.uid()
   ));
+
+grant select, insert, delete on public.avisos to authenticated;
 
 -- Membros: delimited sub-accounts the síndico grants access to. The
 -- condominio owner (condominios.owner_id) already has full access and is
@@ -175,6 +188,8 @@ create policy "Owners can delete their membros"
     select 1 from public.condominios c
     where c.id = membros.condominio_id and c.owner_id = auth.uid()
   ));
+
+grant select, delete on public.membros to authenticated;
 
 -- Members (não-owners) also need to read the condominio they belong to.
 -- Postgres OR's multiple permissive policies for the same command, so this
@@ -241,6 +256,8 @@ create policy "Owners and porteiros can insert ocorrencias"
     )
   );
 
+grant select, insert on public.ocorrencias to authenticated;
+
 -- Propostas comerciais: created by the síndico, decided (aprovar/reprovar)
 -- by the síndico or a conselheiro.
 create table if not exists public.propostas (
@@ -297,3 +314,5 @@ create policy "Owners and conselheiros can update propostas"
         and m.user_id = auth.uid() and m.papel = 'conselheiro'
     )
   );
+
+grant select, insert, update on public.propostas to authenticated;
