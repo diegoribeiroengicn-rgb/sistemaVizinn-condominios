@@ -64,13 +64,24 @@ export default function DashboardContent() {
   const podeFornecedores = temPermissao("fornecedores", "visualizar");
   const podePropostas = temPermissao("propostas", "visualizar");
   const podeColaboradores = temPermissao("colaboradores", "visualizar");
+  const podeOcorrencias = temPermissao("ocorrencias", "visualizar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
 
     const queries = {};
-    if (podeChamados) queries.chamados = supabase.from("chamados").select("status, data_prevista").eq("condominio_id", condominio.id);
-    if (podeManutencao) queries.manutencoes = supabase.from("manutencoes").select("status, data_prevista").eq("condominio_id", condominio.id);
+    if (podeChamados) {
+      queries.chamados = supabase
+        .from("chamados")
+        .select("status, data_prevista, created_at, data_conclusao, responsavel_id, responsavel_colaborador_id, ocorrencia_origem_id")
+        .eq("condominio_id", condominio.id);
+    }
+    if (podeManutencao) {
+      queries.manutencoes = supabase
+        .from("manutencoes")
+        .select("status, data_prevista, responsavel_colaborador_id")
+        .eq("condominio_id", condominio.id);
+    }
     if (podeFinanceiro) {
       queries.contasPagar = supabase.from("contas_pagar").select("status, valor, data_vencimento, data_pagamento").eq("condominio_id", condominio.id);
       queries.contasReceber = supabase.from("contas_receber").select("status, valor, valor_recebido, data_vencimento, data_recebimento").eq("condominio_id", condominio.id);
@@ -78,6 +89,7 @@ export default function DashboardContent() {
     if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
     if (podePropostas) queries.propostas = supabase.from("propostas").select("status").eq("condominio_id", condominio.id);
     if (podeColaboradores) queries.colaboradores = supabase.from("colaboradores").select("status").eq("condominio_id", condominio.id);
+    if (podeOcorrencias) queries.ocorrencias = supabase.from("ocorrencias").select("id").eq("condominio_id", condominio.id);
     // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
     // o campo condominios.unidades_ativas nunca é atualizado automaticamente,
     // então usamos a contagem real em vez dele.
@@ -94,7 +106,7 @@ export default function DashboardContent() {
       dados[k] = resultados[i].data || [];
     });
     setIndicadores(dados);
-  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas, podeColaboradores]);
+  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas, podeColaboradores, podeOcorrencias]);
 
   useEffect(() => {
     load();
@@ -116,18 +128,24 @@ export default function DashboardContent() {
   const chamadosAbertos = indicadores?.chamados?.filter((c) => !CHAMADOS_STATUS_FINAIS.includes(c.status)) || [];
   const chamadosAtrasados = chamadosAbertos.filter((c) => calcularStatusPrazo(c.data_prevista, c.status)?.atrasado);
   const chamadosEmAtendimento = indicadores?.chamados?.filter((c) => c.status === "em_atendimento") || [];
+  const chamadosSemResponsavel = chamadosAbertos.filter((c) => !c.responsavel_id && !c.responsavel_colaborador_id);
 
   const manutencoesAbertas = indicadores?.manutencoes?.filter((m) => m.status !== "concluida") || [];
   const manutencoesAtrasadas = manutencoesAbertas.filter(
     (m) => calcularStatusPrazo(m.data_prevista, m.status, ["concluida"])?.nivel === "vermelho"
   );
   const manutencoesEmAndamento = indicadores?.manutencoes?.filter((m) => m.status === "em_andamento") || [];
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const manutencoesHoje = manutencoesAbertas.filter((m) => m.data_prevista === hojeStr);
 
   const contasPagarAbertas = indicadores?.contasPagar?.filter((c) => !STATUS_PAGAR_FINAIS.includes(c.status)) || [];
   const contasReceberAbertas = indicadores?.contasReceber?.filter((c) => !STATUS_RECEBER_FINAIS.includes(c.status)) || [];
   const contasVencidas =
     (indicadores?.contasPagar?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "vermelho").length || 0) +
     (indicadores?.contasReceber?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho").length || 0);
+  const contasAVencerEmBreve =
+    (indicadores?.contasPagar?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "amarelo").length || 0) +
+    (indicadores?.contasReceber?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "amarelo").length || 0);
   const receitasDoPeriodo = (indicadores?.contasReceber || [])
     .filter((c) => c.status === "recebida" && dentroDoIntervalo(c.data_recebimento, intervalo))
     .reduce((s, c) => s + Number(c.valor_recebido ?? c.valor ?? 0), 0);
@@ -141,6 +159,88 @@ export default function DashboardContent() {
   const propostasPendentes = indicadores?.propostas?.filter((p) => p.status === "pendente") || [];
 
   const colaboradoresAtivos = indicadores?.colaboradores?.filter((c) => c.status === "ativo") || [];
+
+  // Ocorrência "precisa de atenção" = ainda não gerou nenhum chamado — não
+  // existe campo de status (aberta/encerrada) na tabela hoje, então usamos
+  // esse vínculo real em vez de inventar um campo novo.
+  const idsOcorrenciasComChamado = new Set(
+    (indicadores?.chamados || []).map((c) => c.ocorrencia_origem_id).filter(Boolean)
+  );
+  const ocorrenciasSemChamado = (indicadores?.ocorrencias || []).filter((o) => !idsOcorrenciasComChamado.has(o.id));
+
+  const tarefasColaboradoresAbertas =
+    chamadosAbertos.filter((c) => c.responsavel_colaborador_id).length +
+    manutencoesAbertas.filter((m) => m.responsavel_colaborador_id).length;
+
+  // Indicadores derivados (seção 10 do prompt de evolução): taxa de
+  // conclusão/atraso/resposta e tempo médio de atendimento dos chamados.
+  // "Respondido" = saiu do status inicial "aberto" (não existe um campo
+  // de primeira resposta separado hoje).
+  const totalChamados = indicadores?.chamados?.length || 0;
+  const chamadosConcluidos = indicadores?.chamados?.filter((c) => c.status === "concluido") || [];
+  const chamadosComPrazo = indicadores?.chamados?.filter((c) => c.data_prevista) || [];
+  const chamadosRespondidos = indicadores?.chamados?.filter((c) => c.status !== "aberto") || [];
+  const taxaConclusao = totalChamados ? Math.round((chamadosConcluidos.length / totalChamados) * 100) : null;
+  const taxaAtraso = chamadosComPrazo.length
+    ? Math.round((chamadosAtrasados.length / chamadosComPrazo.length) * 100)
+    : null;
+  const taxaResposta = totalChamados ? Math.round((chamadosRespondidos.length / totalChamados) * 100) : null;
+  const chamadosConcluidosComData = chamadosConcluidos.filter((c) => c.data_conclusao && c.created_at);
+  const tempoMedioDias = chamadosConcluidosComData.length
+    ? (
+        chamadosConcluidosComData.reduce(
+          (soma, c) => soma + (new Date(c.data_conclusao) - new Date(c.created_at)) / 86400000,
+          0
+        ) / chamadosConcluidosComData.length
+      ).toFixed(1)
+    : null;
+
+  const alertas = [
+    { href: "/dashboard/chamados", label: "Chamados atrasados", qtd: chamadosAtrasados.length, visivel: podeChamados },
+    {
+      href: "/dashboard/chamados",
+      label: "Chamados sem responsável",
+      qtd: chamadosSemResponsavel.length,
+      visivel: podeChamados,
+    },
+    {
+      href: "/dashboard/manutencao",
+      label: "Manutenções atrasadas",
+      qtd: manutencoesAtrasadas.length,
+      visivel: podeManutencao,
+    },
+    {
+      href: "/dashboard/manutencao",
+      label: "Manutenções previstas para hoje",
+      qtd: manutencoesHoje.length,
+      visivel: podeManutencao,
+    },
+    { href: "/dashboard/financeiro?aba=visao", label: "Contas vencidas", qtd: contasVencidas, visivel: podeFinanceiro },
+    {
+      href: "/dashboard/financeiro?aba=visao",
+      label: "Contas próximas do vencimento",
+      qtd: contasAVencerEmBreve,
+      visivel: podeFinanceiro,
+    },
+    {
+      href: "/dashboard/propostas",
+      label: "Propostas aguardando aprovação",
+      qtd: propostasPendentes.length,
+      visivel: podePropostas,
+    },
+    {
+      href: "/dashboard/ocorrencias",
+      label: "Ocorrências sem chamado gerado",
+      qtd: ocorrenciasSemChamado.length,
+      visivel: podeOcorrencias,
+    },
+    {
+      href: "/dashboard/colaboradores",
+      label: "Tarefas de colaboradores em aberto",
+      qtd: tarefasColaboradoresAbertas,
+      visivel: podeColaboradores,
+    },
+  ].filter((a) => a.visivel && a.qtd > 0);
 
   return (
     <div className="space-y-8">
@@ -193,6 +293,28 @@ export default function DashboardContent() {
         </section>
       )}
 
+      {alertas.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-coral-700">
+            O que precisa de atenção
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {alertas.map((a) => (
+              <Link
+                key={a.label}
+                href={a.href}
+                className="card flex items-center justify-between gap-3 border-coral-100 bg-coral-50/40 transition hover:border-coral-300 hover:shadow-sm"
+              >
+                <span className="text-sm font-medium text-navy-700">{a.label}</span>
+                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-coral px-2 text-sm font-bold text-white">
+                  {a.qtd}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {podeChamados && (
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Chamados</h2>
@@ -200,6 +322,28 @@ export default function DashboardContent() {
             <Indicador href="/dashboard/chamados" label="Abertos" value={chamadosAbertos.length} />
             <Indicador href="/dashboard/chamados" label="Atrasados" value={chamadosAtrasados.length} tone="text-coral-700" />
             <Indicador href="/dashboard/chamados" label="Em atendimento" value={chamadosEmAtendimento.length} />
+            <Indicador href="/dashboard/chamados" label="Sem responsável" value={chamadosSemResponsavel.length} />
+            <Indicador
+              href="/dashboard/chamados"
+              label="Taxa de conclusão"
+              value={taxaConclusao != null ? `${taxaConclusao}%` : "-"}
+            />
+            <Indicador
+              href="/dashboard/chamados"
+              label="Taxa de resposta"
+              value={taxaResposta != null ? `${taxaResposta}%` : "-"}
+            />
+            <Indicador
+              href="/dashboard/chamados"
+              label="Taxa de atraso"
+              value={taxaAtraso != null ? `${taxaAtraso}%` : "-"}
+              tone="text-coral-700"
+            />
+            <Indicador
+              href="/dashboard/chamados"
+              label="Tempo médio de atendimento"
+              value={tempoMedioDias ? `${tempoMedioDias} dias` : "-"}
+            />
           </div>
         </section>
       )}
