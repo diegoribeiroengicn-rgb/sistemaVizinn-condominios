@@ -41,27 +41,13 @@ as $$
   limit 1;
 $$;
 
--- Acesso por módulo: o síndico escolhe, pessoa por pessoa, quais módulos
--- (avisos, chamados, ocorrências, manutenção, propostas) aquele acesso
--- enxerga — independente do papel. O papel só define o conjunto padrão
--- sugerido na hora de criar o acesso (ver DEFAULT_MODULOS_BY_PAPEL no
--- front-end); daí em diante quem manda é a coluna membros.modulos.
--- O dono do condomínio sempre tem acesso a tudo (is_condominio_owner).
-create or replace function public.membro_tem_modulo(p_condominio_id uuid, p_modulo text)
-returns boolean
-language sql
-security definer
-set search_path = public
-stable
-as $$
-  select public.is_condominio_owner(p_condominio_id)
-  or exists (
-    select 1 from public.membros
-    where condominio_id = p_condominio_id
-      and user_id = auth.uid()
-      and p_modulo = any(modulos)
-  );
-$$;
+-- Nota: a função membro_tem_modulo() (usada por chamados/avisos/
+-- ocorrências/manutenções/propostas) só é criada mais abaixo, DEPOIS da
+-- tabela membros e da coluna membros.modulos — Postgres valida as colunas
+-- referenciadas no corpo de uma function SQL contra a tabela já existente
+-- na hora do CREATE FUNCTION, e falha com "column does not exist" se a
+-- tabela já existe (de uma execução anterior deste script) mas a coluna
+-- ainda não. Ver a definição logo após "grant select, delete on public.membros".
 
 create table if not exists public.condominios (
   id uuid primary key default gen_random_uuid(),
@@ -134,6 +120,87 @@ create policy "Members can view their condominio"
 
 grant select, update on public.condominios to authenticated;
 
+-- Membros: delimited sub-accounts the síndico grants access to. The
+-- condominio owner (condominios.owner_id) already has full access and is
+-- NOT a row here — this table is only for roles the síndico explicitly
+-- creates: condômino (read-only, own unit), porteiro (ocorrências),
+-- conselheiro (approve/reject propostas), zelador (manutenção + ocorrências).
+-- This block runs before chamados/avisos/etc below because their RLS
+-- policies call membro_tem_modulo(), which reads membros.modulos and must
+-- be created AFTER that column exists (see note near membro_papel above).
+create table if not exists public.membros (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  nome text not null,
+  email text not null,
+  telefone text,
+  papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador')),
+  unidade text,
+  modulos text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+-- Safe to re-run: adds the column / widens the check constraint if this
+-- script already ran before they existed.
+alter table public.membros add column if not exists telefone text;
+alter table public.membros add column if not exists modulos text[] not null default '{}';
+alter table public.membros drop constraint if exists membros_papel_check;
+alter table public.membros add constraint membros_papel_check
+  check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador'));
+
+-- Backfill: acessos criados antes de existir a customização por módulo
+-- recebem o conjunto padrão do papel deles, senão perderiam o acesso que
+-- já usavam quando este script rodar. Só toca quem ainda está vazio.
+update public.membros set modulos = array['avisos']
+  where papel = 'condomino' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'ocorrencias']
+  where papel = 'porteiro' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'propostas']
+  where papel = 'conselheiro' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'manutencao', 'ocorrencias']
+  where papel = 'zelador' and modulos = '{}';
+
+create unique index if not exists membros_user_id_key on public.membros (user_id);
+create index if not exists membros_condominio_id_idx on public.membros (condominio_id);
+
+alter table public.membros enable row level security;
+
+drop policy if exists "Owners can view their membros" on public.membros;
+create policy "Owners can view their membros"
+  on public.membros for select
+  using (public.is_condominio_owner(condominio_id) or user_id = auth.uid());
+
+drop policy if exists "Owners can delete their membros" on public.membros;
+create policy "Owners can delete their membros"
+  on public.membros for delete
+  using (public.is_condominio_owner(condominio_id));
+
+grant select, delete on public.membros to authenticated;
+
+-- Acesso por módulo: o síndico escolhe, pessoa por pessoa, quais módulos
+-- (avisos, chamados, ocorrências, manutenção, propostas) aquele acesso
+-- enxerga — independente do papel. O papel só define o conjunto padrão
+-- sugerido na hora de criar o acesso (ver DEFAULT_MODULOS_BY_PAPEL no
+-- front-end); daí em diante quem manda é a coluna membros.modulos.
+-- O dono do condomínio sempre tem acesso a tudo (is_condominio_owner).
+-- Precisa vir DEPOIS de membros.modulos existir (ver nota acima).
+create or replace function public.membro_tem_modulo(p_condominio_id uuid, p_modulo text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select public.is_condominio_owner(p_condominio_id)
+  or exists (
+    select 1 from public.membros
+    where condominio_id = p_condominio_id
+      and user_id = auth.uid()
+      and p_modulo = any(modulos)
+  );
+$$;
+
 -- Chamados (support tickets), scoped to one condominio.
 create table if not exists public.chamados (
   id uuid primary key default gen_random_uuid(),
@@ -203,61 +270,6 @@ create policy "Members can view avisos"
   using (public.membro_tem_modulo(condominio_id, 'avisos'));
 
 grant select, insert, delete on public.avisos to authenticated;
-
--- Membros: delimited sub-accounts the síndico grants access to. The
--- condominio owner (condominios.owner_id) already has full access and is
--- NOT a row here — this table is only for roles the síndico explicitly
--- creates: condômino (read-only, own unit), porteiro (ocorrências),
--- conselheiro (approve/reject propostas), zelador (manutenção + ocorrências).
-create table if not exists public.membros (
-  id uuid primary key default gen_random_uuid(),
-  condominio_id uuid not null references public.condominios (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  nome text not null,
-  email text not null,
-  telefone text,
-  papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador')),
-  unidade text,
-  modulos text[] not null default '{}',
-  created_at timestamptz not null default now()
-);
-
--- Safe to re-run: adds the column / widens the check constraint if this
--- script already ran before they existed.
-alter table public.membros add column if not exists telefone text;
-alter table public.membros add column if not exists modulos text[] not null default '{}';
-alter table public.membros drop constraint if exists membros_papel_check;
-alter table public.membros add constraint membros_papel_check
-  check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador'));
-
--- Backfill: acessos criados antes de existir a customização por módulo
--- recebem o conjunto padrão do papel deles, senão perderiam o acesso que
--- já usavam quando este script rodar. Só toca quem ainda está vazio.
-update public.membros set modulos = array['avisos']
-  where papel = 'condomino' and modulos = '{}';
-update public.membros set modulos = array['avisos', 'ocorrencias']
-  where papel = 'porteiro' and modulos = '{}';
-update public.membros set modulos = array['avisos', 'propostas']
-  where papel = 'conselheiro' and modulos = '{}';
-update public.membros set modulos = array['avisos', 'manutencao', 'ocorrencias']
-  where papel = 'zelador' and modulos = '{}';
-
-create unique index if not exists membros_user_id_key on public.membros (user_id);
-create index if not exists membros_condominio_id_idx on public.membros (condominio_id);
-
-alter table public.membros enable row level security;
-
-drop policy if exists "Owners can view their membros" on public.membros;
-create policy "Owners can view their membros"
-  on public.membros for select
-  using (public.is_condominio_owner(condominio_id) or user_id = auth.uid());
-
-drop policy if exists "Owners can delete their membros" on public.membros;
-create policy "Owners can delete their membros"
-  on public.membros for delete
-  using (public.is_condominio_owner(condominio_id));
-
-grant select, delete on public.membros to authenticated;
 
 -- Ocorrências: portaria log. Registered by porteiro/zelador (or the
 -- síndico), visible to the síndico, porteiros and zeladores of that
