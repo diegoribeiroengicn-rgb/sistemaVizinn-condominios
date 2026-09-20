@@ -11,6 +11,7 @@ export default function ConfiguracoesPage() {
   const [alertaDias, setAlertaDias] = useState(condominio?.manutencao_alerta_dias_padrao ?? 7);
   const [salvandoAlerta, setSalvandoAlerta] = useState(false);
   const [alertaSalvo, setAlertaSalvo] = useState(false);
+  const [salvandoDistribuicao, setSalvandoDistribuicao] = useState(false);
 
   async function salvarAlertaPadrao() {
     if (!condominio?.id) return;
@@ -25,6 +26,17 @@ export default function ConfiguracoesPage() {
       setAlertaSalvo(true);
       refreshCondominio();
     }
+  }
+
+  async function alternarDistribuicaoAutomatica(ativar) {
+    if (!condominio?.id) return;
+    setSalvandoDistribuicao(true);
+    const { error } = await supabase
+      .from("condominios")
+      .update({ chamados_distribuicao_automatica: ativar })
+      .eq("id", condominio.id);
+    setSalvandoDistribuicao(false);
+    if (!error) refreshCondominio();
   }
 
   return (
@@ -95,6 +107,26 @@ export default function ConfiguracoesPage() {
             </button>
             {alertaSalvo && <span className="text-sm text-emerald-700">Salvo.</span>}
           </div>
+        </div>
+      )}
+
+      {role === "sindico" && (
+        <div className="card">
+          <h2 className="font-semibold text-navy-900">Distribuição automática de chamados</h2>
+          <p className="mt-1 text-sm text-navy-500">
+            Quando ligada, um chamado de condomínio criado sem colaborador escolhido manualmente é
+            atribuído automaticamente a quem tem menos chamados em aberto no momento. Nunca é
+            obrigatório — escolher o responsável na hora de criar continua funcionando normalmente.
+          </p>
+          <label className="mt-3 flex items-center gap-2 text-sm font-medium text-navy-700">
+            <input
+              type="checkbox"
+              checked={Boolean(condominio?.chamados_distribuicao_automatica)}
+              disabled={salvandoDistribuicao}
+              onChange={(e) => alternarDistribuicaoAutomatica(e.target.checked)}
+            />
+            Ativar distribuição automática
+          </label>
         </div>
       )}
     </div>

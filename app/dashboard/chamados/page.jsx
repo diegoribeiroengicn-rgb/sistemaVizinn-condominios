@@ -188,6 +188,23 @@ export default function ChamadosPage() {
     return mapa;
   }, [colaboradores]);
 
+  // Distribuição automática (opcional, ligada em Configurações): só entra
+  // em ação quando o chamado é de condomínio e ninguém escolheu um
+  // colaborador manualmente — atribui a quem tem menos chamados em aberto
+  // agora. Nunca considera "disponibilidade", porque isso não é um dado
+  // que o sistema guarda hoje.
+  function escolherColaboradorAutomatico() {
+    if (!colaboradores.length) return null;
+    const carga = {};
+    for (const c of colaboradores) carga[c.id] = 0;
+    for (const c of chamados) {
+      if (c.responsavel_colaborador_id && !STATUS_FINAIS.includes(c.status)) {
+        carga[c.responsavel_colaborador_id] = (carga[c.responsavel_colaborador_id] || 0) + 1;
+      }
+    }
+    return [...colaboradores].sort((a, b) => (carga[a.id] || 0) - (carga[b.id] || 0))[0];
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!condominio?.id || !form.titulo.trim()) return;
@@ -198,6 +215,11 @@ export default function ChamadosPage() {
     const responsavelSelecionado = responsaveis.find((r) => r.value === form.responsavel);
     const ocorrenciaId = searchParams.get("ocorrenciaId") || null;
     const tipoFinal = isCondomino ? "condominio" : form.tipo;
+
+    let colaboradorId = form.colaboradorId || null;
+    if (!colaboradorId && tipoFinal === "condominio" && condominio?.chamados_distribuicao_automatica) {
+      colaboradorId = escolherColaboradorAutomatico()?.id || null;
+    }
 
     const { error: insertError } = await supabase.from("chamados").insert({
       condominio_id: condominio.id,
@@ -213,7 +235,7 @@ export default function ChamadosPage() {
       solicitante_nome: nomeUsuario,
       responsavel_id: responsavelSelecionado?.userId || null,
       responsavel_nome: responsavelSelecionado?.label || null,
-      responsavel_colaborador_id: form.colaboradorId || null,
+      responsavel_colaborador_id: colaboradorId,
       data_prevista: form.dataPrevista || null,
       status: "aberto",
       ocorrencia_origem_id: ocorrenciaId,
@@ -339,8 +361,19 @@ export default function ChamadosPage() {
       ? (avaliados.reduce((s, c) => s + c.avaliacao_nota, 0) / avaliados.length).toFixed(1)
       : null;
     const internos = chamados.filter((c) => c.tipo === "interno").length;
+    const semResponsavel = abertos.filter((c) => !c.responsavel_id && !c.responsavel_colaborador_id);
+    const naoRespondidos = chamados.filter((c) => c.status === "aberto");
 
-    return { abertos: abertos.length, atrasados: atrasados.length, porStatus, tempoMedioDias, notaMedia, internos };
+    return {
+      abertos: abertos.length,
+      atrasados: atrasados.length,
+      semResponsavel: semResponsavel.length,
+      naoRespondidos: naoRespondidos.length,
+      porStatus,
+      tempoMedioDias,
+      notaMedia,
+      internos,
+    };
   }, [chamados, podeEditar]);
 
   if (!condominio) {
@@ -503,6 +536,18 @@ export default function ChamadosPage() {
                 onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
               />
             </div>
+            {condominio?.chamados_distribuicao_automatica && !isCondomino && form.tipo === "condominio" && (
+              <p className="sm:col-span-2 text-xs text-navy-500">
+                Distribuição automática ativada: se você não escolher um colaborador, o sistema
+                atribui a quem tem menos chamados em aberto agora.
+              </p>
+            )}
+            {condominio?.chamados_distribuicao_automatica && isCondomino && (
+              <p className="sm:col-span-2 text-xs text-navy-500">
+                Distribuição automática ativada: o sistema atribui a quem tem menos chamados em
+                aberto agora.
+              </p>
+            )}
             <div className="sm:col-span-2">
               <button type="submit" disabled={submitting} className="btn-primary">
                 {submitting ? "Criando..." : "Novo chamado"}
@@ -535,6 +580,14 @@ export default function ChamadosPage() {
             <div>
               <p className="text-xs text-navy-500">Avaliação média</p>
               <p className="text-xl font-bold text-navy-900">{resumo.notaMedia ? `${resumo.notaMedia} ★` : "-"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-navy-500">Sem responsável</p>
+              <p className="text-xl font-bold text-navy-900">{resumo.semResponsavel}</p>
+            </div>
+            <div>
+              <p className="text-xs text-navy-500">Não respondidos</p>
+              <p className="text-xl font-bold text-navy-900">{resumo.naoRespondidos}</p>
             </div>
           </div>
           <div className="mt-3 flex flex-wrap gap-1.5">

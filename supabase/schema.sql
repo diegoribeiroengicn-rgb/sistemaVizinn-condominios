@@ -640,6 +640,12 @@ alter table public.manutencoes add column if not exists fornecedor_id uuid refer
 -- fixo de 7 dias usado hoje pela Visão Geral.
 alter table public.manutencoes add column if not exists alerta_dias_antecedencia integer;
 alter table public.condominios add column if not exists manutencao_alerta_dias_padrao integer not null default 7;
+-- Distribuição automática de chamados (opcional, desligada por padrão):
+-- quando ligada, um chamado de condomínio criado sem colaborador
+-- escolhido manualmente é atribuído automaticamente a quem tem menos
+-- chamados em aberto no momento — nunca obrigatório, o síndico liga em
+-- Configurações.
+alter table public.condominios add column if not exists chamados_distribuicao_automatica boolean not null default false;
 alter table public.propostas add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
 alter table public.propostas add column if not exists fornecedor_nome text;
 
