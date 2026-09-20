@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { getPlan } from "@/lib/plans";
 import { STATUS_FINAIS as CHAMADOS_STATUS_FINAIS, calcularStatusPrazo } from "@/lib/chamados";
 import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
+import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
 
 const nextSteps = [
   {
@@ -54,6 +55,8 @@ function Indicador({ href, label, value, tone = "text-navy-900" }) {
 export default function DashboardContent() {
   const { condominio, temPermissao } = useAuth();
   const [indicadores, setIndicadores] = useState(null);
+  const [periodo, setPeriodo] = useState("mes_atual");
+  const [periodoPersonalizado, setPeriodoPersonalizado] = useState({ inicio: "", fim: "" });
 
   const podeChamados = temPermissao("chamados", "visualizar");
   const podeManutencao = temPermissao("manutencao", "visualizar");
@@ -108,9 +111,7 @@ export default function DashboardContent() {
   const plan = getPlan(data.plano);
   const unidadesAtivas = indicadores?.condominos?.length ?? 0;
 
-  const inicioDoMes = new Date();
-  inicioDoMes.setDate(1);
-  inicioDoMes.setHours(0, 0, 0, 0);
+  const intervalo = calcularIntervaloPeriodo(periodo, periodoPersonalizado);
 
   const chamadosAbertos = indicadores?.chamados?.filter((c) => !CHAMADOS_STATUS_FINAIS.includes(c.status)) || [];
   const chamadosAtrasados = chamadosAbertos.filter((c) => calcularStatusPrazo(c.data_prevista, c.status)?.atrasado);
@@ -127,11 +128,11 @@ export default function DashboardContent() {
   const contasVencidas =
     (indicadores?.contasPagar?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "vermelho").length || 0) +
     (indicadores?.contasReceber?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho").length || 0);
-  const receitasDoMes = (indicadores?.contasReceber || [])
-    .filter((c) => c.status === "recebida" && c.data_recebimento && new Date(c.data_recebimento) >= inicioDoMes)
+  const receitasDoPeriodo = (indicadores?.contasReceber || [])
+    .filter((c) => c.status === "recebida" && dentroDoIntervalo(c.data_recebimento, intervalo))
     .reduce((s, c) => s + Number(c.valor_recebido ?? c.valor ?? 0), 0);
-  const despesasDoMes = (indicadores?.contasPagar || [])
-    .filter((c) => c.status === "pago" && c.data_pagamento && new Date(c.data_pagamento) >= inicioDoMes)
+  const despesasDoPeriodo = (indicadores?.contasPagar || [])
+    .filter((c) => c.status === "pago" && dentroDoIntervalo(c.data_pagamento, intervalo))
     .reduce((s, c) => s + Number(c.valor || 0), 0);
 
   const fornecedoresAtivos = indicadores?.fornecedores?.filter((f) => f.status === "ativo") || [];
@@ -157,6 +158,40 @@ export default function DashboardContent() {
           </span>
         </div>
       </section>
+
+      {podeFinanceiro && (
+        <section className="card">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-sm font-medium text-navy-600">Período:</p>
+            <select className="input-field w-auto" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+              {PERIODO_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {periodo === "personalizado" && (
+              <>
+                <input
+                  type="date"
+                  className="input-field w-auto"
+                  value={periodoPersonalizado.inicio}
+                  onChange={(e) => setPeriodoPersonalizado((p) => ({ ...p, inicio: e.target.value }))}
+                />
+                <span className="text-navy-400">até</span>
+                <input
+                  type="date"
+                  className="input-field w-auto"
+                  value={periodoPersonalizado.fim}
+                  onChange={(e) => setPeriodoPersonalizado((p) => ({ ...p, fim: e.target.value }))}
+                />
+              </>
+            )}
+            {intervalo && <p className="text-xs text-navy-400">{formatarIntervalo(intervalo)}</p>}
+          </div>
+          <p className="mt-1 text-xs text-navy-400">Afeta os indicadores financeiros abaixo.</p>
+        </section>
+      )}
 
       {podeChamados && (
         <section>
@@ -184,9 +219,9 @@ export default function DashboardContent() {
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Financeiro</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Indicador href="/dashboard/financeiro?aba=visao" label="Receitas do mês" value={formatarMoeda(receitasDoMes)} tone="text-emerald-700" />
-            <Indicador href="/dashboard/financeiro?aba=visao" label="Despesas do mês" value={formatarMoeda(despesasDoMes)} tone="text-coral-700" />
-            <Indicador href="/dashboard/financeiro?aba=visao" label="Saldo do mês" value={formatarMoeda(receitasDoMes - despesasDoMes)} />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Receitas no período" value={formatarMoeda(receitasDoPeriodo)} tone="text-emerald-700" />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Despesas no período" value={formatarMoeda(despesasDoPeriodo)} tone="text-coral-700" />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Saldo no período" value={formatarMoeda(receitasDoPeriodo - despesasDoPeriodo)} />
             <Indicador href="/dashboard/financeiro?aba=pagar" label="Contas a pagar" value={contasPagarAbertas.length} />
             <Indicador href="/dashboard/financeiro?aba=receber" label="Contas a receber" value={contasReceberAbertas.length} />
             <Indicador href="/dashboard/financeiro?aba=visao" label="Contas vencidas" value={contasVencidas} tone="text-coral-700" />
