@@ -31,34 +31,27 @@ export function AuthProvider({ children }) {
   // - a delimited member (condômino/porteiro/conselheiro, has a row in
   //   membros pointing at someone else's condominio)
   // Row Level Security is what actually enforces this split server-side;
-  // this just figures out which one applies so the UI can adapt.
+  // this just figures out which one applies so the UI can adapt. Both
+  // queries run in parallel (most users only ever match one of them), and
+  // the membro query embeds its condominio in the same round trip instead
+  // of a separate follow-up query.
   const fetchAccess = useCallback(async (userId) => {
     if (!supabase || !userId) return { condominio: null, member: null };
 
-    const { data: owned, error: ownedError } = await supabase
-      .from("condominios")
-      .select("*")
-      .eq("owner_id", userId)
-      .maybeSingle();
-    if (ownedError) console.error("Erro ao buscar condomínio:", ownedError.message);
-    if (owned) return { condominio: owned, member: null };
+    const [ownedResult, membroResult] = await Promise.all([
+      supabase.from("condominios").select("*").eq("owner_id", userId).maybeSingle(),
+      supabase.from("membros").select("*, condominios(*)").eq("user_id", userId).maybeSingle(),
+    ]);
 
-    const { data: membro, error: membroError } = await supabase
-      .from("membros")
-      .select("*")
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (membroError) console.error("Erro ao buscar acesso:", membroError.message);
+    if (ownedResult.error) console.error("Erro ao buscar condomínio:", ownedResult.error.message);
+    if (ownedResult.data) return { condominio: ownedResult.data, member: null };
+
+    if (membroResult.error) console.error("Erro ao buscar acesso:", membroResult.error.message);
+    const membro = membroResult.data;
     if (!membro) return { condominio: null, member: null };
 
-    const { data: condo, error: condoError } = await supabase
-      .from("condominios")
-      .select("*")
-      .eq("id", membro.condominio_id)
-      .maybeSingle();
-    if (condoError) console.error("Erro ao buscar condomínio do membro:", condoError.message);
-
-    return { condominio: condo || null, member: membro };
+    const { condominios: condo, ...member } = membro;
+    return { condominio: condo || null, member };
   }, []);
 
   useEffect(() => {

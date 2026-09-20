@@ -28,7 +28,32 @@ const MESSAGES = {
 // subscription. "promessa" and "cortesia" are intentionally NOT blocked —
 // those are admin-granted access, not a problem state.
 export default function AccessGate({ children }) {
-  const { condominio, logout } = useAuth();
+  const { user, condominio, role, loading, logout } = useAuth();
+
+  // Auth resolved (not loading) but neither a condominio nor a membro row
+  // was found for this user — an orphaned login (e.g. signup succeeded but
+  // the condominio insert failed). Without this, every page below would
+  // hang forever on "Carregando condomínio...".
+  if (!loading && user && !role) {
+    return (
+      <div className="card mx-auto max-w-lg text-center">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-coral-50 text-2xl">
+          ⚠️
+        </div>
+        <h1 className="mt-4 font-display text-xl font-bold text-navy-900">
+          Não encontramos seu condomínio
+        </h1>
+        <p className="mt-2 text-navy-600">
+          Sua conta existe, mas não está vinculada a nenhum condomínio ou acesso — geralmente
+          isso acontece quando o cadastro terminou com erro. Saia e cadastre-se novamente, ou
+          entre em contato com o suporte.
+        </p>
+        <button onClick={logout} className="btn-secondary mt-6">
+          Sair
+        </button>
+      </div>
+    );
+  }
 
   if (!condominio || !BLOCKED_STATUSES.has(condominio.status)) {
     return children;
