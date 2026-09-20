@@ -149,6 +149,15 @@ export function IconConfiguracoes(props) {
   );
 }
 
+export function IconRelatorios(props) {
+  return (
+    <Icon {...props}>
+      <path d="M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+      <path d="M9 8h6M9 12h6M9 16h3" />
+    </Icon>
+  );
+}
+
 export function IconSol(props) {
   return (
     <Icon {...props}>

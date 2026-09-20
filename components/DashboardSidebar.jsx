@@ -19,6 +19,7 @@ import {
   IconPortaria,
   IconAuditoria,
   IconColaboradores,
+  IconRelatorios,
   IconConfiguracoes,
   IconSol,
   IconLua,
@@ -45,8 +46,15 @@ const SINDICO_NAV = [
   { href: "/dashboard/portaria", label: "Portaria", Icon: IconPortaria },
   { href: "/dashboard/auditoria", label: "Auditoria", Icon: IconAuditoria },
   { href: "/dashboard/colaboradores", label: "Colaboradores", Icon: IconColaboradores },
+  { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
 ];
+
+// Relatórios não é um módulo concedível próprio — reaproveita a
+// permissão de "visualizar" de qualquer um dos módulos que ele cobre
+// (financeiro/chamados/avisos/portaria/auditoria), igual à própria
+// página faz pra decidir quais relatórios oferecer.
+const MODULOS_COM_RELATORIO = ["financeiro", "chamados", "avisos", "portaria", "auditoria"];
 
 const ICON_BY_MODULO = {
   visao_geral: IconVisaoGeral,
@@ -68,7 +76,7 @@ const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
 const SIDEBAR_COLLAPSE_KEY = "vizinn-sidebar-collapsed";
 
 export default function DashboardSidebar() {
-  const { user, condominio, role, modulosVisiveis, isAdmin, logout } = useAuth();
+  const { user, condominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -108,11 +116,16 @@ export default function DashboardSidebar() {
   const navItems =
     role === "sindico"
       ? SINDICO_NAV
-      : modulosVisiveis.map((m) => ({
-          href: MODULO_ROUTES[m],
-          label: MODULO_LABELS[m],
-          Icon: ICON_BY_MODULO[m] || IconVisaoGeral,
-        }));
+      : [
+          ...modulosVisiveis.map((m) => ({
+            href: MODULO_ROUTES[m],
+            label: MODULO_LABELS[m],
+            Icon: ICON_BY_MODULO[m] || IconVisaoGeral,
+          })),
+          ...(MODULOS_COM_RELATORIO.some((m) => temPermissao(m, "visualizar"))
+            ? [{ href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios }]
+            : []),
+        ];
 
   const displayName =
     user?.user_metadata?.full_name || condominio?.responsavel_nome || user?.email || "Síndico";
