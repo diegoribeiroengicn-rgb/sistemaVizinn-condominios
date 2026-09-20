@@ -13,7 +13,7 @@ const NAV_ITEMS = [
 ];
 
 export default function DashboardHeader() {
-  const { user, condominio, logout } = useAuth();
+  const { user, condominio, isAdmin, logout } = useAuth();
   const pathname = usePathname();
 
   const displayName =
@@ -37,9 +37,16 @@ export default function DashboardHeader() {
           Bem-vindo, <strong className="text-navy-800">{displayName}</strong>
         </span>
 
-        <button onClick={logout} className="btn-secondary">
-          Sair
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Link href="/admin" className="btn-ghost hidden sm:inline-flex">
+              Painel admin
+            </Link>
+          )}
+          <button onClick={logout} className="btn-secondary">
+            Sair
+          </button>
+        </div>
       </div>
 
       <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-3 sm:px-6">

@@ -2,14 +2,21 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { parseEmailList } from "@/lib/emailList";
 
 const AuthContext = createContext({
   user: null,
   condominio: null,
   loading: true,
+  isAdmin: false,
   logout: async () => {},
   refreshCondominio: async () => {},
 });
+
+// Client-side hint only, used to decide whether to show the "Admin" nav
+// link. The real access control happens server-side in /api/admin (see
+// lib/adminAuth.js), which checks the private ADMIN_EMAILS env var.
+const ADMIN_EMAILS = parseEmailList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -77,9 +84,14 @@ export function AuthProvider({ children }) {
     setCondominio(c);
   }, [user, fetchCondominio]);
 
+  const isAdmin = useMemo(
+    () => Boolean(user?.email) && ADMIN_EMAILS.includes(user.email.toLowerCase()),
+    [user]
+  );
+
   const value = useMemo(
-    () => ({ user, condominio, loading, logout, refreshCondominio }),
-    [user, condominio, loading, logout, refreshCondominio]
+    () => ({ user, condominio, loading, isAdmin, logout, refreshCondominio }),
+    [user, condominio, loading, isAdmin, logout, refreshCondominio]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

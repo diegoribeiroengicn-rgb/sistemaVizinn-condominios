@@ -22,6 +22,26 @@ cobrança via Stripe e dashboard do síndico, tudo em uma única URL.
 6. Usuários já logados que acessam `/` são redirecionados direto para o
    dashboard.
 
+## Painel do administrador (`/admin`)
+
+Rota exclusiva do dono da plataforma (Diego), separada do dashboard de cada
+síndico:
+
+- **Todos os condomínios**: tabela com plano, unidades, status e responsável
+  de cada tenant cadastrado.
+- **Receita/MRR**: MRR de assinantes pagantes e MRR projetado (incluindo
+  quem está em teste gratuito).
+- **Gestão de assinaturas**: cancelar a assinatura de um condomínio
+  diretamente (cancela no Stripe e atualiza o status).
+- **Analytics**: distribuição de condomínios por plano e cadastros por dia
+  (últimos 14 dias com dados).
+
+O acesso é controlado por `ADMIN_EMAILS` (verificado no servidor, em
+`/api/admin/*`, via token do Supabase) — `NEXT_PUBLIC_ADMIN_EMAILS` só decide
+se o link "Admin" aparece no menu. Como o painel lê via
+`SUPABASE_SERVICE_ROLE_KEY`, ele enxerga todos os tenants mesmo com Row
+Level Security habilitada.
+
 ## Configuração
 
 ### 1. Instalar dependências
@@ -45,6 +65,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_STRIPE_PUBLIC_KEY` / `STRIPE_SECRET_KEY` | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | Stripe CLI (`stripe listen`) ou Dashboard → Webhooks |
 | `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_PRO` | Stripe → Product catalog (crie um Price recorrente mensal para cada plano) |
+| `ADMIN_EMAILS` / `NEXT_PUBLIC_ADMIN_EMAILS` | E-mail(s) com acesso ao painel `/admin` (defina os dois com o mesmo valor) |
 
 ### 3. Banco de dados
 
@@ -78,10 +99,16 @@ Abra [http://localhost:3000](http://localhost:3000).
     layout.jsx               # Rota protegida + header/nav do dashboard
     page.jsx                 # Visão geral
     boletos/, chamados/, avisos/, configuracoes/
+  admin/
+    layout.jsx                # AdminGuard + AdminHeader
+    page.jsx                  # Painel do administrador (owner)
   api/
     create-payment-intent/   # Cria PaymentIntent de R$1 (validação do cartão)
     complete-signup/         # Cria cliente/assinatura Stripe + usuário/condomínio
     webhook/                 # Sincroniza status da assinatura
+    admin/
+      overview/                # Todos os condomínios + MRR + analytics (owner only)
+      cancel-subscription/     # Cancela assinatura de um tenant (owner only)
 
 /components                 # Header, LandingHero, Pricing, SignupForm, etc.
 /hooks/useAuth.js            # Contexto de autenticação (Supabase)

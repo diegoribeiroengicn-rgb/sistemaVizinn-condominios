@@ -102,6 +102,7 @@ export async function POST(request) {
 
     const { error: condoError } = await supabaseAdmin.from("condominios").insert({
       owner_id: ownerId,
+      owner_email: email,
       nome: condominioNome,
       cnpj: cnpj || null,
       endereco: endereco || null,

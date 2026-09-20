@@ -19,7 +19,7 @@ const Logo = () => (
 );
 
 export default function Header({ onStart, onLogin }) {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, isAdmin, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-40 border-b border-navy-100 bg-cream-50/90 backdrop-blur">
@@ -31,6 +31,11 @@ export default function Header({ onStart, onLogin }) {
               <Link href="/dashboard" className="btn-ghost hidden sm:inline-flex">
                 Dashboard
               </Link>
+              {isAdmin && (
+                <Link href="/admin" className="btn-ghost hidden sm:inline-flex">
+                  Admin
+                </Link>
+              )}
               <button onClick={logout} className="btn-secondary">
                 Sair
               </button>
