@@ -199,7 +199,7 @@ export default function DashboardSidebar() {
   return (
     <>
       {/* Barra fina no celular/tablet — abre o menu lateral como gaveta */}
-      <div className="flex items-center justify-between border-b border-white/10 bg-midnight px-4 py-3 lg:hidden">
+      <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
         <Link href="/dashboard" className="flex items-center gap-2">
           <svg width="32" height="32" viewBox="0 0 1920 1920" fill="none" aria-hidden="true">
             <path
@@ -222,7 +222,7 @@ export default function DashboardSidebar() {
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-midnight/50" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-midnight">
+          <aside className="absolute inset-y-0 left-0 flex w-72 flex-col bg-sidebar">
             <button
               onClick={() => setMobileOpen(false)}
               aria-label="Fechar menu"
@@ -236,7 +236,7 @@ export default function DashboardSidebar() {
       )}
 
       <aside
-        className={`sticky top-0 hidden h-screen flex-none flex-col bg-midnight transition-all lg:flex ${
+        className={`sticky top-0 hidden h-screen flex-none flex-col bg-sidebar transition-all lg:flex ${
           collapsed ? "w-[72px]" : "w-60"
         }`}
       >

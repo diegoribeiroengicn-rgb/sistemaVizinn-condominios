@@ -65,6 +65,10 @@ module.exports = {
         // themes, unlike the reactive `navy` scale above.
         midnight: "#0a1f3f",
         surface: withOpacity("--surface"),
+        // Fundo da barra lateral — igual ao midnight no tema claro, mas
+        // muda pra um tom mais claro no tema escuro (ver globals.css) pra
+        // continuar contrastando com o fundo da página.
+        sidebar: withOpacity("--sidebar-bg"),
       },
       fontFamily: {
         display: ["var(--font-display)", "Georgia", "serif"],

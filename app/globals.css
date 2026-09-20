@@ -21,6 +21,10 @@
   --navy-950: 2 15 40;
   --bg-page: 253 252 250;
   --surface: 255 255 255;
+  /* Fundo da barra lateral de navegação. Igual ao midnight fixo no claro
+     (mesmo visual de sempre); no escuro vira um tom mais claro que o fundo
+     da página, pra continuar se destacando em vez de "sumir" no preto. */
+  --sidebar-bg: 10 31 63;
 }
 
 /* Explicit dark theme (user picked "Escuro") and, when the user hasn't
@@ -44,6 +48,7 @@
   --navy-950: 255 255 255;
   --bg-page: 11 16 28;
   --surface: 19 27 46;
+  --sidebar-bg: 33 47 80;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +66,7 @@
     --navy-950: 255 255 255;
     --bg-page: 11 16 28;
     --surface: 19 27 46;
+    --sidebar-bg: 33 47 80;
   }
 }
 
