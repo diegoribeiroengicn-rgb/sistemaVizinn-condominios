@@ -208,7 +208,7 @@ export default function DashboardContent() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {nextSteps.map((step, i) => (
             <div key={step.title} className="card flex items-start gap-4">
-              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-navy-900 text-sm font-semibold text-white">
+              <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-midnight text-sm font-semibold text-white">
                 {i + 1}
               </span>
               <div className="flex-1">

@@ -160,7 +160,7 @@ export default function AdminDashboardContent() {
                   title={`${d}: ${data.signupsByDay[d]} cadastro(s)`}
                 >
                   <div
-                    className="rounded-t bg-navy-800 transition group-hover:bg-coral"
+                    className="rounded-t bg-midnight transition group-hover:bg-coral"
                     style={{
                       height: `${Math.max(6, (data.signupsByDay[d] / maxSignups) * 100)}%`,
                     }}

@@ -1,5 +1,21 @@
 /** @type {import('tailwindcss').Config} */
+
+// navy-50..950 (+DEFAULT) are theme-reactive: their RGB channels come from
+// CSS custom properties defined in app/globals.css, which hold different
+// values under `:root` (light) vs `:root[data-theme="dark"]` (dark). The
+// semantic meaning of each step stays constant across themes (50 = most
+// subtle background tint, 900 = strongest text/border), only the actual
+// lightness flips — see the comment in globals.css for the full rationale.
+// This means every existing `text-navy-900`, `bg-navy-50`,
+// `border-navy-100`, etc. across the app automatically adapts to the
+// chosen theme with no per-file changes.
+function withOpacity(cssVar) {
+  return ({ opacityValue }) =>
+    opacityValue === undefined ? `rgb(var(${cssVar}))` : `rgb(var(${cssVar}) / ${opacityValue})`;
+}
+
 module.exports = {
+  darkMode: "class",
   content: [
     "./app/**/*.{js,jsx}",
     "./components/**/*.{js,jsx}",
@@ -8,21 +24,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Vizinn brand palette, sampled from the official logo/wordmark
         navy: {
-          DEFAULT: "#0a1f3f",
-          50: "#eef1f6",
-          100: "#d3daea",
-          200: "#a7b5d4",
-          300: "#7b90bd",
-          400: "#4f6ba7",
-          500: "#2c4a86",
-          600: "#16305f",
-          700: "#12263f",
-          800: "#0a1f3f",
-          900: "#031c48",
-          950: "#020f28",
+          DEFAULT: withOpacity("--navy-800"),
+          50: withOpacity("--navy-50"),
+          100: withOpacity("--navy-100"),
+          200: withOpacity("--navy-200"),
+          300: withOpacity("--navy-300"),
+          400: withOpacity("--navy-400"),
+          500: withOpacity("--navy-500"),
+          600: withOpacity("--navy-600"),
+          700: withOpacity("--navy-700"),
+          800: withOpacity("--navy-800"),
+          900: withOpacity("--navy-900"),
+          950: withOpacity("--navy-950"),
         },
+        // Brand accent colors stay fixed across themes on purpose (buttons,
+        // badges, the logo) — only the neutral "navy" scale above adapts.
         coral: {
           DEFAULT: "#e45d4e",
           50: "#fdf1ef",
@@ -38,11 +55,16 @@ module.exports = {
         },
         cream: {
           DEFAULT: "#f5f0e8",
-          50: "#fdfcfa",
+          50: withOpacity("--bg-page"),
           100: "#f5f0e8",
           200: "#ece3d3",
         },
         sage: "#a9b7a0",
+        // Fixed navy — for solid brand blocks (buttons, active nav pill,
+        // hero sections, avatar circles) that must stay dark navy in both
+        // themes, unlike the reactive `navy` scale above.
+        midnight: "#0a1f3f",
+        surface: withOpacity("--surface"),
       },
       fontFamily: {
         display: ["var(--font-display)", "Georgia", "serif"],

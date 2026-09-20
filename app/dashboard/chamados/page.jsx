@@ -577,7 +577,7 @@ export default function ChamadosPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold text-navy-900">{c.titulo}</h3>
                       {c.tipo === "interno" && (
-                        <span className="rounded-full bg-navy-700 px-2 py-0.5 text-xs font-medium text-white">
+                        <span className="rounded-full bg-midnight px-2 py-0.5 text-xs font-medium text-white">
                           Interno
                         </span>
                       )}

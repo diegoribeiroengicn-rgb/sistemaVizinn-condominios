@@ -665,7 +665,7 @@ export default function AcessosPage() {
       )}
 
       {editing && editForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-navy-900/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-midnight/40 p-4">
           <div className="card w-full max-w-2xl">
             <h2 className="font-display text-lg font-bold text-navy-900">
               Editar acesso de {editing.nome}

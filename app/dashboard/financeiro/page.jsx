@@ -307,7 +307,7 @@ export default function FinanceiroPage() {
             key={a.id}
             onClick={() => setAba(a.id)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-              aba === a.id ? "bg-navy-900 text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+              aba === a.id ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
             }`}
           >
             {a.label}

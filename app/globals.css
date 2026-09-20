@@ -5,10 +5,67 @@
 :root {
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Libre Baskerville", Georgia, serif;
+
+  /* Light theme (default) — matches the original fixed Vizinn palette
+     exactly, so light mode looks the same as before this existed. */
+  --navy-50: 238 241 246;
+  --navy-100: 211 218 234;
+  --navy-200: 167 181 212;
+  --navy-300: 123 144 189;
+  --navy-400: 79 107 167;
+  --navy-500: 44 74 134;
+  --navy-600: 22 48 95;
+  --navy-700: 18 38 63;
+  --navy-800: 10 31 63;
+  --navy-900: 3 28 72;
+  --navy-950: 2 15 40;
+  --bg-page: 253 252 250;
+  --surface: 255 255 255;
+}
+
+/* Explicit dark theme (user picked "Escuro") and, when the user hasn't
+   chosen yet, the OS preference. The navy scale is inverted in meaning
+   (50 = subtle dark tint, 900 = near-white strong text) so every existing
+   `text-navy-900` / `bg-navy-50` / `border-navy-100` etc. across the app
+   keeps reading correctly without touching each page. Brand accents
+   (coral, midnight) are NOT redefined here — they stay the same in both
+   themes on purpose. */
+:root[data-theme="dark"] {
+  --navy-50: 26 34 54;
+  --navy-100: 34 45 70;
+  --navy-200: 46 60 90;
+  --navy-300: 66 83 118;
+  --navy-400: 107 124 163;
+  --navy-500: 148 163 199;
+  --navy-600: 178 190 217;
+  --navy-700: 201 210 232;
+  --navy-800: 222 228 242;
+  --navy-900: 240 243 250;
+  --navy-950: 255 255 255;
+  --bg-page: 11 16 28;
+  --surface: 19 27 46;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --navy-50: 26 34 54;
+    --navy-100: 34 45 70;
+    --navy-200: 46 60 90;
+    --navy-300: 66 83 118;
+    --navy-400: 107 124 163;
+    --navy-500: 148 163 199;
+    --navy-600: 178 190 217;
+    --navy-700: 201 210 232;
+    --navy-800: 222 228 242;
+    --navy-900: 240 243 250;
+    --navy-950: 255 255 255;
+    --bg-page: 11 16 28;
+    --surface: 19 27 46;
+  }
 }
 
 body {
-  background-color: #fdfcfa;
+  background-color: rgb(var(--bg-page));
 }
 
 @layer components {
@@ -16,18 +73,18 @@ body {
     @apply inline-flex items-center justify-center rounded-full bg-coral px-6 py-3 font-semibold text-white shadow-soft transition hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-60;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-full border border-navy-800 bg-transparent px-6 py-3 font-semibold text-navy-800 transition hover:bg-navy-800 hover:text-white;
+    @apply inline-flex items-center justify-center rounded-full border border-navy-300 bg-transparent px-6 py-3 font-semibold text-navy-700 transition hover:border-coral hover:bg-coral hover:text-white;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center rounded-full px-4 py-2 font-medium text-navy-700 transition hover:bg-navy-50;
   }
   .input-field {
-    @apply w-full rounded-lg border border-navy-100 bg-white px-4 py-2.5 text-navy-900 placeholder:text-navy-300 focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30;
+    @apply w-full rounded-lg border border-navy-100 bg-surface px-4 py-2.5 text-navy-900 placeholder:text-navy-300 focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30;
   }
   .label-field {
     @apply mb-1 block text-sm font-medium text-navy-700;
   }
   .card {
-    @apply rounded-2xl border border-navy-100 bg-white p-6 shadow-soft;
+    @apply rounded-2xl border border-navy-100 bg-surface p-6 shadow-soft;
   }
 }

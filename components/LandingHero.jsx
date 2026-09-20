@@ -9,7 +9,7 @@ const bullets = [
 
 export default function LandingHero({ onStart }) {
   return (
-    <section className="relative overflow-hidden bg-navy-900">
+    <section className="relative overflow-hidden bg-midnight">
       <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-coral/20 blur-3xl" />
       <div className="mx-auto grid max-w-6xl gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2 lg:py-28">
         <div className="relative z-10">
@@ -49,27 +49,27 @@ export default function LandingHero({ onStart }) {
         </div>
 
         <div className="relative z-10 flex items-center justify-center">
-          <div className="card w-full max-w-sm bg-white/95">
-            <p className="text-sm font-medium text-navy-500">Resumo do mês</p>
-            <p className="mt-1 font-display text-2xl font-bold text-navy-900">
+          <div className="card w-full max-w-sm border-transparent bg-white/95">
+            <p className="text-sm font-medium text-gray-500">Resumo do mês</p>
+            <p className="mt-1 font-display text-2xl font-bold text-midnight">
               Vila Mariana
             </p>
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs text-navy-400">Arrecadação</p>
-                <p className="text-lg font-semibold text-navy-900">R$ 42.300</p>
+                <p className="text-xs text-gray-400">Arrecadação</p>
+                <p className="text-lg font-semibold text-midnight">R$ 42.300</p>
               </div>
               <div>
-                <p className="text-xs text-navy-400">Inadimplência</p>
+                <p className="text-xs text-gray-400">Inadimplência</p>
                 <p className="text-lg font-semibold text-coral">3,2%</p>
               </div>
               <div>
-                <p className="text-xs text-navy-400">Boletos emitidos</p>
-                <p className="text-lg font-semibold text-navy-900">128</p>
+                <p className="text-xs text-gray-400">Boletos emitidos</p>
+                <p className="text-lg font-semibold text-midnight">128</p>
               </div>
               <div>
-                <p className="text-xs text-navy-400">Chamados abertos</p>
-                <p className="text-lg font-semibold text-navy-900">4</p>
+                <p className="text-xs text-gray-400">Chamados abertos</p>
+                <p className="text-lg font-semibold text-midnight">4</p>
               </div>
             </div>
           </div>

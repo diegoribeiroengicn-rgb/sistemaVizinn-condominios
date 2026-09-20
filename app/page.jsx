@@ -51,7 +51,7 @@ export default function HomePage() {
 
       {authView && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/60 px-4 py-8 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm"
           onClick={(e) => e.target === e.currentTarget && setAuthView(null)}
         >
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto">

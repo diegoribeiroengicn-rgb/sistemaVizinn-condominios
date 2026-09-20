@@ -430,7 +430,7 @@ export default function FornecedoresPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       {posicaoRanking && (
-                        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-navy-900 text-xs font-bold text-white">
+                        <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-midnight text-xs font-bold text-white">
                           {posicaoRanking}
                         </span>
                       )}
