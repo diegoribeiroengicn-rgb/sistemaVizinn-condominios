@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
+import { ALL_MODULOS, DEFAULT_MODULOS_BY_PAPEL, MODULO_LABELS } from "@/lib/modulos";
 
 const PAPEL_LABELS = {
   condomino: "Condômino",
@@ -47,11 +48,44 @@ const ROLE_OVERVIEW = [
   },
 ];
 
-const emptyForm = { nome: "", email: "", telefone: "", password: "", papel: "condomino", unidade: "" };
+const emptyForm = {
+  nome: "",
+  email: "",
+  telefone: "",
+  password: "",
+  papel: "condomino",
+  unidade: "",
+  modulos: DEFAULT_MODULOS_BY_PAPEL.condomino,
+};
 
 // Random 8-char temporary password (letters + digits) for password resets.
 function generateTempPassword() {
   return Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4);
+}
+
+function toggleModulo(modulos, chave) {
+  return modulos.includes(chave) ? modulos.filter((m) => m !== chave) : [...modulos, chave];
+}
+
+// Marca/desmarca módulos: usado tanto no formulário de criação quanto no
+// modal de edição, então recebe o array atual + o setter do form que o
+// chama (setForm ou setEditForm).
+function ModulosCheckboxes({ modulos, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      {ALL_MODULOS.map((chave) => (
+        <label key={chave} className="flex items-center gap-1.5 text-sm text-navy-700">
+          <input
+            type="checkbox"
+            checked={modulos.includes(chave)}
+            onChange={() => onChange(toggleModulo(modulos, chave))}
+            className="h-4 w-4 rounded border-navy-300 text-coral focus:ring-coral"
+          />
+          {MODULO_LABELS[chave]}
+        </label>
+      ))}
+    </div>
+  );
 }
 
 export default function AcessosPage() {
@@ -148,6 +182,7 @@ export default function AcessosPage() {
       telefone: membro.telefone || "",
       papel: membro.papel,
       unidade: membro.unidade || "",
+      modulos: membro.modulos && membro.modulos.length > 0 ? membro.modulos : [],
     });
   }
 
@@ -216,7 +251,9 @@ export default function AcessosPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Acessos</h1>
         <p className="mt-1 text-sm text-navy-500">
-          Quem vê o quê no seu condomínio — cada papel só enxerga os módulos listados abaixo.
+          Quem vê o quê no seu condomínio — cada papel entra com os módulos padrão listados
+          abaixo, mas você pode marcar/desmarcar módulos avulsos por pessoa ao criar ou editar um
+          acesso.
         </p>
       </div>
 
@@ -300,7 +337,10 @@ export default function AcessosPage() {
             <select
               className="input-field"
               value={form.papel}
-              onChange={(e) => setForm((f) => ({ ...f, papel: e.target.value }))}
+              onChange={(e) => {
+                const papel = e.target.value;
+                setForm((f) => ({ ...f, papel, modulos: DEFAULT_MODULOS_BY_PAPEL[papel] || [] }));
+              }}
             >
               <option value="condomino">Condômino</option>
               <option value="porteiro">Porteiro</option>
@@ -319,6 +359,16 @@ export default function AcessosPage() {
               />
             </div>
           )}
+          <div className="sm:col-span-2">
+            <label className="label-field">
+              Módulos que essa pessoa vai ver (o papel já marca um padrão — desmarque ou marque
+              mais se quiser)
+            </label>
+            <ModulosCheckboxes
+              modulos={form.modulos}
+              onChange={(modulos) => setForm((f) => ({ ...f, modulos }))}
+            />
+          </div>
           <div className="sm:col-span-2">
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "Criando..." : "Criar acesso"}
@@ -370,6 +420,7 @@ export default function AcessosPage() {
                 <th className="px-4 py-3 font-medium">Telefone</th>
                 <th className="px-4 py-3 font-medium">Login (e-mail)</th>
                 <th className="px-4 py-3 font-medium">Papel</th>
+                <th className="px-4 py-3 font-medium">Módulos</th>
                 <th className="px-4 py-3 font-medium">Unidade</th>
                 <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
@@ -381,6 +432,22 @@ export default function AcessosPage() {
                   <td className="px-4 py-3 text-navy-600">{m.telefone || "-"}</td>
                   <td className="px-4 py-3 text-navy-600">{m.email}</td>
                   <td className="px-4 py-3 text-navy-600">{PAPEL_LABELS[m.papel]}</td>
+                  <td className="px-4 py-3">
+                    {m.modulos && m.modulos.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {m.modulos.map((mod) => (
+                          <span
+                            key={mod}
+                            className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600"
+                          >
+                            {MODULO_LABELS[mod] || mod}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-navy-400">Nenhum</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-navy-600">{m.unidade || "-"}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-3">
@@ -467,6 +534,13 @@ export default function AcessosPage() {
                   />
                 </div>
               )}
+              <div>
+                <label className="label-field">Módulos que essa pessoa vê</label>
+                <ModulosCheckboxes
+                  modulos={editForm.modulos}
+                  onChange={(modulos) => setEditForm((f) => ({ ...f, modulos }))}
+                />
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={savingEdit} className="btn-primary">
                   {savingEdit ? "Salvando..." : "Salvar alterações"}

@@ -3,27 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { ALL_MODULOS, MODULO_LABELS, MODULO_ROUTES } from "@/lib/modulos";
 
-const NAV_BY_ROLE = {
-  sindico: [
-    { href: "/dashboard", label: "Visão geral" },
-    { href: "/dashboard/boletos", label: "Boletos" },
-    { href: "/dashboard/chamados", label: "Chamados" },
-    { href: "/dashboard/avisos", label: "Avisos" },
-    { href: "/dashboard/ocorrencias", label: "Ocorrências" },
-    { href: "/dashboard/manutencao", label: "Manutenção" },
-    { href: "/dashboard/propostas", label: "Propostas" },
-    { href: "/dashboard/acessos", label: "Acessos" },
-    { href: "/dashboard/configuracoes", label: "Configurações" },
-  ],
-  condomino: [{ href: "/dashboard/avisos", label: "Avisos" }],
-  porteiro: [{ href: "/dashboard/ocorrencias", label: "Ocorrências" }],
-  conselheiro: [{ href: "/dashboard/propostas", label: "Propostas" }],
-  zelador: [
-    { href: "/dashboard/manutencao", label: "Manutenção" },
-    { href: "/dashboard/ocorrencias", label: "Ocorrências" },
-  ],
-};
+// O síndico sempre vê o menu completo (inclui Acessos/Configurações, que
+// não são módulos concedíveis). Qualquer outro papel vê só os módulos que
+// o síndico marcou pra ele em Acessos — ver hooks/useAuth.js (modulos).
+const SINDICO_NAV = [
+  { href: "/dashboard", label: "Visão geral" },
+  { href: "/dashboard/boletos", label: "Boletos" },
+  { href: "/dashboard/chamados", label: "Chamados" },
+  { href: "/dashboard/avisos", label: "Avisos" },
+  { href: "/dashboard/ocorrencias", label: "Ocorrências" },
+  { href: "/dashboard/manutencao", label: "Manutenção" },
+  { href: "/dashboard/propostas", label: "Propostas" },
+  { href: "/dashboard/acessos", label: "Acessos" },
+  { href: "/dashboard/configuracoes", label: "Configurações" },
+];
 
 const ROLE_LABELS = {
   sindico: "Síndico",
@@ -34,9 +29,15 @@ const ROLE_LABELS = {
 };
 
 export default function DashboardHeader() {
-  const { user, condominio, role, isAdmin, logout } = useAuth();
+  const { user, condominio, role, modulos, isAdmin, logout } = useAuth();
   const pathname = usePathname();
-  const navItems = NAV_BY_ROLE[role] || [];
+  const navItems =
+    role === "sindico"
+      ? SINDICO_NAV
+      : ALL_MODULOS.filter((m) => modulos.includes(m)).map((m) => ({
+          href: MODULO_ROUTES[m],
+          label: MODULO_LABELS[m],
+        }));
 
   const displayName =
     user?.user_metadata?.full_name || condominio?.responsavel_nome || user?.email || "Síndico";

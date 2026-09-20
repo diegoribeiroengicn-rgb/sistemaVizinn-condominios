@@ -3,12 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { parseEmailList } from "@/lib/emailList";
+import { ALL_MODULOS } from "@/lib/modulos";
 
 const AuthContext = createContext({
   user: null,
   condominio: null,
   member: null,
   role: null,
+  modulos: [],
   loading: true,
   isAdmin: false,
   logout: async () => {},
@@ -122,9 +124,18 @@ export function AuthProvider({ children }) {
     return null;
   }, [user, member, condominio]);
 
+  // The síndico (owner) always has every módulo; a delimited member's
+  // access is whatever the síndico picked for them in Acessos, stored on
+  // their membros row — this is just a client-side read for the UI, the
+  // real enforcement is the membro_tem_modulo() check in every RLS policy.
+  const modulos = useMemo(() => {
+    if (role === "sindico") return ALL_MODULOS;
+    return member?.modulos || [];
+  }, [role, member]);
+
   const value = useMemo(
-    () => ({ user, condominio, member, role, loading, isAdmin, logout, refreshCondominio }),
-    [user, condominio, member, role, loading, isAdmin, logout, refreshCondominio]
+    () => ({ user, condominio, member, role, modulos, loading, isAdmin, logout, refreshCondominio }),
+    [user, condominio, member, role, modulos, loading, isAdmin, logout, refreshCondominio]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -41,6 +41,28 @@ as $$
   limit 1;
 $$;
 
+-- Acesso por módulo: o síndico escolhe, pessoa por pessoa, quais módulos
+-- (avisos, chamados, ocorrências, manutenção, propostas) aquele acesso
+-- enxerga — independente do papel. O papel só define o conjunto padrão
+-- sugerido na hora de criar o acesso (ver DEFAULT_MODULOS_BY_PAPEL no
+-- front-end); daí em diante quem manda é a coluna membros.modulos.
+-- O dono do condomínio sempre tem acesso a tudo (is_condominio_owner).
+create or replace function public.membro_tem_modulo(p_condominio_id uuid, p_modulo text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select public.is_condominio_owner(p_condominio_id)
+  or exists (
+    select 1 from public.membros
+    where condominio_id = p_condominio_id
+      and user_id = auth.uid()
+      and p_modulo = any(modulos)
+  );
+$$;
+
 create table if not exists public.condominios (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users (id) on delete cascade,
@@ -130,17 +152,17 @@ alter table public.chamados enable row level security;
 drop policy if exists "Owners can view their chamados" on public.chamados;
 create policy "Owners can view their chamados"
   on public.chamados for select
-  using (public.is_condominio_owner(condominio_id));
+  using (public.membro_tem_modulo(condominio_id, 'chamados'));
 
 drop policy if exists "Owners can insert their chamados" on public.chamados;
 create policy "Owners can insert their chamados"
   on public.chamados for insert
-  with check (public.is_condominio_owner(condominio_id));
+  with check (public.membro_tem_modulo(condominio_id, 'chamados'));
 
 drop policy if exists "Owners can update their chamados" on public.chamados;
 create policy "Owners can update their chamados"
   on public.chamados for update
-  using (public.is_condominio_owner(condominio_id));
+  using (public.membro_tem_modulo(condominio_id, 'chamados'));
 
 grant select, insert, update on public.chamados to authenticated;
 
@@ -172,11 +194,13 @@ create policy "Owners can delete their avisos"
   on public.avisos for delete
   using (public.is_condominio_owner(condominio_id));
 
--- Every member (any papel) can read avisos — same idea, additive policy.
+-- Members with the "avisos" módulo can read avisos — same idea, additive
+-- policy. (Every papel gets "avisos" by default when created; the síndico
+-- can remove it per pessoa in Acessos.)
 drop policy if exists "Members can view avisos" on public.avisos;
 create policy "Members can view avisos"
   on public.avisos for select
-  using (public.membro_papel(condominio_id) is not null);
+  using (public.membro_tem_modulo(condominio_id, 'avisos'));
 
 grant select, insert, delete on public.avisos to authenticated;
 
@@ -194,15 +218,29 @@ create table if not exists public.membros (
   telefone text,
   papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador')),
   unidade text,
+  modulos text[] not null default '{}',
   created_at timestamptz not null default now()
 );
 
 -- Safe to re-run: adds the column / widens the check constraint if this
 -- script already ran before they existed.
 alter table public.membros add column if not exists telefone text;
+alter table public.membros add column if not exists modulos text[] not null default '{}';
 alter table public.membros drop constraint if exists membros_papel_check;
 alter table public.membros add constraint membros_papel_check
   check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador'));
+
+-- Backfill: acessos criados antes de existir a customização por módulo
+-- recebem o conjunto padrão do papel deles, senão perderiam o acesso que
+-- já usavam quando este script rodar. Só toca quem ainda está vazio.
+update public.membros set modulos = array['avisos']
+  where papel = 'condomino' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'ocorrencias']
+  where papel = 'porteiro' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'propostas']
+  where papel = 'conselheiro' and modulos = '{}';
+update public.membros set modulos = array['avisos', 'manutencao', 'ocorrencias']
+  where papel = 'zelador' and modulos = '{}';
 
 create unique index if not exists membros_user_id_key on public.membros (user_id);
 create index if not exists membros_condominio_id_idx on public.membros (condominio_id);
@@ -241,19 +279,13 @@ drop policy if exists "Owners and porteiros can view ocorrencias" on public.ocor
 drop policy if exists "Owners porteiros and zeladores can view ocorrencias" on public.ocorrencias;
 create policy "Owners porteiros and zeladores can view ocorrencias"
   on public.ocorrencias for select
-  using (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) in ('porteiro', 'zelador')
-  );
+  using (public.membro_tem_modulo(condominio_id, 'ocorrencias'));
 
 drop policy if exists "Owners and porteiros can insert ocorrencias" on public.ocorrencias;
 drop policy if exists "Owners porteiros and zeladores can insert ocorrencias" on public.ocorrencias;
 create policy "Owners porteiros and zeladores can insert ocorrencias"
   on public.ocorrencias for insert
-  with check (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) in ('porteiro', 'zelador')
-  );
+  with check (public.membro_tem_modulo(condominio_id, 'ocorrencias'));
 
 grant select, insert on public.ocorrencias to authenticated;
 grant all on public.ocorrencias to service_role;
@@ -278,26 +310,17 @@ alter table public.manutencoes enable row level security;
 drop policy if exists "Owners and zeladores can view manutencoes" on public.manutencoes;
 create policy "Owners and zeladores can view manutencoes"
   on public.manutencoes for select
-  using (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'zelador'
-  );
+  using (public.membro_tem_modulo(condominio_id, 'manutencao'));
 
 drop policy if exists "Owners and zeladores can insert manutencoes" on public.manutencoes;
 create policy "Owners and zeladores can insert manutencoes"
   on public.manutencoes for insert
-  with check (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'zelador'
-  );
+  with check (public.membro_tem_modulo(condominio_id, 'manutencao'));
 
 drop policy if exists "Owners and zeladores can update manutencoes" on public.manutencoes;
 create policy "Owners and zeladores can update manutencoes"
   on public.manutencoes for update
-  using (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'zelador'
-  );
+  using (public.membro_tem_modulo(condominio_id, 'manutencao'));
 
 grant select, insert, update on public.manutencoes to authenticated;
 grant all on public.manutencoes to service_role;
@@ -324,11 +347,10 @@ alter table public.propostas enable row level security;
 drop policy if exists "Owners and conselheiros can view propostas" on public.propostas;
 create policy "Owners and conselheiros can view propostas"
   on public.propostas for select
-  using (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'conselheiro'
-  );
+  using (public.membro_tem_modulo(condominio_id, 'propostas'));
 
+-- Cadastrar propostas continua exclusivo do síndico (não é um módulo
+-- concedível) — só a decisão (aprovar/reprovar) é.
 drop policy if exists "Owners can insert propostas" on public.propostas;
 create policy "Owners can insert propostas"
   on public.propostas for insert
@@ -337,10 +359,7 @@ create policy "Owners can insert propostas"
 drop policy if exists "Owners and conselheiros can update propostas" on public.propostas;
 create policy "Owners and conselheiros can update propostas"
   on public.propostas for update
-  using (
-    public.is_condominio_owner(condominio_id)
-    or public.membro_papel(condominio_id) = 'conselheiro'
-  );
+  using (public.membro_tem_modulo(condominio_id, 'propostas'));
 
 grant select, insert, update on public.propostas to authenticated;
 

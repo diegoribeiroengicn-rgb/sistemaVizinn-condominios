@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import ModuloGuard from "@/components/ModuloGuard";
 
 const emptyForm = { titulo: "", mensagem: "" };
 
@@ -70,6 +71,7 @@ export default function AvisosPage() {
   }
 
   return (
+    <ModuloGuard modulo="avisos">
     <div className="space-y-6">
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Avisos</h1>
@@ -139,5 +141,6 @@ export default function AvisosPage() {
         </div>
       )}
     </div>
+    </ModuloGuard>
   );
 }

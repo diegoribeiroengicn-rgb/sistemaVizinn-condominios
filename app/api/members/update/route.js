@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireCondominioOwner } from "@/lib/memberAuth";
+import { ALL_MODULOS } from "@/lib/modulos";
 
 const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro", "zelador"]);
 
-// Síndico-only: edits an existing member's papel/unidade/telefone/nome —
-// e.g. promoting a condômino to conselheiro, or fixing a typo. Does not
-// touch the login (e-mail/senha); see /api/members/reset-password for that.
+// Síndico-only: edits an existing member's papel/unidade/telefone/nome and
+// which módulos they can see — e.g. promoting a condômino to conselheiro,
+// fixing a typo, or granting/removendo um módulo avulso sem trocar o
+// papel. Does not touch the login (e-mail/senha); see
+// /api/members/reset-password for that.
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, memberId, nome, telefone, papel, unidade } = body;
+  const { condominioId, memberId, nome, telefone, papel, unidade, modulos } = body;
 
   const auth = await requireCondominioOwner(request, condominioId);
   if (auth.error) {
@@ -22,12 +25,22 @@ export async function POST(request) {
     );
   }
 
+  const modulosValidos = Array.isArray(modulos)
+    ? modulos.filter((m) => ALL_MODULOS.includes(m))
+    : [];
+
   const { supabaseAdmin } = auth;
 
   try {
     const { error } = await supabaseAdmin
       .from("membros")
-      .update({ nome, telefone: telefone || null, papel, unidade: unidade || null })
+      .update({
+        nome,
+        telefone: telefone || null,
+        papel,
+        unidade: unidade || null,
+        modulos: modulosValidos,
+      })
       .eq("id", memberId)
       .eq("condominio_id", condominioId);
 

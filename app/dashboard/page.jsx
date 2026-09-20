@@ -4,26 +4,35 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import DashboardContent from "@/components/DashboardContent";
-
-const ROLE_HOME = {
-  condomino: "/dashboard/avisos",
-  porteiro: "/dashboard/ocorrencias",
-  conselheiro: "/dashboard/propostas",
-  zelador: "/dashboard/manutencao",
-};
+import { ALL_MODULOS, MODULO_ROUTES } from "@/lib/modulos";
 
 export default function DashboardPage() {
-  const { role } = useAuth();
+  const { role, modulos, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (role && ROLE_HOME[role]) {
-      router.replace(ROLE_HOME[role]);
-    }
-  }, [role, router]);
+  // Delimited members (any papel) don't have a "visão geral" — send them
+  // straight to the first módulo their acesso has, in a fixed order.
+  const firstModuloRoute = ALL_MODULOS.find((m) => modulos.includes(m));
+  const home = role && role !== "sindico" ? MODULO_ROUTES[firstModuloRoute] : null;
 
-  if (role && ROLE_HOME[role]) {
+  useEffect(() => {
+    if (home) router.replace(home);
+  }, [home, router]);
+
+  if (loading) {
+    return <p className="text-navy-500">Carregando...</p>;
+  }
+
+  if (home) {
     return <p className="text-navy-500">Redirecionando...</p>;
+  }
+
+  if (role && role !== "sindico" && !firstModuloRoute) {
+    return (
+      <div className="card text-center text-navy-500">
+        Seu acesso ainda não tem nenhum módulo liberado. Fale com o síndico.
+      </div>
+    );
   }
 
   return <DashboardContent />;

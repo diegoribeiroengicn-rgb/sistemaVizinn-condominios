@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import ModuloGuard from "@/components/ModuloGuard";
 
 const STATUS_LABELS = { pendente: "Pendente", aprovada: "Aprovada", reprovada: "Reprovada" };
 const STATUS_STYLES = {
@@ -14,7 +15,7 @@ const STATUS_STYLES = {
 const emptyForm = { titulo: "", descricao: "", valor: "" };
 
 export default function PropostasPage() {
-  const { condominio, user, member, role } = useAuth();
+  const { condominio, user, member, role, modulos } = useAuth();
   const [propostas, setPropostas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -23,7 +24,10 @@ export default function PropostasPage() {
   const [decidingId, setDecidingId] = useState(null);
 
   const isSindico = role === "sindico";
-  const isConselheiro = role === "conselheiro";
+  // Quem decide (aprova/reprova) é quem tem o módulo "propostas" — o
+  // síndico sempre tem (ALL_MODULOS), e qualquer outro papel que o
+  // síndico conceda esse módulo também pode, não só o conselheiro.
+  const podeDecidir = modulos.includes("propostas");
   const decisor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   const load = useCallback(async () => {
@@ -87,6 +91,7 @@ export default function PropostasPage() {
   }
 
   return (
+    <ModuloGuard modulo="propostas">
     <div className="space-y-6">
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Propostas comerciais</h1>
@@ -178,7 +183,7 @@ export default function PropostasPage() {
                   </p>
                 </div>
 
-                {p.status === "pendente" && (isConselheiro || isSindico) && (
+                {p.status === "pendente" && podeDecidir && (
                   <div className="flex flex-none flex-col gap-2">
                     <button
                       onClick={() => handleDecide(p, "aprovada")}
@@ -202,5 +207,6 @@ export default function PropostasPage() {
         </div>
       )}
     </div>
+    </ModuloGuard>
   );
 }

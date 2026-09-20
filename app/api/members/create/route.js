@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { requireCondominioOwner } from "@/lib/memberAuth";
+import { ALL_MODULOS, DEFAULT_MODULOS_BY_PAPEL } from "@/lib/modulos";
 
 const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro", "zelador"]);
 
 // Síndico-only: creates a delimited-access account (condômino, porteiro,
 // conselheiro or zelador) for their condominio — a real Supabase login the
-// síndico hands to that person, scoped by Row Level Security to just their
-// papel.
+// síndico hands to that person, scoped by Row Level Security to just the
+// módulos concedidos (ver membros.modulos / membro_tem_modulo() no banco).
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, nome, email, telefone, password, papel, unidade } = body;
+  const { condominioId, nome, email, telefone, password, papel, unidade, modulos } = body;
 
   const auth = await requireCondominioOwner(request, condominioId);
   if (auth.error) {
@@ -28,6 +29,13 @@ export async function POST(request) {
   if (password.length < 6) {
     return NextResponse.json({ error: "A senha deve ter ao menos 6 caracteres." }, { status: 400 });
   }
+
+  // Sem lista explícita de módulos, usa o padrão sugerido pro papel; com
+  // lista, filtra pra só aceitar chaves conhecidas (nunca confia no que o
+  // cliente manda sem validar).
+  const modulosValidos = Array.isArray(modulos)
+    ? modulos.filter((m) => ALL_MODULOS.includes(m))
+    : DEFAULT_MODULOS_BY_PAPEL[papel] || [];
 
   const { supabaseAdmin } = auth;
 
@@ -61,6 +69,7 @@ export async function POST(request) {
       telefone: telefone || null,
       papel,
       unidade: unidade || null,
+      modulos: modulosValidos,
     });
 
     if (memberError) {

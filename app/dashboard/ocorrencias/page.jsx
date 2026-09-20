@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import ModuloGuard from "@/components/ModuloGuard";
 
 const emptyForm = { titulo: "", descricao: "" };
 
@@ -61,6 +62,7 @@ export default function OcorrenciasPage() {
   }
 
   return (
+    <ModuloGuard modulo="ocorrencias">
     <div className="space-y-6">
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Ocorrências</h1>
@@ -114,5 +116,6 @@ export default function OcorrenciasPage() {
         </div>
       )}
     </div>
+    </ModuloGuard>
   );
 }

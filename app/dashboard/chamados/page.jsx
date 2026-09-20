@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import ModuloGuard from "@/components/ModuloGuard";
 
 const STATUS_LABELS = {
   aberto: "Aberto",
@@ -90,6 +91,7 @@ export default function ChamadosPage() {
   }
 
   return (
+    <ModuloGuard modulo="chamados">
     <div className="space-y-6">
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Chamados</h1>
@@ -171,5 +173,6 @@ export default function ChamadosPage() {
         </div>
       )}
     </div>
+    </ModuloGuard>
   );
 }
