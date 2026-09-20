@@ -1066,3 +1066,37 @@ grant all on public.membros to service_role;
 grant all on public.propostas to service_role;
 -- (ocorrencias, manutencoes, portaria_registros, auditoria e pendencias já
 -- foram concedidas acima, junto de cada tabela.)
+
+-- Storage: documentos financeiros (nota fiscal, etc.) anexados a uma conta
+-- a pagar — opcional, nunca obrigatório. Bucket privado; cada arquivo é
+-- salvo em "<condominio_id>/<nome-do-arquivo>", e a política de RLS usa
+-- esse primeiro segmento do caminho pra checar a mesma permissão de
+-- "financeiro" já usada em contas_pagar (nada de sistema documental à
+-- parte). O app gera uma signed URL sob demanda pra exibir o arquivo.
+insert into storage.buckets (id, name, public)
+values ('financeiro-documentos', 'financeiro-documentos', false)
+on conflict (id) do nothing;
+
+drop policy if exists "Members with financeiro can view documentos" on storage.objects;
+create policy "Members with financeiro can view documentos"
+  on storage.objects for select
+  using (
+    bucket_id = 'financeiro-documentos'
+    and public.membro_tem_modulo(((storage.foldername(name))[1])::uuid, 'financeiro')
+  );
+
+drop policy if exists "Members with financeiro can upload documentos" on storage.objects;
+create policy "Members with financeiro can upload documentos"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'financeiro-documentos'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'financeiro', 'criar')
+  );
+
+drop policy if exists "Members with financeiro can delete documentos" on storage.objects;
+create policy "Members with financeiro can delete documentos"
+  on storage.objects for delete
+  using (
+    bucket_id = 'financeiro-documentos'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'financeiro', 'excluir')
+  );

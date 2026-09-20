@@ -43,6 +43,8 @@ const emptyContaPagar = {
   observacoes: "",
   parcela: "",
   qtdParcelas: "",
+  manutencaoId: "",
+  chamadoId: "",
 };
 
 const emptyContaReceber = {
@@ -103,8 +105,13 @@ export default function FinanceiroPage() {
   const [contasPagar, setContasPagar] = useState([]);
   const [contasReceber, setContasReceber] = useState([]);
   const [fornecedores, setFornecedores] = useState([]);
+  const [manutencoes, setManutencoes] = useState([]);
+  const [chamados, setChamados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [arquivoPagar, setArquivoPagar] = useState(null);
+  const [enviandoArquivo, setEnviandoArquivo] = useState(false);
+  const [abrindoDocumentoId, setAbrindoDocumentoId] = useState(null);
   const [periodo, setPeriodo] = useState("mes");
   const [periodoInicio, setPeriodoInicio] = useState("");
   const [periodoFim, setPeriodoFim] = useState("");
@@ -137,17 +144,25 @@ export default function FinanceiroPage() {
     if (!condominio?.id) return;
     setLoading(true);
     setError("");
-    const [pagarResult, receberResult, fornecedoresResult] = await Promise.all([
+    const [pagarResult, receberResult, fornecedoresResult, manutencoesResult, chamadosResult] = await Promise.all([
       supabase.from("contas_pagar").select("*").eq("condominio_id", condominio.id).order("data_vencimento", { ascending: true }),
       supabase.from("contas_receber").select("*").eq("condominio_id", condominio.id).order("data_vencimento", { ascending: true }),
       temPermissao("fornecedores", "visualizar")
         ? supabase.from("fornecedores").select("id, razao_social").eq("condominio_id", condominio.id)
+        : Promise.resolve({ data: [], error: null }),
+      temPermissao("manutencao", "visualizar")
+        ? supabase.from("manutencoes").select("id, titulo").eq("condominio_id", condominio.id)
+        : Promise.resolve({ data: [], error: null }),
+      temPermissao("chamados", "visualizar")
+        ? supabase.from("chamados").select("id, titulo").eq("condominio_id", condominio.id)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (pagarResult.error) setError(pagarResult.error.message);
     else setContasPagar(pagarResult.data || []);
     if (!receberResult.error) setContasReceber(receberResult.data || []);
     if (!fornecedoresResult.error) setFornecedores(fornecedoresResult.data || []);
+    if (!manutencoesResult.error) setManutencoes(manutencoesResult.data || []);
+    if (!chamadosResult.error) setChamados(chamadosResult.data || []);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [condominio?.id]);
@@ -161,6 +176,23 @@ export default function FinanceiroPage() {
     if (!condominio?.id || !formPagar.descricao.trim() || !formPagar.valor) return;
     setSubmittingPagar(true);
     setError("");
+
+    let documentoUrl = null;
+    if (arquivoPagar) {
+      setEnviandoArquivo(true);
+      const caminho = `${condominio.id}/${Date.now()}-${arquivoPagar.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("financeiro-documentos")
+        .upload(caminho, arquivoPagar);
+      setEnviandoArquivo(false);
+      if (uploadError) {
+        setError(`Erro ao enviar documento: ${uploadError.message}`);
+        setSubmittingPagar(false);
+        return;
+      }
+      documentoUrl = caminho;
+    }
+
     const fornecedor = fornecedores.find((f) => f.id === formPagar.fornecedorId);
     const { error: insertError } = await supabase.from("contas_pagar").insert({
       condominio_id: condominio.id,
@@ -169,6 +201,7 @@ export default function FinanceiroPage() {
       fornecedor_id: formPagar.fornecedorId || null,
       fornecedor_nome: fornecedor?.razao_social || null,
       documento_numero: formPagar.documentoNumero.trim() || null,
+      documento_url: documentoUrl,
       data_competencia: formPagar.dataCompetencia || null,
       data_vencimento: formPagar.dataVencimento || null,
       data_pagamento: formPagar.dataPagamento || null,
@@ -178,6 +211,8 @@ export default function FinanceiroPage() {
       observacoes: formPagar.observacoes.trim() || null,
       parcela: formPagar.parcela ? Number(formPagar.parcela) : null,
       qtd_parcelas: formPagar.qtdParcelas ? Number(formPagar.qtdParcelas) : null,
+      manutencao_origem_id: formPagar.manutencaoId || null,
+      chamado_origem_id: formPagar.chamadoId || null,
       proposta_origem_id: searchParams.get("propostaId") || null,
     });
     setSubmittingPagar(false);
@@ -186,7 +221,23 @@ export default function FinanceiroPage() {
       return;
     }
     setFormPagar(emptyContaPagar);
+    setArquivoPagar(null);
     load();
+  }
+
+  async function handleVerDocumento(conta) {
+    if (!conta.documento_url) return;
+    setAbrindoDocumentoId(conta.id);
+    setError("");
+    const { data, error: urlError } = await supabase.storage
+      .from("financeiro-documentos")
+      .createSignedUrl(conta.documento_url, 60);
+    setAbrindoDocumentoId(null);
+    if (urlError) {
+      setError(`Erro ao abrir documento: ${urlError.message}`);
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   async function handleCreateReceber(e) {
@@ -463,6 +514,49 @@ export default function FinanceiroPage() {
                     onChange={(e) => setFormPagar((f) => ({ ...f, documentoNumero: e.target.value }))}
                   />
                 </div>
+                {manutencoes.length > 0 && (
+                  <div>
+                    <label className="label-field">Manutenção vinculada (opcional)</label>
+                    <select
+                      className="input-field"
+                      value={formPagar.manutencaoId}
+                      onChange={(e) => setFormPagar((f) => ({ ...f, manutencaoId: e.target.value }))}
+                    >
+                      <option value="">Sem manutenção vinculada</option>
+                      {manutencoes.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.titulo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {chamados.length > 0 && (
+                  <div>
+                    <label className="label-field">Chamado vinculado (opcional)</label>
+                    <select
+                      className="input-field"
+                      value={formPagar.chamadoId}
+                      onChange={(e) => setFormPagar((f) => ({ ...f, chamadoId: e.target.value }))}
+                    >
+                      <option value="">Sem chamado vinculado</option>
+                      {chamados.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.titulo}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="sm:col-span-2">
+                  <label className="label-field">Nota fiscal / documento (opcional)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    className="input-field"
+                    onChange={(e) => setArquivoPagar(e.target.files?.[0] || null)}
+                  />
+                </div>
                 <div>
                   <label className="label-field">Valor</label>
                   <input
@@ -560,7 +654,7 @@ export default function FinanceiroPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <button type="submit" disabled={submittingPagar} className="btn-primary">
-                    {submittingPagar ? "Salvando..." : "Registrar conta a pagar"}
+                    {enviandoArquivo ? "Enviando documento..." : submittingPagar ? "Salvando..." : "Registrar conta a pagar"}
                   </button>
                 </div>
               </form>
@@ -609,8 +703,17 @@ export default function FinanceiroPage() {
                     <div className="text-right">
                       <p className="text-lg font-bold text-navy-900">{formatarMoeda(c.valor)}</p>
                       {podeEditar && !STATUS_PAGAR_FINAIS.includes(c.status) && (
-                        <button onClick={() => handleStatusPagar(c, "pago")} className="mt-1 text-xs font-semibold text-emerald-700 hover:underline">
+                        <button onClick={() => handleStatusPagar(c, "pago")} className="mt-1 block text-xs font-semibold text-emerald-700 hover:underline">
                           Marcar como pago
+                        </button>
+                      )}
+                      {c.documento_url && (
+                        <button
+                          onClick={() => handleVerDocumento(c)}
+                          disabled={abrindoDocumentoId === c.id}
+                          className="mt-1 block text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                        >
+                          {abrindoDocumentoId === c.id ? "Abrindo..." : "Ver documento"}
                         </button>
                       )}
                     </div>
