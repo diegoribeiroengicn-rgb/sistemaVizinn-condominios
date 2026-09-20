@@ -8,6 +8,7 @@ import { getPlan } from "@/lib/plans";
 import { STATUS_FINAIS as CHAMADOS_STATUS_FINAIS, calcularStatusPrazo } from "@/lib/chamados";
 import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
 import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
+import VisaoGeralGraficos from "@/components/VisaoGeralGraficos";
 
 const nextSteps = [
   {
@@ -79,7 +80,7 @@ export default function DashboardContent() {
     if (podeManutencao) {
       queries.manutencoes = supabase
         .from("manutencoes")
-        .select("status, data_prevista, responsavel_colaborador_id")
+        .select("status, data_prevista, created_at, responsavel_colaborador_id")
         .eq("condominio_id", condominio.id);
     }
     if (podeFinanceiro) {
@@ -400,6 +401,14 @@ export default function DashboardContent() {
           </div>
         </section>
       )}
+
+      <VisaoGeralGraficos
+        indicadores={indicadores}
+        intervalo={intervalo}
+        podeChamados={podeChamados}
+        podeManutencao={podeManutencao}
+        podeFinanceiro={podeFinanceiro}
+      />
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">
