@@ -12,7 +12,7 @@ const PAPEL_LABELS = {
   zelador: "Zelador",
 };
 
-const emptyForm = { nome: "", email: "", password: "", papel: "condomino", unidade: "" };
+const emptyForm = { nome: "", email: "", telefone: "", password: "", papel: "condomino", unidade: "" };
 
 export default function AcessosPage() {
   const { condominio } = useAuth();
@@ -22,6 +22,7 @@ export default function AcessosPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [removingId, setRemovingId] = useState(null);
+  const [lastCreated, setLastCreated] = useState(null);
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -45,8 +46,14 @@ export default function AcessosPage() {
     e.preventDefault();
     if (!condominio?.id) return;
 
+    if (!form.email.trim() && !form.telefone.trim()) {
+      setError("Informe pelo menos um telefone ou e-mail.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
+    setLastCreated(null);
     try {
       const res = await authedFetch("/api/members/create", {
         method: "POST",
@@ -55,6 +62,7 @@ export default function AcessosPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao criar acesso.");
+      setLastCreated({ nome: form.nome, loginEmail: json.loginEmail, generated: !form.email.trim() });
       setForm(emptyForm);
       load();
     } catch (err) {
@@ -112,13 +120,22 @@ export default function AcessosPage() {
             />
           </div>
           <div>
-            <label className="label-field">E-mail</label>
+            <label className="label-field">Telefone</label>
+            <input
+              className="input-field"
+              value={form.telefone}
+              onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
+              placeholder="(11) 99999-9999"
+            />
+          </div>
+          <div>
+            <label className="label-field">E-mail (opcional)</label>
             <input
               type="email"
               className="input-field"
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              required
+              placeholder="Deixe em branco se só tiver telefone"
             />
           </div>
           <div>
@@ -166,6 +183,24 @@ export default function AcessosPage() {
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
 
+      {lastCreated && (
+        <div className="card border-emerald-200 bg-emerald-50">
+          <p className="text-sm text-emerald-800">
+            Acesso de <strong>{lastCreated.nome}</strong> criado.
+            {lastCreated.generated ? (
+              <>
+                {" "}
+                Como não foi informado e-mail, o login gerado foi{" "}
+                <strong>{lastCreated.loginEmail}</strong> — repasse esse e-mail junto com a
+                senha pra pessoa conseguir entrar.
+              </>
+            ) : (
+              <> Login: {lastCreated.loginEmail}.</>
+            )}
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <p className="text-navy-500">Carregando acessos...</p>
       ) : membros.length === 0 ? (
@@ -176,7 +211,8 @@ export default function AcessosPage() {
             <thead className="border-b border-navy-100 bg-navy-50/50 text-left text-navy-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Nome</th>
-                <th className="px-4 py-3 font-medium">E-mail</th>
+                <th className="px-4 py-3 font-medium">Telefone</th>
+                <th className="px-4 py-3 font-medium">Login (e-mail)</th>
                 <th className="px-4 py-3 font-medium">Papel</th>
                 <th className="px-4 py-3 font-medium">Unidade</th>
                 <th className="px-4 py-3 font-medium">Ações</th>
@@ -186,6 +222,7 @@ export default function AcessosPage() {
               {membros.map((m) => (
                 <tr key={m.id} className="border-b border-navy-50 last:border-0">
                   <td className="px-4 py-3 font-medium text-navy-900">{m.nome}</td>
+                  <td className="px-4 py-3 text-navy-600">{m.telefone || "-"}</td>
                   <td className="px-4 py-3 text-navy-600">{m.email}</td>
                   <td className="px-4 py-3 text-navy-600">{PAPEL_LABELS[m.papel]}</td>
                   <td className="px-4 py-3 text-navy-600">{m.unidade || "-"}</td>

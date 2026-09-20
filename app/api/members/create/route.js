@@ -9,15 +9,21 @@ const VALID_PAPEIS = new Set(["condomino", "porteiro", "conselheiro", "zelador"]
 // papel.
 export async function POST(request) {
   const body = await request.json();
-  const { condominioId, nome, email, password, papel, unidade } = body;
+  const { condominioId, nome, email, telefone, password, papel, unidade } = body;
 
   const auth = await requireCondominioOwner(request, condominioId);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  if (!nome || !email || !password || !VALID_PAPEIS.has(papel)) {
+  if (!nome || !password || !VALID_PAPEIS.has(papel)) {
     return NextResponse.json({ error: "Dados obrigatórios ausentes ou papel inválido." }, { status: 400 });
+  }
+  if (!email && !telefone) {
+    return NextResponse.json(
+      { error: "Informe pelo menos um telefone ou e-mail." },
+      { status: 400 }
+    );
   }
   if (password.length < 6) {
     return NextResponse.json({ error: "A senha deve ter ao menos 6 caracteres." }, { status: 400 });
@@ -25,17 +31,24 @@ export async function POST(request) {
 
   const { supabaseAdmin } = auth;
 
+  // The login system is email-based (no phone/SMS auth configured), so
+  // when the síndico leaves e-mail blank we still need one to create the
+  // Supabase auth user — generate a stable placeholder from the phone
+  // number and store it as `email` so it's visible in Acessos for the
+  // síndico to hand over as the login.
+  const loginEmail = email || `tel-${telefone.replace(/\D/g, "")}@membro.vizinn.local`;
+
   try {
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: loginEmail,
       password,
       email_confirm: true,
-      user_metadata: { full_name: nome, papel },
+      user_metadata: { full_name: nome, papel, telefone: telefone || null },
     });
 
     if (userError) {
       if (userError.message?.toLowerCase().includes("already")) {
-        return NextResponse.json({ error: "Já existe uma conta com este e-mail." }, { status: 409 });
+        return NextResponse.json({ error: "Já existe uma conta com este e-mail/telefone." }, { status: 409 });
       }
       throw userError;
     }
@@ -44,7 +57,8 @@ export async function POST(request) {
       condominio_id: condominioId,
       user_id: userData.user.id,
       nome,
-      email,
+      email: loginEmail,
+      telefone: telefone || null,
       papel,
       unidade: unidade || null,
     });
@@ -56,7 +70,7 @@ export async function POST(request) {
       throw memberError;
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, loginEmail });
   } catch (err) {
     console.error("members/create error:", err);
     return NextResponse.json(

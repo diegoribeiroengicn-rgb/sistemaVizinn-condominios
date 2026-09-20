@@ -191,13 +191,15 @@ create table if not exists public.membros (
   user_id uuid not null references auth.users (id) on delete cascade,
   nome text not null,
   email text not null,
+  telefone text,
   papel text not null check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador')),
   unidade text,
   created_at timestamptz not null default now()
 );
 
--- Safe to re-run: widens the check constraint if this script already ran
--- before "zelador" existed as a papel.
+-- Safe to re-run: adds the column / widens the check constraint if this
+-- script already ran before they existed.
+alter table public.membros add column if not exists telefone text;
 alter table public.membros drop constraint if exists membros_papel_check;
 alter table public.membros add constraint membros_papel_check
   check (papel in ('condomino', 'porteiro', 'conselheiro', 'zelador'));
