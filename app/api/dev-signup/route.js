@@ -28,10 +28,7 @@ export async function POST(request) {
     supabaseAdmin = getSupabaseAdmin();
   } catch (err) {
     console.error("Configuração ausente:", err);
-    return NextResponse.json(
-      { error: "Supabase não configurado no servidor." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 
   try {
