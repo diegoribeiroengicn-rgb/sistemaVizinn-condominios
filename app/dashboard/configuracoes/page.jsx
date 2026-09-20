@@ -1,11 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { getPlan } from "@/lib/plans";
+import { supabase } from "@/lib/supabase";
 
 export default function ConfiguracoesPage() {
-  const { user, condominio } = useAuth();
+  const { user, condominio, role, refreshCondominio } = useAuth();
   const plan = getPlan(condominio?.plano);
+  const [alertaDias, setAlertaDias] = useState(condominio?.manutencao_alerta_dias_padrao ?? 7);
+  const [salvandoAlerta, setSalvandoAlerta] = useState(false);
+  const [alertaSalvo, setAlertaSalvo] = useState(false);
+
+  async function salvarAlertaPadrao() {
+    if (!condominio?.id) return;
+    setSalvandoAlerta(true);
+    setAlertaSalvo(false);
+    const { error } = await supabase
+      .from("condominios")
+      .update({ manutencao_alerta_dias_padrao: Number(alertaDias) || 7 })
+      .eq("id", condominio.id);
+    setSalvandoAlerta(false);
+    if (!error) {
+      setAlertaSalvo(true);
+      refreshCondominio();
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -53,6 +73,30 @@ export default function ConfiguracoesPage() {
           </div>
         </dl>
       </div>
+
+      {role === "sindico" && (
+        <div className="card">
+          <h2 className="font-semibold text-navy-900">Alertas de manutenção</h2>
+          <p className="mt-1 text-sm text-navy-500">
+            Com quantos dias de antecedência avisar sobre uma manutenção prevista, por padrão. Cada
+            manutenção pode sobrescrever esse valor individualmente.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <input
+              type="number"
+              min="1"
+              className="input-field w-24"
+              value={alertaDias}
+              onChange={(e) => setAlertaDias(e.target.value)}
+            />
+            <span className="text-sm text-navy-500">dias antes</span>
+            <button onClick={salvarAlertaPadrao} disabled={salvandoAlerta} className="btn-secondary">
+              {salvandoAlerta ? "Salvando..." : "Salvar"}
+            </button>
+            {alertaSalvo && <span className="text-sm text-emerald-700">Salvo.</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

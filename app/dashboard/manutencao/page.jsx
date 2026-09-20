@@ -40,6 +40,7 @@ const emptyForm = {
   dataPrevista: "",
   fornecedorId: "",
   colaboradorId: "",
+  alertaDias: "",
 };
 
 const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
@@ -59,6 +60,15 @@ function Estrelas({ nota, onChange }) {
       ))}
     </div>
   );
+}
+
+// Quantos dias faltam até a data prevista (negativo = já passou).
+function diasParaVencer(dataPrevista) {
+  if (!dataPrevista) return null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const prevista = new Date(`${dataPrevista}T00:00:00`);
+  return Math.round((prevista - hoje) / 86400000);
 }
 
 function calcularProximaData(periodicidade, periodicidadeDias, dataBase) {
@@ -88,6 +98,11 @@ export default function ManutencaoPage() {
   const [gerenciarForm, setGerenciarForm] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [programandoId, setProgramandoId] = useState(null);
+  const [visualizacao, setVisualizacao] = useState("lista");
+  const [mesCalendario, setMesCalendario] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
 
   const podeCriar = temPermissao("manutencao", "criar");
   const podeEditar = temPermissao("manutencao", "editar");
@@ -161,6 +176,7 @@ export default function ManutencaoPage() {
       fornecedor_id: form.fornecedorId || null,
       fornecedor_nome: fornecedor?.razao_social || null,
       responsavel_colaborador_id: form.colaboradorId || null,
+      alerta_dias_antecedencia: form.alertaDias ? Number(form.alertaDias) : null,
       status: "aberta",
       chamado_origem_id: chamadoId,
     });
@@ -310,6 +326,30 @@ export default function ManutencaoPage() {
     return { atrasadas, proximas, demais, concluidas };
   }, [ordens]);
 
+  const ordensPorDia = useMemo(() => {
+    const mapa = {};
+    for (const o of ordens) {
+      if (!o.data_prevista) continue;
+      if (!mapa[o.data_prevista]) mapa[o.data_prevista] = [];
+      mapa[o.data_prevista].push(o);
+    }
+    return mapa;
+  }, [ordens]);
+
+  const diasDoCalendario = useMemo(() => {
+    const ano = mesCalendario.getFullYear();
+    const mes = mesCalendario.getMonth();
+    const primeiroDiaSemana = new Date(ano, mes, 1).getDay();
+    const totalDias = new Date(ano, mes + 1, 0).getDate();
+    const dias = [];
+    for (let i = 0; i < primeiroDiaSemana; i++) dias.push(null);
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const chave = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      dias.push({ dia, chave, ordens: ordensPorDia[chave] || [] });
+    }
+    return dias;
+  }, [mesCalendario, ordensPorDia]);
+
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
   }
@@ -317,6 +357,9 @@ export default function ManutencaoPage() {
   function Cartao(o) {
     const prazo = calcularStatusPrazo(o.data_prevista, o.status, STATUS_FINAIS);
     const jaGerouProximo = proximosCiclosGerados.has(o.id);
+    const janelaAlerta = o.alerta_dias_antecedencia ?? condominio?.manutencao_alerta_dias_padrao ?? 7;
+    const dias = diasParaVencer(o.data_prevista);
+    const dentroDoAlerta = o.status !== "concluida" && dias != null && dias >= 0 && dias <= janelaAlerta;
     return (
       <div key={o.id} className="card">
         <div className="flex flex-wrap items-center gap-2">
@@ -335,6 +378,11 @@ export default function ManutencaoPage() {
           {prazo && (
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRAZO_BADGE_STYLES[prazo.nivel]}`}>
               {prazo.emoji} {prazo.label}
+            </span>
+          )}
+          {dentroDoAlerta && prazo?.nivel !== "vermelho" && (
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+              ⏰ Faltam {dias === 0 ? "hoje" : dias === 1 ? "1 dia" : `${dias} dias`}
             </span>
           )}
         </div>
@@ -562,6 +610,19 @@ export default function ManutencaoPage() {
                 onChange={(e) => setForm((f) => ({ ...f, dataPrevista: e.target.value }))}
               />
             </div>
+            <div>
+              <label className="label-field">
+                Alertar com quantos dias de antecedência (opcional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                className="input-field"
+                value={form.alertaDias}
+                onChange={(e) => setForm((f) => ({ ...f, alertaDias: e.target.value }))}
+                placeholder={`Padrão do condomínio: ${condominio?.manutencao_alerta_dias_padrao ?? 7} dias`}
+              />
+            </div>
             {form.tipo === "recorrente" && (
               <>
                 <div>
@@ -646,10 +707,86 @@ export default function ManutencaoPage() {
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
 
+      <div className="flex gap-1">
+        <button
+          onClick={() => setVisualizacao("lista")}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            visualizacao === "lista" ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+          }`}
+        >
+          Lista
+        </button>
+        <button
+          onClick={() => setVisualizacao("calendario")}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            visualizacao === "calendario" ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+          }`}
+        >
+          Calendário
+        </button>
+      </div>
+
       {loading ? (
         <p className="text-navy-500">Carregando ordens de serviço...</p>
       ) : ordens.length === 0 ? (
         <div className="card text-center text-navy-400">Nenhuma ordem de serviço ainda.</div>
+      ) : visualizacao === "calendario" ? (
+        <div className="card">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setMesCalendario((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+              className="rounded-lg px-2 py-1 text-navy-600 hover:bg-navy-50"
+              aria-label="Mês anterior"
+            >
+              ←
+            </button>
+            <p className="font-display text-lg font-bold capitalize text-navy-900">
+              {mesCalendario.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+            </p>
+            <button
+              onClick={() => setMesCalendario((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+              className="rounded-lg px-2 py-1 text-navy-600 hover:bg-navy-50"
+              aria-label="Próximo mês"
+            >
+              →
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs font-semibold text-navy-400">
+            {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {diasDoCalendario.map((d, i) =>
+              d ? (
+                <div
+                  key={d.chave}
+                  className={`min-h-[80px] rounded-lg border p-1 text-left text-xs ${
+                    d.ordens.length > 0 ? "border-navy-200 bg-navy-50/40" : "border-navy-100"
+                  }`}
+                >
+                  <p className="font-semibold text-navy-500">{d.dia}</p>
+                  <div className="mt-0.5 space-y-0.5">
+                    {d.ordens.slice(0, 3).map((o) => (
+                      <p
+                        key={o.id}
+                        title={o.titulo}
+                        className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${STATUS_STYLES[o.status]}`}
+                      >
+                        {o.titulo}
+                      </p>
+                    ))}
+                    {d.ordens.length > 3 && (
+                      <p className="text-[10px] text-navy-400">+{d.ordens.length - 3} mais</p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div key={`vazio-${i}`} />
+              )
+            )}
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           {grupos.atrasadas.length > 0 && (

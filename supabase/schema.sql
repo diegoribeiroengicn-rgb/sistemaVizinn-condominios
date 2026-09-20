@@ -634,6 +634,12 @@ grant all on public.avaliacoes_fornecedor to service_role;
 
 -- Agora que fornecedores existe, liga manutenções e propostas a ele.
 alter table public.manutencoes add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
+-- Antecedência do alerta: por manutenção (substitui o padrão do
+-- condomínio quando preenchida) e um padrão por condomínio, configurável
+-- em Configurações. Ambos opcionais — sem nenhum dos dois, cai no valor
+-- fixo de 7 dias usado hoje pela Visão Geral.
+alter table public.manutencoes add column if not exists alerta_dias_antecedencia integer;
+alter table public.condominios add column if not exists manutencao_alerta_dias_padrao integer not null default 7;
 alter table public.propostas add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
 alter table public.propostas add column if not exists fornecedor_nome text;
 
