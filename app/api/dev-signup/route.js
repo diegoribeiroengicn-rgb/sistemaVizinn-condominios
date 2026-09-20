@@ -69,7 +69,9 @@ export async function POST(request) {
     if (condoError) {
       console.error("Erro ao criar condomínio (teste):", condoError);
       return NextResponse.json(
-        { error: "Conta criada, mas houve um erro ao salvar os dados do condomínio." },
+        {
+          error: `Conta criada, mas houve um erro ao salvar os dados do condomínio: ${condoError.message}`,
+        },
         { status: 500 }
       );
     }
