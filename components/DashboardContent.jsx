@@ -1,8 +1,12 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
 import { getPlan } from "@/lib/plans";
+import { STATUS_FINAIS as CHAMADOS_STATUS_FINAIS, calcularStatusPrazo } from "@/lib/chamados";
+import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
 
 const nextSteps = [
   {
@@ -37,8 +41,51 @@ const quickActions = [
   { label: "Acessos", href: "/dashboard/acessos" },
 ];
 
+// Indicador clicável — leva direto pro módulo quando clicado.
+function Indicador({ href, label, value, tone = "text-navy-900" }) {
+  return (
+    <Link href={href} className="card block transition hover:border-coral-200 hover:shadow-sm">
+      <p className="text-xs text-navy-400">{label}</p>
+      <p className={`mt-1 font-display text-xl font-bold ${tone}`}>{value}</p>
+    </Link>
+  );
+}
+
 export default function DashboardContent() {
-  const { condominio } = useAuth();
+  const { condominio, temPermissao } = useAuth();
+  const [indicadores, setIndicadores] = useState(null);
+
+  const podeChamados = temPermissao("chamados", "visualizar");
+  const podeManutencao = temPermissao("manutencao", "visualizar");
+  const podeFinanceiro = temPermissao("financeiro", "visualizar");
+  const podeFornecedores = temPermissao("fornecedores", "visualizar");
+  const podePropostas = temPermissao("propostas", "visualizar");
+
+  const load = useCallback(async () => {
+    if (!condominio?.id) return;
+
+    const queries = {};
+    if (podeChamados) queries.chamados = supabase.from("chamados").select("status, data_prevista").eq("condominio_id", condominio.id);
+    if (podeManutencao) queries.manutencoes = supabase.from("manutencoes").select("status, data_prevista").eq("condominio_id", condominio.id);
+    if (podeFinanceiro) {
+      queries.contasPagar = supabase.from("contas_pagar").select("status, valor, data_vencimento, data_pagamento").eq("condominio_id", condominio.id);
+      queries.contasReceber = supabase.from("contas_receber").select("status, valor, valor_recebido, data_vencimento, data_recebimento").eq("condominio_id", condominio.id);
+    }
+    if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
+    if (podePropostas) queries.propostas = supabase.from("propostas").select("status").eq("condominio_id", condominio.id);
+
+    const chaves = Object.keys(queries);
+    const resultados = await Promise.all(chaves.map((k) => queries[k]));
+    const dados = {};
+    chaves.forEach((k, i) => {
+      dados[k] = resultados[i].data || [];
+    });
+    setIndicadores(dados);
+  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   // Mocked fallback so the dashboard is always usable, even before
   // Supabase is configured or while the condominio row is still loading.
@@ -51,12 +98,36 @@ export default function DashboardContent() {
   const plan = getPlan(data.plano);
   const unidadesAtivas = data.unidades_ativas ?? 0;
 
-  const stats = [
-    { label: "Boletos pendentes", value: "-" },
-    { label: "Inadimplência", value: "0%" },
-    { label: "Arrecadação", value: "R$ 0" },
-    { label: "Chamados", value: "0" },
-  ];
+  const inicioDoMes = new Date();
+  inicioDoMes.setDate(1);
+  inicioDoMes.setHours(0, 0, 0, 0);
+
+  const chamadosAbertos = indicadores?.chamados?.filter((c) => !CHAMADOS_STATUS_FINAIS.includes(c.status)) || [];
+  const chamadosAtrasados = chamadosAbertos.filter((c) => calcularStatusPrazo(c.data_prevista, c.status)?.atrasado);
+  const chamadosEmAtendimento = indicadores?.chamados?.filter((c) => c.status === "em_atendimento") || [];
+
+  const manutencoesAbertas = indicadores?.manutencoes?.filter((m) => m.status !== "concluida") || [];
+  const manutencoesAtrasadas = manutencoesAbertas.filter(
+    (m) => calcularStatusPrazo(m.data_prevista, m.status, ["concluida"])?.nivel === "vermelho"
+  );
+  const manutencoesEmAndamento = indicadores?.manutencoes?.filter((m) => m.status === "em_andamento") || [];
+
+  const contasPagarAbertas = indicadores?.contasPagar?.filter((c) => !STATUS_PAGAR_FINAIS.includes(c.status)) || [];
+  const contasReceberAbertas = indicadores?.contasReceber?.filter((c) => !STATUS_RECEBER_FINAIS.includes(c.status)) || [];
+  const contasVencidas =
+    (indicadores?.contasPagar?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "vermelho").length || 0) +
+    (indicadores?.contasReceber?.filter((c) => calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho").length || 0);
+  const receitasDoMes = (indicadores?.contasReceber || [])
+    .filter((c) => c.status === "recebida" && c.data_recebimento && new Date(c.data_recebimento) >= inicioDoMes)
+    .reduce((s, c) => s + Number(c.valor_recebido ?? c.valor ?? 0), 0);
+  const despesasDoMes = (indicadores?.contasPagar || [])
+    .filter((c) => c.status === "pago" && c.data_pagamento && new Date(c.data_pagamento) >= inicioDoMes)
+    .reduce((s, c) => s + Number(c.valor || 0), 0);
+
+  const fornecedoresAtivos = indicadores?.fornecedores?.filter((f) => f.status === "ativo") || [];
+  const fornecedoresEmAvaliacao = indicadores?.fornecedores?.filter((f) => f.status === "em_avaliacao") || [];
+
+  const propostasPendentes = indicadores?.propostas?.filter((p) => p.status === "pendente") || [];
 
   return (
     <div className="space-y-8">
@@ -75,19 +146,60 @@ export default function DashboardContent() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">
-          Resumo
-        </h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {stats.map((s) => (
-            <div key={s.label} className="card">
-              <p className="text-xs text-navy-400">{s.label}</p>
-              <p className="mt-1 font-display text-xl font-bold text-navy-900">{s.value}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {podeChamados && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Chamados</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/chamados" label="Abertos" value={chamadosAbertos.length} />
+            <Indicador href="/dashboard/chamados" label="Atrasados" value={chamadosAtrasados.length} tone="text-coral-700" />
+            <Indicador href="/dashboard/chamados" label="Em atendimento" value={chamadosEmAtendimento.length} />
+          </div>
+        </section>
+      )}
+
+      {podeManutencao && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Manutenção</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/manutencao" label="Em aberto" value={manutencoesAbertas.length} />
+            <Indicador href="/dashboard/manutencao" label="Atrasadas" value={manutencoesAtrasadas.length} tone="text-coral-700" />
+            <Indicador href="/dashboard/manutencao" label="Em andamento" value={manutencoesEmAndamento.length} />
+          </div>
+        </section>
+      )}
+
+      {podeFinanceiro && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Financeiro</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Receitas do mês" value={formatarMoeda(receitasDoMes)} tone="text-emerald-700" />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Despesas do mês" value={formatarMoeda(despesasDoMes)} tone="text-coral-700" />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Saldo do mês" value={formatarMoeda(receitasDoMes - despesasDoMes)} />
+            <Indicador href="/dashboard/financeiro?aba=pagar" label="Contas a pagar" value={contasPagarAbertas.length} />
+            <Indicador href="/dashboard/financeiro?aba=receber" label="Contas a receber" value={contasReceberAbertas.length} />
+            <Indicador href="/dashboard/financeiro?aba=visao" label="Contas vencidas" value={contasVencidas} tone="text-coral-700" />
+          </div>
+        </section>
+      )}
+
+      {podeFornecedores && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Fornecedores</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/fornecedores" label="Ativos" value={fornecedoresAtivos.length} />
+            <Indicador href="/dashboard/fornecedores" label="Em avaliação" value={fornecedoresEmAvaliacao.length} />
+          </div>
+        </section>
+      )}
+
+      {podePropostas && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Propostas</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/propostas" label="Aguardando aprovação" value={propostasPendentes.length} />
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">

@@ -525,6 +525,226 @@ create policy "Owners and conselheiros can update propostas"
 
 grant select, insert, update on public.propostas to authenticated;
 
+-- Manutenção: colunas de categoria/tipo/recorrência, vínculo com
+-- fornecedor e o que fica registrado na conclusão (data, quem concluiu,
+-- resultado — igual ao já feito em chamados). ciclo_origem_id encadeia
+-- uma manutenção recorrente com o ciclo anterior que a gerou.
+alter table public.manutencoes add column if not exists categoria text;
+alter table public.manutencoes add column if not exists tipo text not null default 'avulsa';
+alter table public.manutencoes add column if not exists periodicidade text;
+alter table public.manutencoes add column if not exists periodicidade_dias integer;
+alter table public.manutencoes add column if not exists data_prevista date;
+alter table public.manutencoes add column if not exists proxima_data date;
+alter table public.manutencoes add column if not exists fornecedor_nome text;
+alter table public.manutencoes add column if not exists concluido_em timestamptz;
+alter table public.manutencoes add column if not exists concluido_por_nome text;
+alter table public.manutencoes add column if not exists resultado text;
+alter table public.manutencoes add column if not exists ciclo_origem_id uuid references public.manutencoes (id) on delete set null;
+
+alter table public.manutencoes drop constraint if exists manutencoes_tipo_check;
+alter table public.manutencoes add constraint manutencoes_tipo_check
+  check (tipo in ('avulsa', 'preventiva', 'recorrente'));
+alter table public.manutencoes drop constraint if exists manutencoes_periodicidade_check;
+alter table public.manutencoes add constraint manutencoes_periodicidade_check
+  check (
+    periodicidade is null
+    or periodicidade in ('semanal', 'quinzenal', 'mensal', 'trimestral', 'semestral', 'anual', 'personalizada')
+  );
+
+-- Fornecedores: cadastro único por condomínio (empresa ou profissional).
+create table if not exists public.fornecedores (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  razao_social text not null,
+  nome_fantasia text,
+  documento text,
+  tipo text not null default 'empresa' check (tipo in ('empresa', 'profissional')),
+  categoria text,
+  telefone text,
+  whatsapp text,
+  email text,
+  endereco text,
+  site text,
+  contato_principal text,
+  observacoes text,
+  status text not null default 'ativo' check (status in ('ativo', 'inativo', 'em_avaliacao', 'bloqueado')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists fornecedores_condominio_id_idx on public.fornecedores (condominio_id);
+
+alter table public.fornecedores enable row level security;
+
+drop policy if exists "Members with fornecedores can view" on public.fornecedores;
+create policy "Members with fornecedores can view"
+  on public.fornecedores for select
+  using (public.membro_tem_modulo(condominio_id, 'fornecedores'));
+
+drop policy if exists "Members with fornecedores can insert" on public.fornecedores;
+create policy "Members with fornecedores can insert"
+  on public.fornecedores for insert
+  with check (public.membro_tem_permissao(condominio_id, 'fornecedores', 'criar'));
+
+drop policy if exists "Members with fornecedores can update" on public.fornecedores;
+create policy "Members with fornecedores can update"
+  on public.fornecedores for update
+  using (public.membro_tem_permissao(condominio_id, 'fornecedores', 'editar'));
+
+drop policy if exists "Members with fornecedores can delete" on public.fornecedores;
+create policy "Members with fornecedores can delete"
+  on public.fornecedores for delete
+  using (public.membro_tem_permissao(condominio_id, 'fornecedores', 'excluir'));
+
+grant select, insert, update, delete on public.fornecedores to authenticated;
+grant all on public.fornecedores to service_role;
+
+-- Avaliações de fornecedor: 4 critérios de 1 a 5 (nota geral = média
+-- simples na hora de exibir, calculada no front — sem ranking complexo).
+create table if not exists public.avaliacoes_fornecedor (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  fornecedor_id uuid not null references public.fornecedores (id) on delete cascade,
+  manutencao_id uuid references public.manutencoes (id) on delete set null,
+  avaliador_id uuid references auth.users (id) on delete set null,
+  avaliador_nome text,
+  nota_qualidade integer not null check (nota_qualidade between 1 and 5),
+  nota_prazo integer not null check (nota_prazo between 1 and 5),
+  nota_custo integer not null check (nota_custo between 1 and 5),
+  nota_atendimento integer not null check (nota_atendimento between 1 and 5),
+  observacao text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists avaliacoes_fornecedor_fornecedor_id_idx on public.avaliacoes_fornecedor (fornecedor_id);
+
+alter table public.avaliacoes_fornecedor enable row level security;
+
+drop policy if exists "Members with fornecedores can view avaliacoes" on public.avaliacoes_fornecedor;
+create policy "Members with fornecedores can view avaliacoes"
+  on public.avaliacoes_fornecedor for select
+  using (public.membro_tem_modulo(condominio_id, 'fornecedores'));
+
+drop policy if exists "Members with fornecedores can insert avaliacoes" on public.avaliacoes_fornecedor;
+create policy "Members with fornecedores can insert avaliacoes"
+  on public.avaliacoes_fornecedor for insert
+  with check (public.membro_tem_permissao(condominio_id, 'fornecedores', 'editar'));
+
+grant select, insert on public.avaliacoes_fornecedor to authenticated;
+grant all on public.avaliacoes_fornecedor to service_role;
+
+-- Agora que fornecedores existe, liga manutenções e propostas a ele.
+alter table public.manutencoes add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
+alter table public.propostas add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
+alter table public.propostas add column if not exists fornecedor_nome text;
+
+-- Contas a Pagar.
+create table if not exists public.contas_pagar (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  descricao text not null,
+  categoria text,
+  fornecedor_id uuid references public.fornecedores (id) on delete set null,
+  fornecedor_nome text,
+  documento_numero text,
+  data_competencia date,
+  data_vencimento date,
+  data_pagamento date,
+  valor numeric not null,
+  forma_pagamento text,
+  status text not null default 'pendente' check (status in ('pendente', 'a_vencer', 'vencida', 'pago', 'cancelada')),
+  observacoes text,
+  parcela integer,
+  qtd_parcelas integer,
+  manutencao_origem_id uuid references public.manutencoes (id) on delete set null,
+  proposta_origem_id uuid references public.propostas (id) on delete set null,
+  chamado_origem_id uuid references public.chamados (id) on delete set null,
+  -- Reservada pra quando o upload de documento existir (precisa de
+  -- Supabase Storage, ainda não configurado) — por enquanto sempre nula.
+  documento_url text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists contas_pagar_condominio_id_idx on public.contas_pagar (condominio_id);
+
+alter table public.contas_pagar enable row level security;
+
+drop policy if exists "Members with financeiro can view contas_pagar" on public.contas_pagar;
+create policy "Members with financeiro can view contas_pagar"
+  on public.contas_pagar for select
+  using (public.membro_tem_modulo(condominio_id, 'financeiro'));
+
+drop policy if exists "Members with financeiro can insert contas_pagar" on public.contas_pagar;
+create policy "Members with financeiro can insert contas_pagar"
+  on public.contas_pagar for insert
+  with check (public.membro_tem_permissao(condominio_id, 'financeiro', 'criar'));
+
+drop policy if exists "Members with financeiro can update contas_pagar" on public.contas_pagar;
+create policy "Members with financeiro can update contas_pagar"
+  on public.contas_pagar for update
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'editar'));
+
+drop policy if exists "Members with financeiro can delete contas_pagar" on public.contas_pagar;
+create policy "Members with financeiro can delete contas_pagar"
+  on public.contas_pagar for delete
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'excluir'));
+
+grant select, insert, update, delete on public.contas_pagar to authenticated;
+grant all on public.contas_pagar to service_role;
+
+-- Contas a Receber.
+create table if not exists public.contas_receber (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  descricao text not null,
+  unidade text,
+  responsavel_financeiro text,
+  categoria text,
+  data_competencia date,
+  data_vencimento date,
+  data_recebimento date,
+  valor numeric not null,
+  valor_recebido numeric,
+  desconto numeric,
+  juros_multa numeric,
+  forma_pagamento text,
+  status text not null default 'pendente' check (status in ('pendente', 'a_vencer', 'vencida', 'recebida', 'cancelada')),
+  observacoes text,
+  boleto_referencia text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists contas_receber_condominio_id_idx on public.contas_receber (condominio_id);
+
+alter table public.contas_receber enable row level security;
+
+drop policy if exists "Members with financeiro can view contas_receber" on public.contas_receber;
+create policy "Members with financeiro can view contas_receber"
+  on public.contas_receber for select
+  using (public.membro_tem_modulo(condominio_id, 'financeiro'));
+
+drop policy if exists "Members with financeiro can insert contas_receber" on public.contas_receber;
+create policy "Members with financeiro can insert contas_receber"
+  on public.contas_receber for insert
+  with check (public.membro_tem_permissao(condominio_id, 'financeiro', 'criar'));
+
+drop policy if exists "Members with financeiro can update contas_receber" on public.contas_receber;
+create policy "Members with financeiro can update contas_receber"
+  on public.contas_receber for update
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'editar'));
+
+drop policy if exists "Members with financeiro can delete contas_receber" on public.contas_receber;
+create policy "Members with financeiro can delete contas_receber"
+  on public.contas_receber for delete
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'excluir'));
+
+grant select, insert, update, delete on public.contas_receber to authenticated;
+grant all on public.contas_receber to service_role;
+
+-- Migra quem já tinha permissão no antigo módulo "boletos" pro novo
+-- módulo "financeiro" (Boletos virou uma aba dentro de Financeiro).
+update public.membros set permissoes = (permissoes - 'boletos') || jsonb_build_object('financeiro', permissoes -> 'boletos')
+  where permissoes ? 'boletos' and not (permissoes ? 'financeiro');
+
 -- Portaria: registro de entrada/saída de pessoas (visitantes, entregas,
 -- prestadores) com forma de entrada (a pé / carro) e placa quando for
 -- carro. "Quem está dentro" = saida_em is null.
@@ -704,6 +924,26 @@ create trigger trg_auditoria_propostas
 drop trigger if exists trg_auditoria_portaria on public.portaria_registros;
 create trigger trg_auditoria_portaria
   after insert or update or delete on public.portaria_registros
+  for each row execute function public.registrar_auditoria_generica();
+
+drop trigger if exists trg_auditoria_fornecedores on public.fornecedores;
+create trigger trg_auditoria_fornecedores
+  after insert or update or delete on public.fornecedores
+  for each row execute function public.registrar_auditoria_generica();
+
+drop trigger if exists trg_auditoria_avaliacoes_fornecedor on public.avaliacoes_fornecedor;
+create trigger trg_auditoria_avaliacoes_fornecedor
+  after insert or update or delete on public.avaliacoes_fornecedor
+  for each row execute function public.registrar_auditoria_generica();
+
+drop trigger if exists trg_auditoria_contas_pagar on public.contas_pagar;
+create trigger trg_auditoria_contas_pagar
+  after insert or update or delete on public.contas_pagar
+  for each row execute function public.registrar_auditoria_generica();
+
+drop trigger if exists trg_auditoria_contas_receber on public.contas_receber;
+create trigger trg_auditoria_contas_receber
+  after insert or update or delete on public.contas_receber
   for each row execute function public.registrar_auditoria_generica();
 
 -- Nota: não há trigger de auditoria em `membros` — as mudanças ali passam

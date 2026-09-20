@@ -10,12 +10,13 @@ import { MODULO_LABELS, MODULO_ROUTES, PAPEL_LABELS } from "@/lib/permissoes";
 // permissão de "visualizar" — ver hooks/useAuth.js (modulosVisiveis).
 const SINDICO_NAV = [
   { href: "/dashboard", label: "Visão geral" },
-  { href: "/dashboard/boletos", label: "Boletos" },
+  { href: "/dashboard/financeiro", label: "Financeiro" },
   { href: "/dashboard/chamados", label: "Chamados" },
   { href: "/dashboard/avisos", label: "Avisos" },
   { href: "/dashboard/ocorrencias", label: "Ocorrências" },
   { href: "/dashboard/manutencao", label: "Manutenção" },
   { href: "/dashboard/propostas", label: "Propostas" },
+  { href: "/dashboard/fornecedores", label: "Fornecedores" },
   { href: "/dashboard/acessos", label: "Acessos" },
   { href: "/dashboard/portaria", label: "Portaria" },
   { href: "/dashboard/auditoria", label: "Auditoria" },

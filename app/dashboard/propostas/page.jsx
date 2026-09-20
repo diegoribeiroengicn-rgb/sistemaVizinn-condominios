@@ -13,18 +13,21 @@ const STATUS_STYLES = {
   reprovada: "bg-coral-100 text-coral-700",
 };
 
-const emptyForm = { titulo: "", descricao: "", valor: "" };
+const emptyForm = { titulo: "", descricao: "", valor: "", fornecedorId: "" };
 
 export default function PropostasPage() {
   const { condominio, user, member, temPermissao } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [propostas, setPropostas] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [decidingId, setDecidingId] = useState(null);
+
+  const podeGerarContaPagar = temPermissao("financeiro", "criar");
 
   // Pré-preenche quando chega vindo de "Solicitar proposta" numa
   // manutenção (?manutencaoId=...&titulo=...&descricao=...).
@@ -50,14 +53,17 @@ export default function PropostasPage() {
     if (!condominio?.id) return;
     setLoading(true);
     setError("");
-    const { data, error: fetchError } = await supabase
-      .from("propostas")
-      .select("*")
-      .eq("condominio_id", condominio.id)
-      .order("created_at", { ascending: false });
-    if (fetchError) setError(fetchError.message);
-    else setPropostas(data || []);
+    const [propostasResult, fornecedoresResult] = await Promise.all([
+      supabase.from("propostas").select("*").eq("condominio_id", condominio.id).order("created_at", { ascending: false }),
+      temPermissao("fornecedores", "visualizar")
+        ? supabase.from("fornecedores").select("id, razao_social").eq("condominio_id", condominio.id)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (propostasResult.error) setError(propostasResult.error.message);
+    else setPropostas(propostasResult.data || []);
+    if (!fornecedoresResult.error) setFornecedores(fornecedoresResult.data || []);
     setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [condominio?.id]);
 
   useEffect(() => {
@@ -71,6 +77,7 @@ export default function PropostasPage() {
     setSubmitting(true);
     setError("");
     const manutencaoId = searchParams.get("manutencaoId") || null;
+    const fornecedor = fornecedores.find((f) => f.id === form.fornecedorId);
     const { error: insertError } = await supabase.from("propostas").insert({
       condominio_id: condominio.id,
       titulo: form.titulo.trim(),
@@ -78,6 +85,8 @@ export default function PropostasPage() {
       valor: form.valor ? Number(form.valor) : null,
       status: "pendente",
       manutencao_origem_id: manutencaoId,
+      fornecedor_id: form.fornecedorId || null,
+      fornecedor_nome: fornecedor?.razao_social || null,
     });
     setSubmitting(false);
 
@@ -143,6 +152,23 @@ export default function PropostasPage() {
                 placeholder="0,00"
               />
             </div>
+            {fornecedores.length > 0 && (
+              <div>
+                <label className="label-field">Fornecedor (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.fornecedorId}
+                  onChange={(e) => setForm((f) => ({ ...f, fornecedorId: e.target.value }))}
+                >
+                  <option value="">Sem fornecedor</option>
+                  {fornecedores.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.razao_social}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <label className="label-field">Descrição (opcional)</label>
               <textarea
@@ -192,6 +218,7 @@ export default function PropostasPage() {
                   {p.descricao && <p className="mt-2 text-sm text-navy-600">{p.descricao}</p>}
                   <p className="mt-2 text-xs text-navy-400">
                     Criada em {new Date(p.created_at).toLocaleString("pt-BR")}
+                    {p.fornecedor_nome && ` · ${p.fornecedor_nome}`}
                     {p.manutencao_origem_id && " · Vinculada a uma manutenção"}
                     {p.decidido_por && p.status !== "pendente" && (
                       <>
@@ -201,6 +228,22 @@ export default function PropostasPage() {
                       </>
                     )}
                   </p>
+                  {p.status === "aprovada" && podeGerarContaPagar && (
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          aba: "pagar",
+                          propostaId: p.id,
+                          descricao: p.titulo,
+                          valor: p.valor != null ? String(p.valor) : "",
+                        });
+                        router.push(`/dashboard/financeiro?${params.toString()}`);
+                      }}
+                      className="mt-2 text-xs font-semibold text-navy-700 hover:underline"
+                    >
+                      Gerar conta a pagar
+                    </button>
+                  )}
                 </div>
 
                 {p.status === "pendente" && podeDecidir && (
