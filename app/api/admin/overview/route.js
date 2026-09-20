@@ -28,6 +28,9 @@ export async function GET(request) {
   let activeCount = 0;
   let trialCount = 0;
   let canceledCount = 0;
+  let suspendedCount = 0;
+  let promiseCount = 0;
+  let courtesyCount = 0;
   const planCounts = {};
   const signupsByDay = {};
 
@@ -42,6 +45,13 @@ export async function GET(request) {
     } else if (c.status === "trialing") {
       projectedMrr += plan.price;
       trialCount += 1;
+    } else if (c.status === "promessa") {
+      projectedMrr += plan.price;
+      promiseCount += 1;
+    } else if (c.status === "cortesia") {
+      courtesyCount += 1;
+    } else if (c.status === "suspended") {
+      suspendedCount += 1;
     } else if (["canceled", "unpaid", "incomplete_expired"].includes(c.status)) {
       canceledCount += 1;
     }
@@ -60,6 +70,9 @@ export async function GET(request) {
     activeCount,
     trialCount,
     canceledCount,
+    suspendedCount,
+    promiseCount,
+    courtesyCount,
     planCounts,
     totalUnidadesLimite,
     totalUnidadesAtivas,

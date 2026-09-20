@@ -10,6 +10,12 @@ import StripePaymentForm from "@/components/StripePaymentForm";
 
 const STEPS = { DADOS: "dados", PAGAMENTO: "pagamento", SUCESSO: "sucesso" };
 
+// Shows the "pular pagamento" test-mode button. The server-side
+// /api/dev-signup route re-checks ALLOW_TEST_SIGNUP independently, so this
+// flag only controls whether the button is visible — it can't bypass the
+// real gate on its own.
+const TEST_MODE = process.env.NEXT_PUBLIC_TEST_MODE === "true";
+
 const emptyForm = {
   email: "",
   password: "",
@@ -69,6 +75,27 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
       if (!res.ok) throw new Error(data.error || "Erro ao iniciar pagamento.");
       setClientSecret(data.clientSecret);
       setStep(STEPS.PAGAMENTO);
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleTestSignup() {
+    setFormError("");
+    if (!validateDados()) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/dev-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, planId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao criar conta de teste.");
+      setStep(STEPS.SUCESSO);
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -273,6 +300,22 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
               {loading ? "Carregando..." : "Continuar para pagamento"}
             </button>
           </div>
+
+          {TEST_MODE && (
+            <div className="rounded-lg border border-dashed border-navy-200 bg-navy-50/50 p-3 text-center">
+              <button
+                type="button"
+                onClick={handleTestSignup}
+                disabled={loading}
+                className="text-sm font-semibold text-coral hover:underline disabled:opacity-50"
+              >
+                Pular pagamento (ambiente de testes)
+              </button>
+              <p className="mt-1 text-xs text-navy-400">
+                Cria a conta direto, sem Stripe. Visível só porque NEXT_PUBLIC_TEST_MODE=true.
+              </p>
+            </div>
+          )}
         </form>
       )}
 

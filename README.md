@@ -31,16 +31,47 @@ síndico:
   de cada tenant cadastrado.
 - **Receita/MRR**: MRR de assinantes pagantes e MRR projetado (incluindo
   quem está em teste gratuito).
-- **Gestão de assinaturas**: cancelar a assinatura de um condomínio
-  diretamente (cancela no Stripe e atualiza o status).
+- **Gestão de assinaturas** (botão "Gerenciar" em cada linha):
+  - **Suspender / Reativar**: pausa a cobrança no Stripe (se houver
+    assinatura) e bloqueia o dashboard do síndico (tela de "Acesso
+    suspenso"), sem cancelar de vez. Reativar volta ao normal.
+  - **Liberar (promessa de pagamento)**: desbloqueia o acesso na confiança,
+    sem cobrar — útil para liberar um cliente antes do pagamento cair.
+  - **Dar cortesia**: acesso gratuito (com data opcional de validade), para
+    testes ou parcerias — não gera cobrança no Stripe.
+  - **Cancelar assinatura**: cancela no Stripe e bloqueia o dashboard
+    (ação definitiva).
 - **Analytics**: distribuição de condomínios por plano e cadastros por dia
   (últimos 14 dias com dados).
 
-O acesso é controlado por `ADMIN_EMAILS` (verificado no servidor, em
-`/api/admin/*`, via token do Supabase) — `NEXT_PUBLIC_ADMIN_EMAILS` só decide
-se o link "Admin" aparece no menu. Como o painel lê via
-`SUPABASE_SERVICE_ROLE_KEY`, ele enxerga todos os tenants mesmo com Row
-Level Security habilitada.
+Status possíveis de um condomínio: os que vêm do Stripe (`active`,
+`trialing`, `past_due`, `unpaid`, `canceled`, ...) e os definidos pelo
+admin (`suspended`, `promessa`, `cortesia`). O dashboard do síndico
+(`/dashboard`) bloqueia o acesso quando o status é `suspended`, `canceled`,
+`unpaid` ou `incomplete_expired` — `promessa` e `cortesia` continuam com
+acesso liberado normalmente. O webhook do Stripe nunca sobrescreve um
+status definido manualmente pelo admin (`suspended`/`promessa`/`cortesia`).
+
+O acesso ao painel é controlado por `ADMIN_EMAILS` (verificado no
+servidor, em `/api/admin/*`, via token do Supabase) —
+`NEXT_PUBLIC_ADMIN_EMAILS` só decide se o link "Admin" aparece no menu.
+Como o painel lê via `SUPABASE_SERVICE_ROLE_KEY`, ele enxerga todos os
+tenants mesmo com Row Level Security habilitada.
+
+## Testar sem pagar (modo de teste)
+
+Enquanto o produto ainda está em desenvolvimento, dá pra criar contas sem
+passar pelo Stripe: com `ALLOW_TEST_SIGNUP=true` e `NEXT_PUBLIC_TEST_MODE=true`
+configurados, o formulário de cadastro (passo "Dados") ganha um botão
+**"Pular pagamento (ambiente de testes)"**. Ele cria o usuário no Supabase e
+o registro em `condominios` (status `trialing`, sem Stripe) direto, sem
+PaymentIntent nem assinatura — login automático em seguida, igual ao fluxo
+normal.
+
+`ALLOW_TEST_SIGNUP` é checado no servidor (`/api/dev-signup`) independente
+do valor de `NEXT_PUBLIC_TEST_MODE`, que só controla se o botão aparece.
+**Desligue os dois (ou remova as variáveis) antes de abrir para clientes
+reais**, senão qualquer visitante consegue criar conta sem pagar.
 
 ## Configuração
 
@@ -66,6 +97,7 @@ cp .env.example .env.local
 | `STRIPE_WEBHOOK_SECRET` | Stripe CLI (`stripe listen`) ou Dashboard → Webhooks |
 | `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_PRO` | Stripe → Product catalog (crie um Price recorrente mensal para cada plano) |
 | `ADMIN_EMAILS` / `NEXT_PUBLIC_ADMIN_EMAILS` | E-mail(s) com acesso ao painel `/admin` (defina os dois com o mesmo valor) |
+| `ALLOW_TEST_SIGNUP` / `NEXT_PUBLIC_TEST_MODE` | `true` para liberar o cadastro sem Stripe (ver seção acima) — **desligue em produção** |
 
 ### 3. Banco de dados
 
@@ -105,10 +137,15 @@ Abra [http://localhost:3000](http://localhost:3000).
   api/
     create-payment-intent/   # Cria PaymentIntent de R$1 (validação do cartão)
     complete-signup/         # Cria cliente/assinatura Stripe + usuário/condomínio
+    dev-signup/               # Cadastro sem Stripe (modo de teste, ALLOW_TEST_SIGNUP)
     webhook/                 # Sincroniza status da assinatura
     admin/
       overview/                # Todos os condomínios + MRR + analytics (owner only)
       cancel-subscription/     # Cancela assinatura de um tenant (owner only)
+      suspend-subscription/    # Suspende acesso + pausa cobrança no Stripe (owner only)
+      reactivate-subscription/ # Reativa acesso suspenso (owner only)
+      grant-promise/           # Libera acesso por promessa de pagamento (owner only)
+      grant-courtesy/          # Concede cortesia/acesso grátis (owner only)
 
 /components                 # Header, LandingHero, Pricing, SignupForm, etc.
 /hooks/useAuth.js            # Contexto de autenticação (Supabase)

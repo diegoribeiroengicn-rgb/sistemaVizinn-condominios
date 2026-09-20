@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/adminFetch";
 import { PLANS, getPlan } from "@/lib/plans";
+import AdminManageModal from "@/components/AdminManageModal";
 
 const STATUS_LABELS = {
   active: "Ativo",
@@ -12,6 +13,9 @@ const STATUS_LABELS = {
   unpaid: "Inadimplente",
   incomplete: "Incompleto",
   incomplete_expired: "Expirado",
+  suspended: "Suspenso",
+  promessa: "Promessa de pagamento",
+  cortesia: "Cortesia",
 };
 
 const STATUS_STYLES = {
@@ -20,6 +24,9 @@ const STATUS_STYLES = {
   canceled: "bg-navy-100 text-navy-500",
   past_due: "bg-coral-100 text-coral-700",
   unpaid: "bg-coral-100 text-coral-700",
+  suspended: "bg-coral-100 text-coral-700",
+  promessa: "bg-sky-100 text-sky-700",
+  cortesia: "bg-violet-100 text-violet-700",
 };
 
 function formatBRL(value) {
@@ -28,24 +35,11 @@ function formatBRL(value) {
   );
 }
 
-async function authedFetch(path, options = {}) {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return fetch(path, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${session?.access_token || ""}`,
-    },
-  });
-}
-
 export default function AdminDashboardContent() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [actingId, setActingId] = useState(null);
+  const [managing, setManaging] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,30 +59,6 @@ export default function AdminDashboardContent() {
   useEffect(() => {
     load();
   }, [load]);
-
-  async function handleCancel(condominio) {
-    if (!confirm(`Cancelar a assinatura de "${condominio.nome}"? Esta ação não pode ser desfeita.`)) {
-      return;
-    }
-    setActingId(condominio.id);
-    try {
-      const res = await authedFetch("/api/admin/cancel-subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          condominioId: condominio.id,
-          subscriptionId: condominio.stripe_subscription_id,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Erro ao cancelar assinatura.");
-      await load();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setActingId(null);
-    }
-  }
 
   if (loading) {
     return <p className="text-navy-500">Carregando painel administrativo...</p>;
@@ -115,6 +85,10 @@ export default function AdminDashboardContent() {
     { label: "MRR (pagantes)", value: formatBRL(data.mrr) },
     { label: "MRR projetado", value: formatBRL(data.projectedMrr) },
     { label: "Em teste", value: data.trialCount },
+    { label: "Suspensos", value: data.suspendedCount },
+    { label: "Promessa de pagamento", value: data.promiseCount },
+    { label: "Cortesias", value: data.courtesyCount },
+    { label: "Cancelados", value: data.canceledCount },
   ];
 
   return (
@@ -246,15 +220,12 @@ export default function AdminDashboardContent() {
                     {c.created_at ? new Date(c.created_at).toLocaleDateString("pt-BR") : "-"}
                   </td>
                   <td className="px-4 py-3">
-                    {c.status !== "canceled" && (
-                      <button
-                        onClick={() => handleCancel(c)}
-                        disabled={actingId === c.id}
-                        className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                      >
-                        {actingId === c.id ? "Cancelando..." : "Cancelar assinatura"}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setManaging(c)}
+                      className="text-xs font-semibold text-coral hover:underline"
+                    >
+                      Gerenciar
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -269,6 +240,17 @@ export default function AdminDashboardContent() {
           </table>
         </div>
       </section>
+
+      {managing && (
+        <AdminManageModal
+          condominio={managing}
+          onClose={() => setManaging(null)}
+          onChanged={async () => {
+            setManaging(null);
+            await load();
+          }}
+        />
+      )}
     </div>
   );
 }
