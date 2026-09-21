@@ -27,7 +27,6 @@ const ABAS = [
   { id: "visao", label: "Visão financeira" },
   { id: "pagar", label: "Contas a pagar" },
   { id: "receber", label: "Contas a receber" },
-  { id: "boletos", label: "Boletos" },
 ];
 
 const emptyContaPagar = {
@@ -351,7 +350,7 @@ export default function FinanceiroPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Financeiro</h1>
         <p className="mt-1 text-sm text-navy-500">
-          Contas a pagar, contas a receber, boletos e o balanço do condomínio.
+          Contas a pagar, contas a receber e o balanço do condomínio.
         </p>
       </div>
 
@@ -940,14 +939,6 @@ export default function FinanceiroPage() {
         </div>
       )}
 
-      {!loading && aba === "boletos" && (
-        <div className="card">
-          <h2 className="font-display text-lg font-bold text-navy-900">Boletos</h2>
-          <p className="mt-2 text-navy-500">
-            Em breve: geração e envio automático de boletos para as unidades do seu condomínio.
-          </p>
-        </div>
-      )}
     </div>
     </ModuloGuard>
   );

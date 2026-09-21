@@ -1199,3 +1199,63 @@ drop trigger if exists trg_auditoria_moradores on public.moradores;
 create trigger trg_auditoria_moradores
   after insert or update or delete on public.moradores
   for each row execute function public.registrar_auditoria_generica();
+
+-- Obras e Melhorias: registro e acompanhamento de obras, reformas e
+-- intervenções no condomínio — separado de Manutenção (que é sobre
+-- manutenção recorrente/corretiva de rotina), com orçamento e prazo
+-- próprios. Reaproveita colaboradores/fornecedores já cadastrados pra
+-- responsável e empresa, no mesmo padrão de chamados/manutenções.
+create table if not exists public.obras (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  local text,
+  responsavel_colaborador_id uuid references public.colaboradores (id) on delete set null,
+  responsavel_nome text,
+  fornecedor_id uuid references public.fornecedores (id) on delete set null,
+  fornecedor_nome text,
+  data_prevista_inicio date,
+  data_prevista_conclusao date,
+  data_real_inicio date,
+  data_real_conclusao date,
+  valor_previsto numeric,
+  valor_realizado numeric,
+  status text not null default 'planejada' check (
+    status in ('planejada', 'em_orcamento', 'aprovada', 'em_andamento', 'pausada', 'concluida', 'cancelada')
+  ),
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists obras_condominio_id_idx on public.obras (condominio_id);
+
+alter table public.obras enable row level security;
+
+drop policy if exists "Members can view obras" on public.obras;
+create policy "Members can view obras"
+  on public.obras for select
+  using (public.membro_tem_modulo(condominio_id, 'obras'));
+
+drop policy if exists "Members can insert obras" on public.obras;
+create policy "Members can insert obras"
+  on public.obras for insert
+  with check (public.membro_tem_permissao(condominio_id, 'obras', 'criar'));
+
+drop policy if exists "Members can update obras" on public.obras;
+create policy "Members can update obras"
+  on public.obras for update
+  using (public.membro_tem_permissao(condominio_id, 'obras', 'editar'));
+
+drop policy if exists "Members can delete obras" on public.obras;
+create policy "Members can delete obras"
+  on public.obras for delete
+  using (public.membro_tem_permissao(condominio_id, 'obras', 'excluir'));
+
+grant select, insert, update, delete on public.obras to authenticated;
+grant all on public.obras to service_role;
+
+drop trigger if exists trg_auditoria_obras on public.obras;
+create trigger trg_auditoria_obras
+  after insert or update or delete on public.obras
+  for each row execute function public.registrar_auditoria_generica();

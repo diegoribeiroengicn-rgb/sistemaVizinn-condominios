@@ -64,7 +64,7 @@ export default function LandingHero({ onStart }) {
                 <p className="text-lg font-semibold text-coral">3,2%</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Boletos emitidos</p>
+                <p className="text-xs text-gray-400">Moradores cadastrados</p>
                 <p className="text-lg font-semibold text-midnight">128</p>
               </div>
               <div>

@@ -149,6 +149,16 @@ export function IconMoradores(props) {
   );
 }
 
+export function IconObras(props) {
+  return (
+    <Icon {...props}>
+      <path d="m14.5 3.5 6 6-2 2-6-6z" />
+      <path d="m12.5 5.5-8 8v3h3l8-8" />
+      <path d="M3.5 20.5h17" />
+    </Icon>
+  );
+}
+
 export function IconConfiguracoes(props) {
   return (
     <Icon {...props}>
