@@ -325,11 +325,16 @@ export default function ColaboradoresPage() {
           <div className="card">
             <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
             <p className="mt-1 text-sm text-navy-500">
-              Suba um arquivo <strong>.csv</strong> com as colunas nome, função, setor e telefone
-              (e-mail é opcional). No Excel ou Google Sheets, use &ldquo;Salvar como&rdquo; /
-              &ldquo;Fazer download&rdquo; e escolha o formato CSV.
+              Baixe o modelo, preencha nome, função, setor e telefone (e-mail é opcional) e suba
+              o arquivo de volta aqui.
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="mt-4">
+              <button type="button" onClick={baixarModelo} className="btn-primary">
+                ⬇ Baixar modelo de planilha
+              </button>
+            </div>
+            <div className="mt-4 border-t border-navy-100 pt-4">
+              <label className="label-field">Já preencheu? Suba o arquivo aqui</label>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -337,9 +342,6 @@ export default function ColaboradoresPage() {
                 onChange={handleArquivoSelecionado}
                 className="text-sm text-navy-600"
               />
-              <button type="button" onClick={baixarModelo} className="text-xs font-semibold text-navy-700 hover:underline">
-                Baixar modelo de planilha
-              </button>
             </div>
 
             {importResumo && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumo}</p>}
