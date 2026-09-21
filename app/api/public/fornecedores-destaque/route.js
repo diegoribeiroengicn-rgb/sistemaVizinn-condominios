@@ -8,13 +8,14 @@ export const dynamic = "force-dynamic";
 
 // Pública (sem login) — mostra o Ecossistema de Fornecedores Vizinn
 // como diferencial na página inicial. Só dados reais da base
-// (fornecedores_globais), nunca fictícios. Expõe o mínimo necessário
-// pra um visitante anônimo: nome, fantasia, categoria e a reputação
-// agregada (nota média + quantidade de avaliações, via
-// reputacao_fornecedor_global — nunca o texto da avaliação em si, que
-// continua interno ao condomínio que avaliou) de só 3 fornecedores; os
-// demais ficam representados apenas como contagem por categoria, nunca
-// linha a linha. Sem CNPJ, sem endereço. Restrição de verdade aqui no
+// (fornecedores_globais), nunca fictícios. O nome do fornecedor volta
+// embaçado no card (vira vantagem de assinar pra revelar); o que
+// aparece limpo é a categoria/serviço e, quando existir, o texto de
+// uma avaliação real — mas só quando quem avaliou marcou
+// `condominio_publico` (o mesmo opt-in usado na Rede Vizinn interna).
+// Nunca mostra o nome do condomínio que avaliou. Só 3 fornecedores em
+// destaque; os demais ficam representados apenas como contagem por
+// categoria, nunca linha a linha. Restrição de verdade aqui no
 // backend: o resto da base nunca sai do servidor pra ser "escondido"
 // na tela.
 export async function GET() {
@@ -49,12 +50,41 @@ export async function GET() {
     return a.razao_social.localeCompare(b.razao_social);
   });
 
-  const destaques = comReputacao.slice(0, 3).map((f) => ({
-    nome: f.nome_fantasia || f.razao_social,
-    categoria: (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", ") || null,
-    notaMedia: f.reputacao?.total_avaliacoes > 0 ? Number(f.reputacao.nota_media) : null,
-    totalAvaliacoes: Number(f.reputacao?.total_avaliacoes || 0),
-  }));
+  const top3 = comReputacao.slice(0, 3);
+
+  // Comentário real (só quando quem avaliou autorizou tornar a
+  // avaliação pública) pra dar prova social de verdade sem inventar
+  // nada e sem expor de qual condomínio veio.
+  const comentarios = await Promise.all(
+    top3.map(async (f) => {
+      const { data: locais } = await supabaseAdmin.from("fornecedores").select("id").eq("fornecedor_global_id", f.id);
+      const localIds = (locais || []).map((l) => l.id);
+      if (localIds.length === 0) return null;
+      const { data: avaliacao } = await supabaseAdmin
+        .from("avaliacoes_fornecedor")
+        .select("observacao, nota_qualidade, nota_prazo, nota_custo, nota_atendimento")
+        .in("fornecedor_id", localIds)
+        .eq("condominio_publico", true)
+        .not("observacao", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return avaliacao || null;
+    })
+  );
+
+  // O nome real do fornecedor nunca sai daqui — o card mostra só a
+  // categoria e o comentário; o nome fica de propósito fora do JSON
+  // (não é "manda tudo e esconde com CSS", é não mandar mesmo).
+  const destaques = top3.map((f, i) => {
+    const c = comentarios[i];
+    return {
+      categoria: (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", ") || null,
+      notaMedia: f.reputacao?.total_avaliacoes > 0 ? Number(f.reputacao.nota_media) : null,
+      totalAvaliacoes: Number(f.reputacao?.total_avaliacoes || 0),
+      comentario: c?.observacao || null,
+    };
+  });
 
   // Um fornecedor com mais de uma categoria conta em cada uma delas.
   const contagemPorCategoria = {};

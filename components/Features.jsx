@@ -29,6 +29,16 @@ const features = [
     title: "Fornecedores validados",
     text: "Uma rede compartilhada entre condomínios Vizinn, com CNPJ único por fornecedor e reputação real baseada em avaliações de outros síndicos — nada fictício.",
   },
+  {
+    icon: "🔐",
+    title: "Acessos por perfil",
+    text: "Síndico, conselheiro, zelador, porteiro, condômino — cada papel vê só o que precisa, com permissões configuráveis módulo a módulo.",
+  },
+  {
+    icon: "🛎️",
+    title: "Portaria digital",
+    text: "Entrada e saída de visitantes, entregadores e prestadores registrada na hora, com histórico consultável por unidade ou data.",
+  },
 ];
 
 export default function Features() {

@@ -4,10 +4,13 @@ import { useEffect, useState } from "react";
 
 // Vitrine pública do Ecossistema de Fornecedores Vizinn (sem login) —
 // busca só uma prévia real via /api/public/fornecedores-destaque, que
-// já limita a 3 fornecedores nomeados e nunca manda a base inteira pro
-// navegador (o "cadeado" no resto é de verdade, não CSS). Sem
-// fornecedor cadastrado ainda, cai num texto genérico — nunca inventa
-// nome de fornecedor.
+// já limita a 3 fornecedores e nunca manda a base inteira pro
+// navegador. O nome do fornecedor nem sai do backend — o card mostra a
+// categoria (o que ele faz) e, quando existir, um comentário real de
+// avaliação (só as marcadas como públicas por quem avaliou); o "🔒
+// Nome disponível para assinantes" é um cadeado de verdade, não CSS
+// escondendo um nome que já chegou no navegador. Sem fornecedor
+// cadastrado ainda, cai num texto genérico — nunca inventa nada.
 export default function EcossistemaFornecedores({ onStart }) {
   const [dados, setDados] = useState(null);
 
@@ -63,14 +66,21 @@ export default function EcossistemaFornecedores({ onStart }) {
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {destaques.map((f, i) => (
               <div key={i} className="card">
-                <h3 className="font-semibold text-navy-900">{f.nome}</h3>
-                {f.categoria && <p className="mt-1 text-sm text-navy-500">{f.categoria}</p>}
-                {f.totalAvaliacoes > 0 ? (
-                  <p className="mt-2 text-sm text-navy-600">
+                <h3 className="font-semibold text-navy-900">{f.categoria || "Fornecedor Vizinn"}</h3>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="select-none text-sm text-navy-300 blur-[3px]" aria-hidden="true">
+                    Nome do fornecedor
+                  </span>
+                  <span className="text-xs font-medium text-navy-400">🔒 disponível para assinantes</span>
+                </div>
+                {f.comentario ? (
+                  <p className="mt-3 text-sm italic text-navy-600">&ldquo;{f.comentario}&rdquo;</p>
+                ) : f.totalAvaliacoes > 0 ? (
+                  <p className="mt-3 text-sm text-navy-600">
                     ⭐ {f.notaMedia} · {f.totalAvaliacoes} avaliação{f.totalAvaliacoes === 1 ? "" : "ões"}
                   </p>
                 ) : (
-                  <p className="mt-2 text-xs text-navy-400">Ainda sem avaliações</p>
+                  <p className="mt-3 text-xs text-navy-400">Ainda sem avaliações</p>
                 )}
               </div>
             ))}
