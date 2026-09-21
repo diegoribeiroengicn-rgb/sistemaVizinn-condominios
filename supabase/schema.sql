@@ -194,15 +194,6 @@ create policy "Owners can view their membros"
   on public.membros for select
   using (public.is_condominio_owner(condominio_id) or user_id = auth.uid());
 
--- Subsíndico/administrador com permissão em "acessos" também enxerga a
--- lista de acessos (a tela de Acessos em si). Criação/edição continuam
--- passando só pelas API routes (service role), então não precisam de
--- policy de insert/update aqui — só o GRANT de select/delete abaixo.
-drop policy if exists "Members with acessos can view membros" on public.membros;
-create policy "Members with acessos can view membros"
-  on public.membros for select
-  using (permissoes -> 'acessos' ? 'visualizar');
-
 drop policy if exists "Owners can delete their membros" on public.membros;
 create policy "Owners can delete their membros"
   on public.membros for delete
@@ -240,6 +231,26 @@ stable
 as $$
   select public.membro_tem_permissao(p_condominio_id, p_modulo, 'visualizar');
 $$;
+
+-- Subsíndico/administrador com permissão em "acessos" também enxerga a
+-- lista de acessos (a tela de Acessos em si). Criação/edição continuam
+-- passando só pelas API routes (service role), então não precisam de
+-- policy de insert/update aqui — só o GRANT de select/delete já dado
+-- acima. Fica aqui (depois de membro_tem_permissao existir) por causa
+-- da mesma regra de ordenação explicada no topo do arquivo — CORREÇÃO
+-- DE SEGURANÇA: a versão anterior desta policy checava
+-- `permissoes -> 'acessos' ? 'visualizar'` direto na linha candidata,
+-- o que testa as permissões DA LINHA sendo lida, não de quem está
+-- pedindo — na prática, qualquer membro (de QUALQUER condomínio) que
+-- tivesse a permissão "acessos: visualizar" ficava legível por
+-- QUALQUER usuário autenticado da plataforma, vazando nome, e-mail,
+-- telefone e permissões entre condomínios diferentes. A versão
+-- correta usa membro_tem_permissao(), que sempre checa
+-- auth.uid() (quem está pedindo) contra o condominio_id da linha.
+drop policy if exists "Members with acessos can view membros" on public.membros;
+create policy "Members with acessos can view membros"
+  on public.membros for select
+  using (public.membro_tem_permissao(condominio_id, 'acessos', 'visualizar'));
 
 -- Quem gerencia chamados (ação "editar") precisa ver a lista de pessoas
 -- pra poder escolher um responsável — mesmo sem permissão em "acessos".
