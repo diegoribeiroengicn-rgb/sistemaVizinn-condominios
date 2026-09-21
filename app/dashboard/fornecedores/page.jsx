@@ -5,9 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import RedeFornecedoresVizinn from "@/components/RedeFornecedoresVizinn";
+import CategoriasFornecedorInput from "@/components/CategoriasFornecedorInput";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
-  CATEGORIAS_SUGERIDAS,
   CRITERIOS_AVALIACAO,
   STATUS_LABELS,
   STATUS_ORDER,
@@ -16,6 +16,7 @@ import {
   calcularNotaMedia,
   parseFornecedoresCsv,
   parseFornecedoresXlsx,
+  separarCategorias,
   gerarModeloFornecedores,
   COLUNAS_RELATORIO,
   buscarOuCriarFornecedorGlobal,
@@ -30,7 +31,7 @@ const emptyForm = {
   nomeFantasia: "",
   documento: "",
   tipo: "empresa",
-  categoria: "",
+  categorias: [],
   telefone: "",
   whatsapp: "",
   email: "",
@@ -43,7 +44,14 @@ const emptyForm = {
   status: "ativo",
 };
 
-const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
+const emptyAvaliacao = {
+  nota_qualidade: 5,
+  nota_prazo: 5,
+  nota_custo: 5,
+  nota_atendimento: 5,
+  observacao: "",
+  condominioPublico: false,
+};
 
 function Estrelas({ nota, onChange }) {
   return (
@@ -161,7 +169,7 @@ export default function FornecedoresPage() {
         razaoSocial: form.razaoSocial.trim(),
         nomeFantasia: form.nomeFantasia.trim(),
         endereco: form.endereco.trim(),
-        categoria: form.categoria.trim(),
+        categorias: form.categorias,
       });
       if (resultado.erro) {
         setSubmitting(false);
@@ -177,7 +185,8 @@ export default function FornecedoresPage() {
       nome_fantasia: form.nomeFantasia.trim() || null,
       documento: form.documento.trim() || null,
       tipo: form.tipo,
-      categoria: form.categoria.trim() || null,
+      categorias: form.categorias,
+      categoria: form.categorias[0] || null,
       telefone: form.telefone.trim() || null,
       whatsapp: form.whatsapp.trim() || null,
       email: form.email.trim() || null,
@@ -213,7 +222,7 @@ export default function FornecedoresPage() {
       nomeFantasia: fornecedor.nome_fantasia || "",
       documento: fornecedor.documento || "",
       tipo: fornecedor.tipo,
-      categoria: fornecedor.categoria || "",
+      categorias: fornecedor.categorias?.length ? fornecedor.categorias : fornecedor.categoria ? [fornecedor.categoria] : [],
       telefone: fornecedor.telefone || "",
       whatsapp: fornecedor.whatsapp || "",
       email: fornecedor.email || "",
@@ -263,17 +272,21 @@ export default function FornecedoresPage() {
     setImportando(true);
     setError("");
 
-    const payload = preview.linhas.map((l) => ({
-      condominio_id: condominio.id,
-      razao_social: l.nome,
-      telefone: l.telefone || null,
-      vendedor_nome: l.vendedor || null,
-      vendedor_contato: l.vendedorContato || null,
-      documento: l.cnpj || null,
-      categoria: l.atividade || null,
-      tipo: "empresa",
-      status: "ativo",
-    }));
+    const payload = preview.linhas.map((l) => {
+      const categorias = separarCategorias(l.atividade);
+      return {
+        condominio_id: condominio.id,
+        razao_social: l.nome,
+        telefone: l.telefone || null,
+        vendedor_nome: l.vendedor || null,
+        vendedor_contato: l.vendedorContato || null,
+        documento: l.cnpj || null,
+        categorias,
+        categoria: categorias[0] || null,
+        tipo: "empresa",
+        status: "ativo",
+      };
+    });
 
     const { error: importError } = await supabase.from("fornecedores").insert(payload);
     setImportando(false);
@@ -308,7 +321,11 @@ export default function FornecedoresPage() {
         ...(busca ? [{ label: "Busca", valor: busca }] : []),
       ],
       colunas: COLUNAS_RELATORIO,
-      linhas: fornecedoresFiltrados.map((f) => ({ ...f, statusLabel: STATUS_LABELS[f.status] })),
+      linhas: fornecedoresFiltrados.map((f) => ({
+        ...f,
+        statusLabel: STATUS_LABELS[f.status],
+        categoriasLabel: (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", "),
+      })),
       resumo: [{ label: "Total de fornecedores", valor: fornecedoresFiltrados.length }],
       geradoEm: new Date(),
       geradoPor: nomeUsuario,
@@ -346,6 +363,7 @@ export default function FornecedoresPage() {
       nota_custo: avaliacaoForm.nota_custo,
       nota_atendimento: avaliacaoForm.nota_atendimento,
       observacao: avaliacaoForm.observacao.trim() || null,
+      condominio_publico: avaliacaoForm.condominioPublico,
     });
     setEnviandoAvaliacao(false);
 
@@ -389,7 +407,7 @@ export default function FornecedoresPage() {
     const termo = busca.trim().toLowerCase();
     if (termo) {
       lista = lista.filter((f) =>
-        [f.razao_social, f.nome_fantasia, f.documento, f.categoria, f.vendedor_nome]
+        [f.razao_social, f.nome_fantasia, f.documento, f.categoria, ...(f.categorias || []), f.vendedor_nome]
           .filter(Boolean)
           .some((v) => v.toLowerCase().includes(termo))
       );
@@ -464,7 +482,8 @@ export default function FornecedoresPage() {
           <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
           <p className="mt-1 text-sm text-navy-500">
             Baixe o modelo em Excel já formatado, preencha nome, telefone, vendedor, contato do
-            vendedor, CNPJ e atividade da empresa, e suba o arquivo de volta aqui.
+            vendedor, CNPJ e atividade da empresa (separe por vírgula se for mais de uma
+            categoria), e suba o arquivo de volta aqui.
           </p>
           <div className="mt-4">
             <button
@@ -598,19 +617,12 @@ export default function FornecedoresPage() {
                 <option value="profissional">{TIPO_LABELS.profissional}</option>
               </select>
             </div>
-            <div>
-              <label className="label-field">Categoria (opcional)</label>
-              <input
-                className="input-field"
-                list="categorias-fornecedor"
-                value={form.categoria}
-                onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
+            <div className="sm:col-span-2">
+              <label className="label-field">Categorias (opcional — pode adicionar mais de uma)</label>
+              <CategoriasFornecedorInput
+                value={form.categorias}
+                onChange={(categorias) => setForm((f) => ({ ...f, categorias }))}
               />
-              <datalist id="categorias-fornecedor">
-                {CATEGORIAS_SUGERIDAS.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
             </div>
             <div>
               <label className="label-field">Status</label>
@@ -784,7 +796,15 @@ export default function FornecedoresPage() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-navy-400">
-                      {[f.categoria, f.documento, f.telefone, f.whatsapp, f.email].filter(Boolean).join(" · ")}
+                      {[
+                        (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", "),
+                        f.documento,
+                        f.telefone,
+                        f.whatsapp,
+                        f.email,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                     {(f.vendedor_nome || f.vendedor_contato) && (
                       <p className="mt-1 text-xs text-navy-400">
@@ -871,6 +891,17 @@ export default function FornecedoresPage() {
                       value={avaliacaoForm.observacao}
                       onChange={(e) => setAvaliacaoForm((f2) => ({ ...f2, observacao: e.target.value }))}
                     />
+                    <label className="flex items-start gap-2 text-xs text-navy-600">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={avaliacaoForm.condominioPublico}
+                        onChange={(e) => setAvaliacaoForm((f2) => ({ ...f2, condominioPublico: e.target.checked }))}
+                      />
+                      Mostrar o nome do meu condomínio junto dessa avaliação pros outros condomínios
+                      na Rede Vizinn (a observação continua sempre privada). Se deixar desmarcado, a
+                      avaliação entra na nota igual, mas sem identificar quem avaliou.
+                    </label>
                     <div className="flex gap-3">
                       <button
                         onClick={() => handleEnviarAvaliacao(f)}

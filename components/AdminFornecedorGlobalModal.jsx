@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "@/lib/adminFetch";
 import { formatarCnpj } from "@/lib/validacaoDocumentos";
+import CategoriasFornecedorInput from "@/components/CategoriasFornecedorInput";
 
 // Ficha completa de um fornecedor da base geral Vizinn, aberta a partir
 // da lista em /admin/fornecedores — dados cadastrais editáveis, em
@@ -27,7 +28,11 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
         razaoSocial: json.global.razao_social,
         nomeFantasia: json.global.nome_fantasia || "",
         endereco: json.global.endereco || "",
-        categoria: json.global.categoria || "",
+        categorias: json.global.categorias?.length
+          ? json.global.categorias
+          : json.global.categoria
+            ? [json.global.categoria]
+            : [],
         status: json.global.status,
       });
     } catch (err) {
@@ -54,7 +59,8 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
           razao_social: form.razaoSocial.trim(),
           nome_fantasia: form.nomeFantasia.trim() || null,
           endereco: form.endereco.trim() || null,
-          categoria: form.categoria.trim() || null,
+          categorias: form.categorias,
+          categoria: form.categorias[0] || null,
           status: form.status,
         }),
       });
@@ -127,12 +133,12 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
                 <label className="label-field">CNPJ</label>
                 <input className="input-field bg-navy-50" value={formatarCnpj(detalhe.global.cnpj || "")} disabled />
               </div>
-              <div>
-                <label className="label-field">Categoria</label>
-                <input
-                  className="input-field"
-                  value={form.categoria}
-                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
+              <div className="sm:col-span-2">
+                <label className="label-field">Categorias</label>
+                <CategoriasFornecedorInput
+                  value={form.categorias}
+                  onChange={(categorias) => setForm((f) => ({ ...f, categorias }))}
+                  inputId="categorias-fornecedor-admin"
                 />
               </div>
               <div>
@@ -201,6 +207,11 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
                         <p className="font-medium text-navy-800">
                           ⭐ {media.toFixed(1)} — {a.condominios?.nome || "Condomínio"} ·{" "}
                           {new Date(a.created_at).toLocaleDateString("pt-BR")}
+                          {a.condominio_publico && (
+                            <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                              🌐 Visível na Rede Vizinn
+                            </span>
+                          )}
                         </p>
                         {a.observacao && <p className="mt-1 text-navy-600">{a.observacao}</p>}
                       </li>

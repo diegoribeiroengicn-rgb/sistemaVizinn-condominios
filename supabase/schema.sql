@@ -1547,3 +1547,44 @@ create policy "Anyone can view academia thumbnails"
 -- painel admin (service_role, ver /api/admin/academia/upload-url) —
 -- é assim que o administrador sobe o vídeo direto pelo Dashboard sem
 -- precisar de uma policy ampla de escrita nesses buckets.
+
+-- Um fornecedor pode atuar em mais de uma categoria (ex: "Elétrica" e
+-- "Hidráulica") — campo array novo, aditivo. A coluna `categoria`
+-- antiga (texto único) é mantida e passa a guardar só a primeira
+-- categoria, por compatibilidade; o app agora lê/escreve `categorias`.
+alter table public.fornecedores add column if not exists categorias text[] not null default '{}';
+update public.fornecedores set categorias = array[categoria] where categoria is not null and categorias = '{}';
+
+alter table public.fornecedores_globais add column if not exists categorias text[] not null default '{}';
+update public.fornecedores_globais set categorias = array[categoria] where categoria is not null and categorias = '{}';
+
+-- Quem avalia escolhe se o nome do próprio condomínio aparece junto da
+-- nota pra outros condomínios (na Rede Vizinn) — padrão desmarcado
+-- (anônimo), como já era antes. O painel admin sempre viu o nome do
+-- condomínio em toda avaliação (governança interna da plataforma); essa
+-- coluna só controla o que os OUTROS condomínios podem ver.
+alter table public.avaliacoes_fornecedor add column if not exists condominio_publico boolean not null default false;
+
+-- Nomes dos condomínios que autorizaram aparecer publicamente nas
+-- avaliações de um fornecedor global — só quando condominio_publico é
+-- true; o resto das avaliações continua contando pra nota/quantidade
+-- agregada (reputacao_fornecedor_global) sem nunca expor de quem é.
+-- SECURITY DEFINER pelo mesmo motivo da função de reputação: precisa
+-- juntar dados de vários condomínios sem abrir policy de leitura
+-- cruzada nessas tabelas.
+create or replace function public.condominios_publicos_fornecedor_global(p_fornecedor_global_id uuid)
+returns text[]
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(array_agg(distinct c.nome), '{}')
+  from public.avaliacoes_fornecedor av
+  join public.fornecedores f on f.id = av.fornecedor_id
+  join public.condominios c on c.id = av.condominio_id
+  where f.fornecedor_global_id = p_fornecedor_global_id
+    and av.condominio_publico = true;
+$$;
+
+grant execute on function public.condominios_publicos_fornecedor_global(uuid) to authenticated;

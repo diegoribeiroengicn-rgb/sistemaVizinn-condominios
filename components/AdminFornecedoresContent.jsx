@@ -93,7 +93,12 @@ export default function AdminFornecedoresContent() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-navy-400">
-                  {[f.categoria, f.cnpj && formatarCnpj(f.cnpj)].filter(Boolean).join(" · ")}
+                  {[
+                    (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", "),
+                    f.cnpj && formatarCnpj(f.cnpj),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
               <span className="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-600">

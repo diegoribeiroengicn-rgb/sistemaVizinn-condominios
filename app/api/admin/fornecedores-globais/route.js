@@ -51,7 +51,7 @@ export async function PATCH(request) {
   const { id, ...campos } = body;
   if (!id) return NextResponse.json({ error: "id é obrigatório." }, { status: 400 });
 
-  const camposPermitidos = ["razao_social", "nome_fantasia", "endereco", "categoria", "status"];
+  const camposPermitidos = ["razao_social", "nome_fantasia", "endereco", "categoria", "categorias", "status"];
   const updates = { updated_at: new Date().toISOString() };
   for (const campo of camposPermitidos) {
     if (campo in campos) updates[campo] = campos[campo];

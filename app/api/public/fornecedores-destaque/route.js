@@ -22,7 +22,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("fornecedores_globais")
-    .select("id, razao_social, nome_fantasia, categoria")
+    .select("id, razao_social, nome_fantasia, categoria, categorias")
     .eq("status", "ativo")
     .order("razao_social", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,15 +51,19 @@ export async function GET() {
 
   const destaques = comReputacao.slice(0, 3).map((f) => ({
     nome: f.nome_fantasia || f.razao_social,
-    categoria: f.categoria || null,
+    categoria: (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", ") || null,
     notaMedia: f.reputacao?.total_avaliacoes > 0 ? Number(f.reputacao.nota_media) : null,
     totalAvaliacoes: Number(f.reputacao?.total_avaliacoes || 0),
   }));
 
+  // Um fornecedor com mais de uma categoria conta em cada uma delas.
   const contagemPorCategoria = {};
   for (const f of data || []) {
-    const cat = f.categoria || "Outros";
-    contagemPorCategoria[cat] = (contagemPorCategoria[cat] || 0) + 1;
+    const categorias = f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean);
+    const lista = categorias.length > 0 ? categorias : ["Outros"];
+    for (const cat of lista) {
+      contagemPorCategoria[cat] = (contagemPorCategoria[cat] || 0) + 1;
+    }
   }
   const porCategoria = Object.entries(contagemPorCategoria)
     .map(([categoria, quantidade]) => ({ categoria, quantidade }))

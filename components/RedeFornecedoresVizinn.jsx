@@ -23,25 +23,28 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
     e.preventDefault();
     setError("");
 
-    // Categoria é só um refinamento — precisa de nome ou CNPJ digitado
-    // pra buscar. Sem isso, selecionar só a categoria listaria a rede
-    // inteira daquele ramo, o que não é a ideia aqui.
     const termo = busca.trim();
-    if (!termo) {
+    if (!termo && !categoria) {
       setResultados(null);
-      setError("Digite o nome ou CNPJ do fornecedor pra buscar.");
+      setError("Digite o nome/CNPJ ou escolha uma categoria pra buscar.");
       return;
     }
 
     setBuscando(true);
-    let query = supabase.from("fornecedores_globais").select("id, cnpj, razao_social, nome_fantasia, categoria, endereco");
-    const digitos = termo.replace(/\D/g, "");
-    if (digitos.length >= 4) {
-      query = query.ilike("cnpj", `%${digitos}%`);
-    } else {
-      query = query.or(`razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%`);
+    let query = supabase
+      .from("fornecedores_globais")
+      .select("id, cnpj, razao_social, nome_fantasia, categoria, categorias, endereco");
+    if (termo) {
+      const digitos = termo.replace(/\D/g, "");
+      if (digitos.length >= 4) {
+        query = query.ilike("cnpj", `%${digitos}%`);
+      } else {
+        query = query.or(`razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%`);
+      }
     }
-    if (categoria) query = query.eq("categoria", categoria);
+    // Um fornecedor pode atuar em mais de uma categoria — `contains`
+    // acha quem tem essa categoria em qualquer posição do array.
+    if (categoria) query = query.contains("categorias", [categoria]);
 
     const { data, error: buscaError } = await query.order("razao_social", { ascending: true }).limit(30);
     if (buscaError) {
@@ -52,8 +55,11 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
 
     const comReputacao = await Promise.all(
       (data || []).map(async (f) => {
-        const { data: rep } = await supabase.rpc("reputacao_fornecedor_global", { p_fornecedor_global_id: f.id });
-        return { ...f, reputacao: rep?.[0] || null };
+        const [{ data: rep }, { data: condominiosPublicos }] = await Promise.all([
+          supabase.rpc("reputacao_fornecedor_global", { p_fornecedor_global_id: f.id }),
+          supabase.rpc("condominios_publicos_fornecedor_global", { p_fornecedor_global_id: f.id }),
+        ]);
+        return { ...f, reputacao: rep?.[0] || null, condominiosPublicos: condominiosPublicos || [] };
       })
     );
     setResultados(comReputacao);
@@ -69,7 +75,12 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
       nome_fantasia: fornecedorGlobal.nome_fantasia || null,
       documento: fornecedorGlobal.cnpj ? formatarCnpj(fornecedorGlobal.cnpj) : null,
       tipo: "empresa",
-      categoria: fornecedorGlobal.categoria || null,
+      categorias: fornecedorGlobal.categorias?.length
+        ? fornecedorGlobal.categorias
+        : fornecedorGlobal.categoria
+          ? [fornecedorGlobal.categoria]
+          : [],
+      categoria: fornecedorGlobal.categorias?.[0] || fornecedorGlobal.categoria || null,
       endereco: fornecedorGlobal.endereco || null,
       status: "ativo",
       fornecedor_global_id: fornecedorGlobal.id,
@@ -88,18 +99,18 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
         <h2 className="font-display text-lg font-bold text-navy-900">Rede de Fornecedores Vizinn</h2>
         <p className="mt-1 text-sm text-navy-500">
           Pesquise fornecedores já usados por outros condomínios do Vizinn, com reputação real
-          baseada em avaliações — e adicione direto ao cadastro deste condomínio. Digite o nome ou
-          CNPJ; a categoria é só um filtro extra, não uma listagem por si só.
+          baseada em avaliações — e adicione direto ao cadastro deste condomínio. Busque por nome,
+          CNPJ, categoria, ou os dois juntos.
         </p>
         <form onSubmit={handleBuscar} className="mt-4 flex flex-wrap gap-3">
           <input
             className="input-field flex-1"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome ou CNPJ (obrigatório)..."
+            placeholder="Nome ou CNPJ (opcional)..."
           />
           <select className="input-field w-auto" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-            <option value="">Filtrar por categoria (opcional)</option>
+            <option value="">Todas as categorias</option>
             {CATEGORIAS_SUGERIDAS.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -130,7 +141,12 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
                         {f.nome_fantasia && <span className="text-sm text-navy-500">({f.nome_fantasia})</span>}
                       </div>
                       <p className="mt-1 text-xs text-navy-400">
-                        {[f.categoria, f.cnpj && formatarCnpj(f.cnpj)].filter(Boolean).join(" · ")}
+                        {[
+                          (f.categorias?.length ? f.categorias : [f.categoria].filter(Boolean)).join(", "),
+                          f.cnpj && formatarCnpj(f.cnpj),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                       {f.reputacao?.total_avaliacoes > 0 ? (
                         <p className="mt-1 text-xs text-navy-600">
@@ -140,6 +156,11 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
                         </p>
                       ) : (
                         <p className="mt-1 text-xs text-navy-400">Este fornecedor ainda não possui avaliações.</p>
+                      )}
+                      {f.condominiosPublicos?.length > 0 && (
+                        <p className="mt-1 text-xs text-navy-400">
+                          Avaliado publicamente por: {f.condominiosPublicos.join(", ")}
+                        </p>
                       )}
                     </div>
                     <button
