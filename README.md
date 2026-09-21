@@ -25,8 +25,7 @@ cobrança via Stripe e dashboard do síndico, tudo em uma única URL.
 ## Dashboard do síndico e acessos delimitados
 
 O síndico (dono do condomínio, `condominios.owner_id`) tem acesso total ao
-dashboard: Chamados, Avisos, Ocorrências, Propostas, Acessos e
-Configurações.
+dashboard: Chamados, Avisos, Ocorrências, Acessos e Configurações.
 
 Em **`/dashboard/acessos`**, o síndico cria contas de login delimitadas
 (e-mail + senha, sem convite por e-mail) para três papéis, cada um só
@@ -36,8 +35,9 @@ enxergando sua própria área:
   existe (depende de integração bancária — ver nota abaixo).
 - **Porteiro**: só a aba Ocorrências (registra e vê o livro de ocorrências
   da portaria).
-- **Conselheiro**: só a aba Propostas (aprova/reprova propostas comerciais
-  cadastradas pelo síndico).
+- **Conselheiro**: permissão "propostas" (visualizar/aprovar) — aprova ou
+  rejeita as propostas comerciais dentro de cada registro de Manutenção ou
+  de Obras e Melhorias; não é mais uma aba própria.
 
 Essas contas (tabela `membros`) apontam para o mesmo condomínio, mas nunca
 têm acesso a `/dashboard/acessos`, `/admin` ou aos dados de outro tenant —
@@ -216,7 +216,6 @@ acesso a Auditoria).
     boletos/                 # Placeholder (depende de integração bancária)
     chamados/, avisos/       # CRUD real, síndico + papéis relevantes
     ocorrencias/              # Porteiro registra, síndico acompanha
-    propostas/                # Síndico cadastra, conselheiro aprova/reprova
     acessos/                  # Síndico cria/remove contas delimitadas (só síndico)
     configuracoes/
   admin/

@@ -14,7 +14,6 @@ import {
   IconAvisos,
   IconOcorrencias,
   IconManutencao,
-  IconPropostas,
   IconFornecedores,
   IconAcessos,
   IconPortaria,
@@ -43,7 +42,6 @@ const SINDICO_NAV = [
   { href: "/dashboard/avisos", label: "Avisos", Icon: IconAvisos },
   { href: "/dashboard/ocorrencias", label: "Ocorrências", Icon: IconOcorrencias },
   { href: "/dashboard/manutencao", label: "Manutenção", Icon: IconManutencao },
-  { href: "/dashboard/propostas", label: "Propostas", Icon: IconPropostas },
   { href: "/dashboard/fornecedores", label: "Fornecedores", Icon: IconFornecedores },
   { href: "/dashboard/acessos", label: "Acessos", Icon: IconAcessos },
   { href: "/dashboard/portaria", label: "Portaria", Icon: IconPortaria },
@@ -68,7 +66,6 @@ const ICON_BY_MODULO = {
   avisos: IconAvisos,
   ocorrencias: IconOcorrencias,
   manutencao: IconManutencao,
-  propostas: IconPropostas,
   fornecedores: IconFornecedores,
   acessos: IconAcessos,
   portaria: IconPortaria,
@@ -135,11 +132,16 @@ export default function DashboardSidebar() {
     role === "sindico"
       ? SINDICO_NAV
       : [
-          ...modulosVisiveis.map((m) => ({
-            href: MODULO_ROUTES[m],
-            label: MODULO_LABELS[m],
-            Icon: ICON_BY_MODULO[m] || IconVisaoGeral,
-          })),
+          // "propostas" é uma permissão concedível mas não tem página
+          // própria (ver nota em lib/permissoes.js) — filtra qualquer
+          // módulo sem rota em vez de gerar um link quebrado.
+          ...modulosVisiveis
+            .filter((m) => MODULO_ROUTES[m])
+            .map((m) => ({
+              href: MODULO_ROUTES[m],
+              label: MODULO_LABELS[m],
+              Icon: ICON_BY_MODULO[m] || IconVisaoGeral,
+            })),
           ...(MODULOS_COM_RELATORIO.some((m) => temPermissao(m, "visualizar"))
             ? [{ href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios }]
             : []),

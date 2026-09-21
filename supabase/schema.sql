@@ -1265,3 +1265,80 @@ drop trigger if exists trg_auditoria_obras on public.obras;
 create trigger trg_auditoria_obras
   after insert or update or delete on public.obras
   for each row execute function public.registrar_auditoria_generica();
+
+-- Propostas deixa de ser um módulo/página independente e passa a viver
+-- dentro de Manutenção e Obras (várias propostas por registro). Os
+-- dados existentes são preservados — só o status ganha dois valores
+-- novos (migra o que já existe antes de trocar a restrição) e a
+-- tabela ganha o vínculo com Obras, data da proposta e o anexo.
+update public.propostas set status = 'recebida' where status = 'pendente';
+update public.propostas set status = 'rejeitada' where status = 'reprovada';
+alter table public.propostas drop constraint if exists propostas_status_check;
+alter table public.propostas add constraint propostas_status_check
+  check (status in ('recebida', 'em_analise', 'aprovada', 'rejeitada'));
+alter table public.propostas alter column status set default 'recebida';
+
+alter table public.propostas add column if not exists obra_origem_id uuid references public.obras (id) on delete set null;
+alter table public.propostas add column if not exists data_proposta date;
+alter table public.propostas add column if not exists anexo_url text;
+alter table public.propostas add column if not exists anexo_nome text;
+
+-- RLS: como não existe mais módulo próprio "Propostas" navegável, quem
+-- pode mexer numa proposta segue a MESMA permissão de "propostas" de
+-- antes (visualizar/criar/editar/aprovar) — só o update passa a
+-- aceitar tanto quem edita quanto quem aprova (antes só quem aprovava
+-- conseguia atualizar a linha, o que impedia por exemplo anexar um
+-- arquivo sem ser o aprovador).
+drop policy if exists "Owners and conselheiros can view propostas" on public.propostas;
+create policy "Members can view propostas"
+  on public.propostas for select
+  using (public.membro_tem_modulo(condominio_id, 'propostas'));
+
+drop policy if exists "Owners can insert propostas" on public.propostas;
+create policy "Members can insert propostas"
+  on public.propostas for insert
+  with check (public.membro_tem_permissao(condominio_id, 'propostas', 'criar'));
+
+drop policy if exists "Owners and conselheiros can update propostas" on public.propostas;
+create policy "Members can update propostas"
+  on public.propostas for update
+  using (
+    public.membro_tem_permissao(condominio_id, 'propostas', 'editar')
+    or public.membro_tem_permissao(condominio_id, 'propostas', 'aprovar')
+  );
+
+-- Anexo de cada proposta (documento/planilha/imagem) — mesmo mecanismo
+-- de Storage já usado em financeiro-documentos, com política própria.
+insert into storage.buckets (id, name, public)
+values ('propostas-anexos', 'propostas-anexos', false)
+on conflict (id) do nothing;
+
+drop policy if exists "Members can view anexos de propostas" on storage.objects;
+create policy "Members can view anexos de propostas"
+  on storage.objects for select
+  using (
+    bucket_id = 'propostas-anexos'
+    and public.membro_tem_modulo(((storage.foldername(name))[1])::uuid, 'propostas')
+  );
+
+drop policy if exists "Members can upload anexos de propostas" on storage.objects;
+create policy "Members can upload anexos de propostas"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'propostas-anexos'
+    and (
+      public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'propostas', 'editar')
+      or public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'propostas', 'criar')
+    )
+  );
+
+drop policy if exists "Members can delete anexos de propostas" on storage.objects;
+create policy "Members can delete anexos de propostas"
+  on storage.objects for delete
+  using (
+    bucket_id = 'propostas-anexos'
+    and (
+      public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'propostas', 'editar')
+      or public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'propostas', 'criar')
+    )
+  );

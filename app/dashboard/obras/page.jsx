@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import PropostasDoRegistro from "@/components/PropostasDoRegistro";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { STATUS_ORDER, STATUS_LABELS, STATUS_STYLES } from "@/lib/obras";
 import { formatarMoeda } from "@/lib/financeiro";
@@ -487,6 +488,8 @@ export default function ObrasPage() {
                     </button>
                   )}
                 </div>
+
+                <PropostasDoRegistro tipo="obra" registroId={o.id} condominioId={condominio.id} />
               </div>
             ))}
           </div>

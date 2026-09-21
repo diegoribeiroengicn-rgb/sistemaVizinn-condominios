@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import PropostasDoRegistro from "@/components/PropostasDoRegistro";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
@@ -108,7 +109,6 @@ export default function ManutencaoPage() {
 
   const podeCriar = temPermissao("manutencao", "criar");
   const podeEditar = temPermissao("manutencao", "editar");
-  const podeSolicitarProposta = temPermissao("propostas", "criar");
   const podeColaboradores = temPermissao("colaboradores", "visualizar");
   const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
@@ -289,15 +289,6 @@ export default function ManutencaoPage() {
     load();
   }
 
-  function solicitarProposta(ordem) {
-    const params = new URLSearchParams({
-      manutencaoId: ordem.id,
-      titulo: ordem.titulo,
-      descricao: ordem.descricao || "",
-    });
-    router.push(`/dashboard/propostas?${params.toString()}`);
-  }
-
   const colaboradorPorId = useMemo(() => {
     const mapa = {};
     for (const c of colaboradores) mapa[c.id] = c;
@@ -416,11 +407,6 @@ export default function ManutencaoPage() {
           {podeEditar && gerenciandoId !== o.id && (
             <button onClick={() => abrirGerenciamento(o)} className="text-xs font-semibold text-navy-700 hover:underline">
               Gerenciar
-            </button>
-          )}
-          {podeSolicitarProposta && (
-            <button onClick={() => solicitarProposta(o)} className="text-xs font-semibold text-navy-700 hover:underline">
-              Solicitar proposta
             </button>
           )}
           {podeEditar && o.status === "concluida" && o.tipo === "recorrente" && o.periodicidade && !jaGerouProximo && (
@@ -543,6 +529,8 @@ export default function ManutencaoPage() {
             </div>
           </div>
         )}
+
+        <PropostasDoRegistro tipo="manutencao" registroId={o.id} condominioId={condominio.id} />
       </div>
     );
   }

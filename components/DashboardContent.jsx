@@ -63,7 +63,6 @@ export default function DashboardContent() {
   const podeManutencao = temPermissao("manutencao", "visualizar");
   const podeFinanceiro = temPermissao("financeiro", "visualizar");
   const podeFornecedores = temPermissao("fornecedores", "visualizar");
-  const podePropostas = temPermissao("propostas", "visualizar");
   const podeColaboradores = temPermissao("colaboradores", "visualizar");
   const podeOcorrencias = temPermissao("ocorrencias", "visualizar");
 
@@ -88,7 +87,6 @@ export default function DashboardContent() {
       queries.contasReceber = supabase.from("contas_receber").select("status, valor, valor_recebido, data_vencimento, data_recebimento").eq("condominio_id", condominio.id);
     }
     if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
-    if (podePropostas) queries.propostas = supabase.from("propostas").select("status").eq("condominio_id", condominio.id);
     if (podeColaboradores) queries.colaboradores = supabase.from("colaboradores").select("status").eq("condominio_id", condominio.id);
     if (podeOcorrencias) queries.ocorrencias = supabase.from("ocorrencias").select("id").eq("condominio_id", condominio.id);
     // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
@@ -107,7 +105,7 @@ export default function DashboardContent() {
       dados[k] = resultados[i].data || [];
     });
     setIndicadores(dados);
-  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podePropostas, podeColaboradores, podeOcorrencias]);
+  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podeColaboradores, podeOcorrencias]);
 
   useEffect(() => {
     load();
@@ -156,8 +154,6 @@ export default function DashboardContent() {
 
   const fornecedoresAtivos = indicadores?.fornecedores?.filter((f) => f.status === "ativo") || [];
   const fornecedoresEmAvaliacao = indicadores?.fornecedores?.filter((f) => f.status === "em_avaliacao") || [];
-
-  const propostasPendentes = indicadores?.propostas?.filter((p) => p.status === "pendente") || [];
 
   const colaboradoresAtivos = indicadores?.colaboradores?.filter((c) => c.status === "ativo") || [];
 
@@ -222,12 +218,6 @@ export default function DashboardContent() {
       label: "Contas próximas do vencimento",
       qtd: contasAVencerEmBreve,
       visivel: podeFinanceiro,
-    },
-    {
-      href: "/dashboard/propostas",
-      label: "Propostas aguardando aprovação",
-      qtd: propostasPendentes.length,
-      visivel: podePropostas,
     },
     {
       href: "/dashboard/ocorrencias",
@@ -380,15 +370,6 @@ export default function DashboardContent() {
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Indicador href="/dashboard/fornecedores" label="Ativos" value={fornecedoresAtivos.length} />
             <Indicador href="/dashboard/fornecedores" label="Em avaliação" value={fornecedoresEmAvaliacao.length} />
-          </div>
-        </section>
-      )}
-
-      {podePropostas && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Propostas</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Indicador href="/dashboard/propostas" label="Aguardando aprovação" value={propostasPendentes.length} />
           </div>
         </section>
       )}
