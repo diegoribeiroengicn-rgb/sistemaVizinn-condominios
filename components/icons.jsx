@@ -77,16 +77,6 @@ export function IconManutencao(props) {
   );
 }
 
-export function IconPropostas(props) {
-  return (
-    <Icon {...props}>
-      <path d="M7 3h7l4 4v14H7z" />
-      <path d="M14 3v4h4" />
-      <path d="M9.5 13h6M9.5 16.5h6" />
-    </Icon>
-  );
-}
-
 export function IconFornecedores(props) {
   return (
     <Icon {...props}>
