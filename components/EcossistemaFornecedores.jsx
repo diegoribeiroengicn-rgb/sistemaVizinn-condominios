@@ -65,6 +65,13 @@ export default function EcossistemaFornecedores({ onStart }) {
               <div key={i} className="card">
                 <h3 className="font-semibold text-navy-900">{f.nome}</h3>
                 {f.categoria && <p className="mt-1 text-sm text-navy-500">{f.categoria}</p>}
+                {f.totalAvaliacoes > 0 ? (
+                  <p className="mt-2 text-sm text-navy-600">
+                    ⭐ {f.notaMedia} · {f.totalAvaliacoes} avaliação{f.totalAvaliacoes === 1 ? "" : "ões"}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-xs text-navy-400">Ainda sem avaliações</p>
+                )}
               </div>
             ))}
             {restantes > 0 && (
