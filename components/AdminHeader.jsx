@@ -16,6 +16,18 @@ export default function AdminHeader() {
           </span>
         </div>
 
+        <nav className="hidden items-center gap-1 sm:flex">
+          <Link href="/admin" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Visão geral
+          </Link>
+          <Link href="/admin/fornecedores" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Fornecedores
+          </Link>
+          <Link href="/admin/academia" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Academia
+          </Link>
+        </nav>
+
         <div className="flex items-center gap-3">
           <span className="hidden text-sm text-cream-100/70 sm:inline">{user?.email}</span>
           <Link href="/dashboard" className="btn-ghost text-cream-100 hover:bg-white/10">

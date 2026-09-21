@@ -1429,3 +1429,8 @@ as $$
 $$;
 
 grant execute on function public.reputacao_fornecedor_global(uuid) to authenticated;
+
+-- Status do fornecedor global — inativar/reativar pelo painel admin
+-- (não é apagar; excluir continua sendo uma ação à parte, sempre
+-- disponível só pro owner da plataforma).
+alter table public.fornecedores_globais add column if not exists status text not null default 'ativo' check (status in ('ativo', 'inativo'));
