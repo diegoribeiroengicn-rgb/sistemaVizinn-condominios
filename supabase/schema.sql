@@ -1342,3 +1342,64 @@ create policy "Members can delete anexos de propostas"
       or public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'propostas', 'criar')
     )
   );
+
+-- Ecossistema de Fornecedores Vizinn: identidade global por CNPJ,
+-- compartilhada entre condomínios — 100% aditivo. `fornecedores.id`
+-- continua sendo exatamente o que já era (o cadastro daquele
+-- condomínio, referenciado por avaliacoes_fornecedor/manutencoes/
+-- propostas/contas_pagar/obras — nenhuma dessas tabelas muda). O
+-- vínculo novo é só `fornecedores.fornecedor_global_id`, preenchido
+-- quando o CNPJ já existe na base (reaproveita o global) ou quando é a
+-- primeira vez que aquele CNPJ aparece (cria o global e já vincula).
+create table if not exists public.fornecedores_globais (
+  id uuid primary key default gen_random_uuid(),
+  cnpj text unique,
+  razao_social text not null,
+  nome_fantasia text,
+  endereco text,
+  categoria text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists fornecedores_globais_cnpj_idx on public.fornecedores_globais (cnpj);
+
+alter table public.fornecedores add column if not exists fornecedor_global_id uuid references public.fornecedores_globais (id) on delete set null;
+create index if not exists fornecedores_fornecedor_global_id_idx on public.fornecedores (fornecedor_global_id);
+
+alter table public.fornecedores_globais enable row level security;
+
+-- Leitura: qualquer pessoa autenticada que tenha acesso a Fornecedores
+-- em pelo menos um condomínio (site ou dono de condomínio) pode
+-- pesquisar a base inteira — é a rede compartilhada, esse é o objetivo.
+drop policy if exists "Members with fornecedores access can view globais" on public.fornecedores_globais;
+create policy "Members with fornecedores access can view globais"
+  on public.fornecedores_globais for select
+  using (
+    exists (
+      select 1 from public.membros m
+      where m.user_id = auth.uid() and m.permissoes -> 'fornecedores' ? 'visualizar'
+    )
+    or exists (select 1 from public.condominios c where c.owner_id = auth.uid())
+  );
+
+-- Criação: só quando o CNPJ ainda não existe (dedupe fica garantido
+-- pelo unique de verdade na coluna, não só pela checagem da aplicação
+-- antes de inserir — evita duplicata mesmo em caso de corrida).
+drop policy if exists "Members with fornecedores access can insert globais" on public.fornecedores_globais;
+create policy "Members with fornecedores access can insert globais"
+  on public.fornecedores_globais for insert
+  with check (
+    exists (
+      select 1 from public.membros m
+      where m.user_id = auth.uid() and m.permissoes -> 'fornecedores' ? 'criar'
+    )
+    or exists (select 1 from public.condominios c where c.owner_id = auth.uid())
+  );
+
+-- Sem policy de update/delete pra "authenticated": nenhum síndico pode
+-- alterar ou apagar a identidade global (mesmo a que ele mesmo criou) —
+-- só o painel admin (service_role) corrige/gerencia a base geral. Isso
+-- é o que impede um condomínio de sobrescrever dado usado por outros.
+grant select, insert on public.fornecedores_globais to authenticated;
+grant all on public.fornecedores_globais to service_role;

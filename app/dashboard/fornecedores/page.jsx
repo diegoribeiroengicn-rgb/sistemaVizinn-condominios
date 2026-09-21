@@ -17,10 +17,12 @@ import {
   parseFornecedoresXlsx,
   gerarModeloFornecedores,
   COLUNAS_RELATORIO,
+  buscarOuCriarFornecedorGlobal,
 } from "@/lib/fornecedores";
 import { formatarMoeda } from "@/lib/financeiro";
 import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
+import { apenasDigitos, validarCnpj, formatarCnpj, formatarCpf } from "@/lib/validacaoDocumentos";
 
 const emptyForm = {
   razaoSocial: "",
@@ -138,8 +140,34 @@ export default function FornecedoresPage() {
     e.preventDefault();
     if (!condominio?.id || !form.razaoSocial.trim()) return;
 
+    // CNPJ é a identidade que liga o fornecedor à base Vizinn (ver
+    // lib/fornecedores.js) — só valida quando parece CNPJ (14 dígitos);
+    // CPF de profissional autônomo ou campo em branco não passa por
+    // aqui, e não entra na rede compartilhada.
+    const digitosDocumento = apenasDigitos(form.documento);
+    if (form.tipo === "empresa" && digitosDocumento.length === 14 && !validarCnpj(digitosDocumento)) {
+      setError("CNPJ inválido. Confira os números digitados.");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
+
+    let fornecedorGlobalId = null;
+    if (digitosDocumento.length === 14) {
+      const resultado = await buscarOuCriarFornecedorGlobal(supabase, digitosDocumento, {
+        razaoSocial: form.razaoSocial.trim(),
+        nomeFantasia: form.nomeFantasia.trim(),
+        endereco: form.endereco.trim(),
+        categoria: form.categoria.trim(),
+      });
+      if (resultado.erro) {
+        setSubmitting(false);
+        setError(`Erro ao vincular à base Vizinn: ${resultado.erro}`);
+        return;
+      }
+      fornecedorGlobalId = resultado.id;
+    }
 
     const payload = {
       condominio_id: condominio.id,
@@ -158,6 +186,7 @@ export default function FornecedoresPage() {
       vendedor_contato: form.vendedorContato.trim() || null,
       observacoes: form.observacoes.trim() || null,
       status: form.status,
+      fornecedor_global_id: fornecedorGlobalId,
     };
 
     const query = editingId
@@ -510,7 +539,11 @@ export default function FornecedoresPage() {
               <input
                 className="input-field"
                 value={form.documento}
-                onChange={(e) => setForm((f) => ({ ...f, documento: e.target.value }))}
+                onChange={(e) => {
+                  const formatado = form.tipo === "empresa" ? formatarCnpj(e.target.value) : formatarCpf(e.target.value);
+                  setForm((f) => ({ ...f, documento: formatado }));
+                }}
+                placeholder={form.tipo === "empresa" ? "00.000.000/0000-00" : "000.000.000-00"}
               />
             </div>
             <div>
@@ -700,6 +733,14 @@ export default function FornecedoresPage() {
                       <span className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600">
                         {TIPO_LABELS[f.tipo]}
                       </span>
+                      {f.fornecedor_global_id && (
+                        <span
+                          className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700"
+                          title="Esse CNPJ já está na base compartilhada da Vizinn"
+                        >
+                          🌐 Rede Vizinn
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1 text-xs text-navy-400">
                       {[f.categoria, f.documento, f.telefone, f.whatsapp, f.email].filter(Boolean).join(" · ")}
