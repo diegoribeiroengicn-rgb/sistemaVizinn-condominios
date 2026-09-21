@@ -1148,3 +1148,54 @@ create policy "Owners and auditoria can view notificacoes_log"
 
 grant select on public.notificacoes_log to authenticated;
 grant all on public.notificacoes_log to service_role;
+
+-- Moradores: cadastro simples de quem mora em cada unidade (unidade,
+-- bloco, nome, telefone), separado de `membros` (quem tem login no
+-- Vizinn) — a maioria dos moradores nunca vai ter login, mas ainda
+-- assim precisa ser encontrada quando a portaria avisa "chegou uma
+-- encomenda". Alimenta as notificações de Ocorrências (ver
+-- /app/api/notificar) além de `membros` com papel=condomino.
+create table if not exists public.moradores (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  unidade text not null,
+  bloco text,
+  nome text not null,
+  telefone text,
+  email text,
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists moradores_condominio_id_idx on public.moradores (condominio_id);
+create index if not exists moradores_unidade_idx on public.moradores (condominio_id, unidade);
+
+alter table public.moradores enable row level security;
+
+drop policy if exists "Members can view moradores" on public.moradores;
+create policy "Members can view moradores"
+  on public.moradores for select
+  using (public.membro_tem_modulo(condominio_id, 'moradores'));
+
+drop policy if exists "Members can insert moradores" on public.moradores;
+create policy "Members can insert moradores"
+  on public.moradores for insert
+  with check (public.membro_tem_permissao(condominio_id, 'moradores', 'criar'));
+
+drop policy if exists "Members can update moradores" on public.moradores;
+create policy "Members can update moradores"
+  on public.moradores for update
+  using (public.membro_tem_permissao(condominio_id, 'moradores', 'editar'));
+
+drop policy if exists "Members can delete moradores" on public.moradores;
+create policy "Members can delete moradores"
+  on public.moradores for delete
+  using (public.membro_tem_permissao(condominio_id, 'moradores', 'excluir'));
+
+grant select, insert, update, delete on public.moradores to authenticated;
+grant all on public.moradores to service_role;
+
+drop trigger if exists trg_auditoria_moradores on public.moradores;
+create trigger trg_auditoria_moradores
+  after insert or update or delete on public.moradores
+  for each row execute function public.registrar_auditoria_generica();

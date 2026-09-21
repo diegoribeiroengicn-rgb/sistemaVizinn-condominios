@@ -25,24 +25,46 @@ async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, un
 
   const { supabaseAdmin } = auth;
 
-  const [{ data: condominio }, { data: moradores, error: moradoresError }] = await Promise.all([
-    supabaseAdmin.from("condominios").select("nome").eq("id", condominioId).maybeSingle(),
-    (() => {
-      let query = supabaseAdmin
-        .from("membros")
-        .select("nome, email, telefone")
-        .eq("condominio_id", condominioId)
-        .eq("papel", "condomino")
-        .eq("unidade", unidade);
-      if (bloco) query = query.eq("bloco", bloco);
-      return query;
-    })(),
-  ]);
+  const [{ data: condominio }, { data: cadastro, error: cadastroError }, { data: membrosCondominos, error: membrosError }] =
+    await Promise.all([
+      supabaseAdmin.from("condominios").select("nome").eq("id", condominioId).maybeSingle(),
+      (() => {
+        let query = supabaseAdmin
+          .from("moradores")
+          .select("nome, email, telefone")
+          .eq("condominio_id", condominioId)
+          .eq("unidade", unidade);
+        if (bloco) query = query.eq("bloco", bloco);
+        return query;
+      })(),
+      (() => {
+        let query = supabaseAdmin
+          .from("membros")
+          .select("nome, email, telefone")
+          .eq("condominio_id", condominioId)
+          .eq("papel", "condomino")
+          .eq("unidade", unidade);
+        if (bloco) query = query.eq("bloco", bloco);
+        return query;
+      })(),
+    ]);
 
-  if (moradoresError) {
-    return NextResponse.json({ error: moradoresError.message }, { status: 500 });
+  if (cadastroError) return NextResponse.json({ error: cadastroError.message }, { status: 500 });
+  if (membrosError) return NextResponse.json({ error: membrosError.message }, { status: 500 });
+
+  // Une o cadastro de Moradores com quem tem login (papel=condomino) na
+  // mesma unidade, sem duplicar quem aparece nos dois — dedupe por
+  // e-mail ou telefone normalizado, o que existir.
+  const vistos = new Set();
+  const moradores = [];
+  for (const pessoa of [...(cadastro || []), ...(membrosCondominos || [])]) {
+    const chave = (pessoa.email || "").toLowerCase() || normalizarTelefone({ telefone: pessoa.telefone }) || pessoa.nome;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    moradores.push(pessoa);
   }
-  if (!moradores || moradores.length === 0) {
+
+  if (moradores.length === 0) {
     return NextResponse.json({ success: true, notificados: 0, aviso: "Nenhum morador encontrado para essa unidade." });
   }
 

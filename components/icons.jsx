@@ -140,6 +140,15 @@ export function IconColaboradores(props) {
   );
 }
 
+export function IconMoradores(props) {
+  return (
+    <Icon {...props}>
+      <path d="M4 21V10.5a1 1 0 0 1 .4-.8l7-5.4a1 1 0 0 1 1.2 0l7 5.4a1 1 0 0 1 .4.8V21" />
+      <path d="M9 21v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6" />
+    </Icon>
+  );
+}
+
 export function IconConfiguracoes(props) {
   return (
     <Icon {...props}>

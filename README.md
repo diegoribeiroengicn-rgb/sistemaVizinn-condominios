@@ -148,6 +148,16 @@ Abra [http://localhost:3000](http://localhost:3000).
 4. Configure o endpoint de webhook do Stripe apontando para
    `https://SEU_DOMINIO/api/webhook`.
 
+## Cadastro de Moradores
+
+`/dashboard/moradores` — registro de unidade/bloco/nome/telefone de quem mora
+no condomínio, sem precisar criar um login (isso é o que `Acessos` faz).
+Dá pra cadastrar um por um ou importar uma planilha `.csv` de uma vez
+(botão "Baixar modelo de planilha" mostra o formato esperado). É essa lista
+que o sistema consulta para avisar o morador quando chega uma encomenda em
+Ocorrências — sem cadastro aqui (ou um login com papel "Condômino" e a
+mesma unidade), a notificação não tem para quem ir.
+
 ## Notificações automáticas (e-mail + WhatsApp)
 
 `lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
