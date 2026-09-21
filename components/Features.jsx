@@ -1,18 +1,18 @@
 const features = [
   {
-    icon: "🧾",
-    title: "Boletos automáticos",
-    text: "Gere e envie boletos para todas as unidades em poucos cliques, com baixa automática.",
+    icon: "📲",
+    title: "Notificações automáticas",
+    text: "Avisos por WhatsApp e e-mail direto pro morador ou funcionário certo: encomenda chegou, chamado foi atribuído — sem ninguém precisar lembrar de avisar.",
   },
   {
     icon: "🏢",
     title: "Portal do condômino 24/7",
-    text: "Moradores acompanham boletos, avisos e chamados a qualquer hora, no celular ou computador.",
+    text: "Moradores acompanham avisos e chamados a qualquer hora, no celular ou computador.",
   },
   {
-    icon: "🤖",
-    title: "IA assistente",
-    text: "Respostas automáticas para dúvidas frequentes e triagem inteligente de chamados.",
+    icon: "📄",
+    title: "Relatórios profissionais",
+    text: "Financeiro, chamados, portaria e mais — exportados em PDF ou Word com um clique, prontos para prestação de contas e assembleia.",
   },
   {
     icon: "🤝",

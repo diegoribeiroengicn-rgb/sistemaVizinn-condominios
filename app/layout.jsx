@@ -19,7 +19,7 @@ const display = Libre_Baskerville({
 export const metadata = {
   title: "Vizinn | Condomínio Inteligente",
   description:
-    "Vizinn simplifica a administração condominial: boletos automáticos, portal do condômino 24/7 e IA assistente, sem intermediários.",
+    "Vizinn simplifica a administração condominial: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.",
 };
 
 export default function RootLayout({ children }) {

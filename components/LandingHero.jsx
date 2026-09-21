@@ -1,9 +1,9 @@
 "use client";
 
 const bullets = [
-  "Boletos automáticos",
+  "Notificações automáticas por WhatsApp e e-mail",
   "Portal do condômino 24/7",
-  "IA assistente",
+  "Relatórios em PDF e Word",
   "Sem intermediários",
 ];
 
@@ -20,7 +20,7 @@ export default function LandingHero({ onStart }) {
             Simplifique a administração do seu condomínio
           </h1>
           <p className="mt-5 max-w-xl text-lg text-cream-100/80">
-            A Vizinn reúne boletos, comunicação e atendimento em um só lugar,
+            A Vizinn reúne financeiro, comunicação e atendimento em um só lugar,
             para síndicos que querem gastar menos tempo com burocracia.
           </p>
 
