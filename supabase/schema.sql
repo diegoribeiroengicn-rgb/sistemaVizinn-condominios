@@ -1434,3 +1434,116 @@ grant execute on function public.reputacao_fornecedor_global(uuid) to authentica
 -- (não é apagar; excluir continua sendo uma ação à parte, sempre
 -- disponível só pro owner da plataforma).
 alter table public.fornecedores_globais add column if not exists status text not null default 'ativo' check (status in ('ativo', 'inativo'));
+
+-- Academia Vizinn: vídeos administrados pelo painel admin, consumidos
+-- por qualquer condomínio logado conforme o nível de acesso de cada
+-- vídeo. Implementação inicial simples (sem certificado, prova,
+-- gamificação, trilha ou fórum) — só cadastro e controle de acesso.
+create table if not exists public.academia_videos (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  descricao text,
+  categoria text,
+  thumbnail_path text,
+  video_path text,
+  ordem integer not null default 0,
+  status text not null default 'rascunho' check (status in ('rascunho', 'publicado')),
+  ativo boolean not null default true,
+  nivel_acesso text not null default 'assinante' check (nivel_acesso in ('publico', 'teste_14_dias', 'assinante')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists academia_videos_ordem_idx on public.academia_videos (ordem);
+
+alter table public.academia_videos enable row level security;
+
+-- Qualquer pessoa autenticada vê os metadados (título, descrição,
+-- capa, nível de acesso) de vídeos publicados e ativos — inclusive de
+-- vídeos que ela ainda não tem acesso pra assistir, pra poder mostrar
+-- "conteúdo exclusivo para assinantes" como chamada. O arquivo de
+-- vídeo em si é que fica de verdade bloqueado (ver policy do bucket
+-- academia-videos abaixo) — aqui é só a vitrine.
+drop policy if exists "Authenticated can view published academia videos" on public.academia_videos;
+create policy "Authenticated can view published academia videos"
+  on public.academia_videos for select
+  using (auth.uid() is not null and status = 'publicado' and ativo = true);
+
+-- Sem policy de insert/update/delete pra "authenticated": só o painel
+-- admin (service_role, via /api/admin/academia) cadastra/edita vídeo.
+grant select on public.academia_videos to authenticated;
+grant all on public.academia_videos to service_role;
+
+-- Verifica se quem está logado tem acesso a um nível de vídeo —
+-- "público" é sempre livre; os outros dois olham o status de QUALQUER
+-- condomínio ao qual a pessoa pertença (dono ou membro), reaproveitando
+-- o mesmo campo condominios.status que já controla assinatura/teste em
+-- todo o resto do sistema (nenhum sistema de assinatura paralelo).
+-- SECURITY DEFINER porque precisa juntar condominios + membros pra
+-- decidir, sem abrir policy de leitura cruzada nessas tabelas.
+create or replace function public.usuario_tem_acesso_academia(p_nivel_acesso text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    p_nivel_acesso = 'publico'
+    or exists (
+      select 1 from public.condominios c
+      where c.owner_id = auth.uid()
+        and (
+          (p_nivel_acesso = 'teste_14_dias' and c.status in ('trialing', 'active', 'promessa', 'cortesia'))
+          or (p_nivel_acesso = 'assinante' and c.status in ('active', 'promessa', 'cortesia'))
+        )
+    )
+    or exists (
+      select 1 from public.membros m
+      join public.condominios c on c.id = m.condominio_id
+      where m.user_id = auth.uid()
+        and (
+          (p_nivel_acesso = 'teste_14_dias' and c.status in ('trialing', 'active', 'promessa', 'cortesia'))
+          or (p_nivel_acesso = 'assinante' and c.status in ('active', 'promessa', 'cortesia'))
+        )
+    );
+$$;
+
+grant execute on function public.usuario_tem_acesso_academia(text) to authenticated;
+
+-- Bucket privado pro arquivo de vídeo — o acesso de leitura é decidido
+-- vídeo a vídeo (nível de acesso x status do condomínio da pessoa),
+-- então precisa ficar fora do bucket público. Thumbnail fica num bucket
+-- público à parte (é só uma imagem de vitrine, sem motivo pra travar).
+insert into storage.buckets (id, name, public)
+values ('academia-videos', 'academia-videos', false)
+on conflict (id) do nothing;
+
+insert into storage.buckets (id, name, public)
+values ('academia-thumbnails', 'academia-thumbnails', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Access academia videos by tier" on storage.objects;
+create policy "Access academia videos by tier"
+  on storage.objects for select
+  using (
+    bucket_id = 'academia-videos'
+    and exists (
+      select 1 from public.academia_videos v
+      where v.id = ((storage.foldername(name))[1])::uuid
+        and v.status = 'publicado'
+        and v.ativo = true
+        and public.usuario_tem_acesso_academia(v.nivel_acesso)
+    )
+  );
+
+drop policy if exists "Anyone can view academia thumbnails" on storage.objects;
+create policy "Anyone can view academia thumbnails"
+  on storage.objects for select
+  using (bucket_id = 'academia-thumbnails');
+
+-- Sem policy de insert/update/delete pra "authenticated" em nenhum dos
+-- dois buckets: upload é sempre via signed upload URL emitida pelo
+-- painel admin (service_role, ver /api/admin/academia/upload-url) —
+-- é assim que o administrador sobe o vídeo direto pelo Dashboard sem
+-- precisar de uma policy ampla de escrita nesses buckets.

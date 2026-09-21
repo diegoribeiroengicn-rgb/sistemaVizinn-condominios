@@ -21,6 +21,7 @@ import {
   IconColaboradores,
   IconMoradores,
   IconObras,
+  IconAcademia,
   IconRelatorios,
   IconConfiguracoes,
   IconSol,
@@ -49,6 +50,7 @@ const SINDICO_NAV = [
   { href: "/dashboard/colaboradores", label: "Colaboradores", Icon: IconColaboradores },
   { href: "/dashboard/moradores", label: "Moradores", Icon: IconMoradores },
   { href: "/dashboard/obras", label: "Obras e Melhorias", Icon: IconObras },
+  { href: "/dashboard/academia", label: "Academia Vizinn", Icon: IconAcademia },
   { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
 ];
@@ -142,6 +144,11 @@ export default function DashboardSidebar() {
               label: MODULO_LABELS[m],
               Icon: ICON_BY_MODULO[m] || IconVisaoGeral,
             })),
+          // Academia não é um módulo por condomínio (é conteúdo da
+          // plataforma, liberado por nível de acesso conforme a
+          // assinatura) — por isso aparece pra qualquer pessoa logada,
+          // sem depender de permissão concedida em Acessos.
+          { href: "/dashboard/academia", label: "Academia Vizinn", Icon: IconAcademia },
           ...(MODULOS_COM_RELATORIO.some((m) => temPermissao(m, "visualizar"))
             ? [{ href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios }]
             : []),

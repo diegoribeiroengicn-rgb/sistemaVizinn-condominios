@@ -168,6 +168,15 @@ export function IconConfiguracoes(props) {
   );
 }
 
+export function IconAcademia(props) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 9.2v5.6a.6.6 0 0 0 .9.52l4.7-2.8a.6.6 0 0 0 0-1.04l-4.7-2.8a.6.6 0 0 0-.9.52z" />
+    </Icon>
+  );
+}
+
 export function IconRelatorios(props) {
   return (
     <Icon {...props}>
