@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -21,7 +21,14 @@ import {
   VENCIMENTO_BADGE_STYLES,
   calcularStatusVencimento,
   formatarMoeda,
+  gerarPlanilhaContasPagar,
+  parseContasPagarXlsx,
+  parseContasPagarCsv,
+  gerarPlanilhaContasReceber,
+  parseContasReceberXlsx,
+  parseContasReceberCsv,
 } from "@/lib/financeiro";
+import { baixarBlob } from "@/lib/xlsx";
 
 const ABAS = [
   { id: "visao", label: "Visão financeira" },
@@ -125,6 +132,18 @@ export default function FinanceiroPage() {
   const [filtroStatusPagar, setFiltroStatusPagar] = useState("");
   const [filtroStatusReceber, setFiltroStatusReceber] = useState("");
 
+  const [previewPagar, setPreviewPagar] = useState(null);
+  const [importandoPagar, setImportandoPagar] = useState(false);
+  const [importResumoPagar, setImportResumoPagar] = useState("");
+  const [gerandoPlanilhaPagar, setGerandoPlanilhaPagar] = useState(false);
+  const fileInputPagarRef = useRef(null);
+
+  const [previewReceber, setPreviewReceber] = useState(null);
+  const [importandoReceber, setImportandoReceber] = useState(false);
+  const [importResumoReceber, setImportResumoReceber] = useState("");
+  const [gerandoPlanilhaReceber, setGerandoPlanilhaReceber] = useState(false);
+  const fileInputReceberRef = useRef(null);
+
   const podeCriar = temPermissao("financeiro", "criar");
   const podeEditar = temPermissao("financeiro", "editar");
 
@@ -227,6 +246,71 @@ export default function FinanceiroPage() {
     load();
   }
 
+  async function baixarPlanilhaPagar() {
+    setGerandoPlanilhaPagar(true);
+    try {
+      const blob = await gerarPlanilhaContasPagar(contasPagar);
+      baixarBlob(blob, "contas-a-pagar.xlsx");
+    } finally {
+      setGerandoPlanilhaPagar(false);
+    }
+  }
+
+  function handleArquivoPagarSelecionado(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResumoPagar("");
+    const reader = new FileReader();
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreviewPagar(parseContasPagarCsv(String(reader.result || ""), contasPagar));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreviewPagar(await parseContasPagarXlsx(reader.result, contasPagar));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function cancelarImportacaoPagar() {
+    setPreviewPagar(null);
+    setImportResumoPagar("");
+    if (fileInputPagarRef.current) fileInputPagarRef.current.value = "";
+  }
+
+  async function confirmarImportacaoPagar() {
+    if (!condominio?.id || !previewPagar?.linhas?.length) return;
+    setImportandoPagar(true);
+    setError("");
+
+    const payload = previewPagar.linhas.map((l) => ({
+      condominio_id: condominio.id,
+      descricao: l.descricao,
+      categoria: l.categoria || null,
+      fornecedor_nome: l.fornecedor || null,
+      documento_numero: l.documentoNumero || null,
+      data_competencia: l.dataCompetencia || null,
+      data_vencimento: l.dataVencimento || null,
+      data_pagamento: l.dataPagamento || null,
+      valor: l.valor,
+      forma_pagamento: l.formaPagamento || null,
+      status: l.status,
+      observacoes: l.observacoes || null,
+    }));
+
+    const { error: importError } = await supabase.from("contas_pagar").insert(payload);
+    setImportandoPagar(false);
+
+    if (importError) {
+      setError(importError.message);
+      return;
+    }
+    setImportResumoPagar(`${payload.length} conta(s) a pagar importada(s) com sucesso.`);
+    setPreviewPagar(null);
+    if (fileInputPagarRef.current) fileInputPagarRef.current.value = "";
+    load();
+  }
+
   async function handleVerDocumento(conta) {
     if (!conta.documento_url) return;
     setAbrindoDocumentoId(conta.id);
@@ -271,6 +355,74 @@ export default function FinanceiroPage() {
       return;
     }
     setFormReceber(emptyContaReceber);
+    load();
+  }
+
+  async function baixarPlanilhaReceber() {
+    setGerandoPlanilhaReceber(true);
+    try {
+      const blob = await gerarPlanilhaContasReceber(contasReceber);
+      baixarBlob(blob, "contas-a-receber.xlsx");
+    } finally {
+      setGerandoPlanilhaReceber(false);
+    }
+  }
+
+  function handleArquivoReceberSelecionado(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResumoReceber("");
+    const reader = new FileReader();
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreviewReceber(parseContasReceberCsv(String(reader.result || ""), contasReceber));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreviewReceber(await parseContasReceberXlsx(reader.result, contasReceber));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function cancelarImportacaoReceber() {
+    setPreviewReceber(null);
+    setImportResumoReceber("");
+    if (fileInputReceberRef.current) fileInputReceberRef.current.value = "";
+  }
+
+  async function confirmarImportacaoReceber() {
+    if (!condominio?.id || !previewReceber?.linhas?.length) return;
+    setImportandoReceber(true);
+    setError("");
+
+    const payload = previewReceber.linhas.map((l) => ({
+      condominio_id: condominio.id,
+      descricao: l.descricao,
+      unidade: l.unidade || null,
+      responsavel_financeiro: l.responsavelFinanceiro || null,
+      categoria: l.categoria || null,
+      data_competencia: l.dataCompetencia || null,
+      data_vencimento: l.dataVencimento || null,
+      data_recebimento: l.dataRecebimento || null,
+      valor: l.valor,
+      valor_recebido: l.valorRecebido ?? null,
+      desconto: l.desconto ?? null,
+      juros_multa: l.jurosMulta ?? null,
+      forma_pagamento: l.formaPagamento || null,
+      status: l.status,
+      observacoes: l.observacoes || null,
+    }));
+
+    const { error: importError } = await supabase.from("contas_receber").insert(payload);
+    setImportandoReceber(false);
+
+    if (importError) {
+      setError(importError.message);
+      return;
+    }
+    setImportResumoReceber(`${payload.length} conta(s) a receber importada(s) com sucesso.`);
+    setPreviewReceber(null);
+    if (fileInputReceberRef.current) fileInputReceberRef.current.value = "";
     load();
   }
 
@@ -464,6 +616,106 @@ export default function FinanceiroPage() {
 
       {!loading && aba === "pagar" && (
         <div className="space-y-4">
+          {podeCriar && (
+            <div className="card">
+              <h2 className="font-display text-lg font-bold text-navy-900">Planilha</h2>
+              <p className="mt-1 text-sm text-navy-500">
+                Baixe a planilha (com os lançamentos atuais, ou só o modelo se ainda não tiver
+                nenhum) pra editar em massa no Excel, ou suba uma planilha preenchida pra
+                cadastrar vários lançamentos de uma vez.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={baixarPlanilhaPagar}
+                  disabled={gerandoPlanilhaPagar}
+                  className="btn-primary border-2 border-navy-900/20 disabled:opacity-60"
+                >
+                  {gerandoPlanilhaPagar ? "Gerando..." : "⬇ Baixar planilha"}
+                </button>
+              </div>
+              <div className="mt-4 border-t border-navy-100 pt-4">
+                <label className="label-field">Importar planilha (.xlsx ou .csv)</label>
+                <input
+                  ref={fileInputPagarRef}
+                  type="file"
+                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={handleArquivoPagarSelecionado}
+                  className="text-sm text-navy-600"
+                />
+              </div>
+
+              {importResumoPagar && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumoPagar}</p>}
+
+              {previewPagar && (
+                <div className="mt-4 space-y-3">
+                  {previewPagar.erros.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                      {previewPagar.erros.map((e, i) => (
+                        <p key={i}>{e}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {previewPagar.linhas.length === 0 ? (
+                    <p className="text-sm text-coral-700">Nenhuma linha válida encontrada no arquivo.</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-navy-600">
+                        Encontrei <strong>{previewPagar.linhas.length}</strong> lançamento(s) para importar. Confira
+                        antes de confirmar:
+                      </p>
+                      {previewPagar.linhas.some((l) => l.duplicado) && (
+                        <p className="text-xs text-amber-700">
+                          ⚠ Linhas em amarelo já batem com um lançamento existente (mesma descrição, valor e
+                          vencimento) — confira se não é duplicidade antes de confirmar.
+                        </p>
+                      )}
+                      <div className="max-h-64 overflow-y-auto rounded-lg border border-navy-100">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-navy-50 text-navy-500">
+                            <tr>
+                              <th className="px-3 py-2">Descrição</th>
+                              <th className="px-3 py-2">Categoria</th>
+                              <th className="px-3 py-2">Fornecedor</th>
+                              <th className="px-3 py-2">Vencimento</th>
+                              <th className="px-3 py-2">Valor</th>
+                              <th className="px-3 py-2">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewPagar.linhas.map((l, i) => (
+                              <tr key={i} className={`border-t border-navy-50 ${l.duplicado ? "bg-amber-50" : ""}`}>
+                                <td className="px-3 py-1.5">{l.descricao}</td>
+                                <td className="px-3 py-1.5">{l.categoria}</td>
+                                <td className="px-3 py-1.5">{l.fornecedor}</td>
+                                <td className="px-3 py-1.5">{l.dataVencimento}</td>
+                                <td className="px-3 py-1.5">{formatarMoeda(l.valor)}</td>
+                                <td className="px-3 py-1.5">{STATUS_PAGAR_LABELS[l.status]}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={confirmarImportacaoPagar} disabled={importandoPagar} className="btn-primary">
+                          {importandoPagar ? "Importando..." : `Confirmar importação (${previewPagar.linhas.length})`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelarImportacaoPagar}
+                          className="text-sm font-semibold text-navy-500 hover:underline"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {podeCriar && (
             <div className="card">
               <h2 className="font-display text-lg font-bold text-navy-900">Nova conta a pagar</h2>
@@ -729,6 +981,106 @@ export default function FinanceiroPage() {
 
       {!loading && aba === "receber" && (
         <div className="space-y-4">
+          {podeCriar && (
+            <div className="card">
+              <h2 className="font-display text-lg font-bold text-navy-900">Planilha</h2>
+              <p className="mt-1 text-sm text-navy-500">
+                Baixe a planilha (com os lançamentos atuais, ou só o modelo se ainda não tiver
+                nenhum) pra editar em massa no Excel, ou suba uma planilha preenchida pra
+                cadastrar vários lançamentos de uma vez.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={baixarPlanilhaReceber}
+                  disabled={gerandoPlanilhaReceber}
+                  className="btn-primary border-2 border-navy-900/20 disabled:opacity-60"
+                >
+                  {gerandoPlanilhaReceber ? "Gerando..." : "⬇ Baixar planilha"}
+                </button>
+              </div>
+              <div className="mt-4 border-t border-navy-100 pt-4">
+                <label className="label-field">Importar planilha (.xlsx ou .csv)</label>
+                <input
+                  ref={fileInputReceberRef}
+                  type="file"
+                  accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={handleArquivoReceberSelecionado}
+                  className="text-sm text-navy-600"
+                />
+              </div>
+
+              {importResumoReceber && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumoReceber}</p>}
+
+              {previewReceber && (
+                <div className="mt-4 space-y-3">
+                  {previewReceber.erros.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                      {previewReceber.erros.map((e, i) => (
+                        <p key={i}>{e}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {previewReceber.linhas.length === 0 ? (
+                    <p className="text-sm text-coral-700">Nenhuma linha válida encontrada no arquivo.</p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-navy-600">
+                        Encontrei <strong>{previewReceber.linhas.length}</strong> lançamento(s) para importar. Confira
+                        antes de confirmar:
+                      </p>
+                      {previewReceber.linhas.some((l) => l.duplicado) && (
+                        <p className="text-xs text-amber-700">
+                          ⚠ Linhas em amarelo já batem com um lançamento existente (mesma descrição, valor e
+                          vencimento) — confira se não é duplicidade antes de confirmar.
+                        </p>
+                      )}
+                      <div className="max-h-64 overflow-y-auto rounded-lg border border-navy-100">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-navy-50 text-navy-500">
+                            <tr>
+                              <th className="px-3 py-2">Descrição</th>
+                              <th className="px-3 py-2">Unidade</th>
+                              <th className="px-3 py-2">Morador/responsável</th>
+                              <th className="px-3 py-2">Vencimento</th>
+                              <th className="px-3 py-2">Valor</th>
+                              <th className="px-3 py-2">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewReceber.linhas.map((l, i) => (
+                              <tr key={i} className={`border-t border-navy-50 ${l.duplicado ? "bg-amber-50" : ""}`}>
+                                <td className="px-3 py-1.5">{l.descricao}</td>
+                                <td className="px-3 py-1.5">{l.unidade}</td>
+                                <td className="px-3 py-1.5">{l.responsavelFinanceiro}</td>
+                                <td className="px-3 py-1.5">{l.dataVencimento}</td>
+                                <td className="px-3 py-1.5">{formatarMoeda(l.valor)}</td>
+                                <td className="px-3 py-1.5">{STATUS_RECEBER_LABELS[l.status]}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex gap-3">
+                        <button onClick={confirmarImportacaoReceber} disabled={importandoReceber} className="btn-primary">
+                          {importandoReceber ? "Importando..." : `Confirmar importação (${previewReceber.linhas.length})`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelarImportacaoReceber}
+                          className="text-sm font-semibold text-navy-500 hover:underline"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {podeCriar && (
             <div className="card">
               <h2 className="font-display text-lg font-bold text-navy-900">Nova conta a receber</h2>
