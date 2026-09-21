@@ -12,10 +12,11 @@ import {
   STATUS_STYLES,
   formatarWhatsapp,
   parseColaboradoresCsv,
-  gerarModeloCsvColaboradores,
+  parseColaboradoresXlsx,
+  gerarModeloColaboradores,
   COLUNAS_RELATORIO,
 } from "@/lib/colaboradores";
-import { baixarArquivo } from "@/lib/csv";
+import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = {
@@ -56,6 +57,7 @@ export default function ColaboradoresPage() {
   const [importando, setImportando] = useState(false);
   const [importResumo, setImportResumo] = useState("");
   const [exportando, setExportando] = useState(null);
+  const [gerandoModelo, setGerandoModelo] = useState(false);
   const fileInputRef = useRef(null);
 
   const podeCriar = temPermissao("colaboradores", "criar");
@@ -177,12 +179,15 @@ export default function ColaboradoresPage() {
     if (!file) return;
     setImportResumo("");
     const reader = new FileReader();
-    reader.onload = () => {
-      const texto = String(reader.result || "");
-      setPreview(parseColaboradoresCsv(texto));
-    };
-    reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
-    reader.readAsText(file, "utf-8");
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreview(parseColaboradoresCsv(String(reader.result || "")));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreview(await parseColaboradoresXlsx(reader.result));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
   }
 
   function cancelarImportacao() {
@@ -219,8 +224,14 @@ export default function ColaboradoresPage() {
     load();
   }
 
-  function baixarModelo() {
-    baixarArquivo(gerarModeloCsvColaboradores(), "modelo-colaboradores.csv");
+  async function baixarModelo() {
+    setGerandoModelo(true);
+    try {
+      const blob = await gerarModeloColaboradores();
+      baixarBlob(blob, "modelo-colaboradores.xlsx");
+    } finally {
+      setGerandoModelo(false);
+    }
   }
 
   const indicadoresPorColaborador = useMemo(() => {
@@ -325,20 +336,25 @@ export default function ColaboradoresPage() {
           <div className="card">
             <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
             <p className="mt-1 text-sm text-navy-500">
-              Baixe o modelo, preencha nome, função, setor e telefone (e-mail é opcional) e suba
-              o arquivo de volta aqui.
+              Baixe o modelo em Excel já formatado, preencha nome, função, setor e telefone
+              (e-mail é opcional) e suba o arquivo de volta aqui.
             </p>
             <div className="mt-4">
-              <button type="button" onClick={baixarModelo} className="btn-primary">
-                ⬇ Baixar modelo de planilha
+              <button
+                type="button"
+                onClick={baixarModelo}
+                disabled={gerandoModelo}
+                className="btn-primary border-2 border-navy-900/20 px-8 py-4 text-base disabled:opacity-60"
+              >
+                {gerandoModelo ? "Gerando..." : "⬇ Baixar modelo de planilha"}
               </button>
             </div>
             <div className="mt-4 border-t border-navy-100 pt-4">
-              <label className="label-field">Já preencheu? Suba o arquivo aqui</label>
+              <label className="label-field">Já preencheu? Suba o arquivo aqui (.xlsx ou .csv)</label>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleArquivoSelecionado}
                 className="text-sm text-navy-600"
               />

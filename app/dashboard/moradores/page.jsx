@@ -5,8 +5,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
-import { parseMoradoresCsv, gerarModeloCsv, COLUNAS_RELATORIO } from "@/lib/moradores";
-import { baixarArquivo } from "@/lib/csv";
+import { parseMoradoresCsv, parseMoradoresXlsx, gerarModeloMoradores, COLUNAS_RELATORIO } from "@/lib/moradores";
+import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = { unidade: "", bloco: "", nome: "", telefone: "", email: "", observacoes: "" };
@@ -28,6 +28,7 @@ export default function MoradoresPage() {
   const [preview, setPreview] = useState(null); // { linhas, erros }
   const [importando, setImportando] = useState(false);
   const [importResumo, setImportResumo] = useState("");
+  const [gerandoModelo, setGerandoModelo] = useState(false);
   const fileInputRef = useRef(null);
 
   const podeCriar = temPermissao("moradores", "criar");
@@ -115,13 +116,15 @@ export default function MoradoresPage() {
     if (!file) return;
     setImportResumo("");
     const reader = new FileReader();
-    reader.onload = () => {
-      const texto = String(reader.result || "");
-      const resultado = parseMoradoresCsv(texto);
-      setPreview(resultado);
-    };
-    reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
-    reader.readAsText(file, "utf-8");
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreview(parseMoradoresCsv(String(reader.result || "")));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreview(await parseMoradoresXlsx(reader.result));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
   }
 
   function cancelarImportacao() {
@@ -157,8 +160,14 @@ export default function MoradoresPage() {
     load();
   }
 
-  function baixarModelo() {
-    baixarArquivo(gerarModeloCsv(), "modelo-moradores.csv");
+  async function baixarModelo() {
+    setGerandoModelo(true);
+    try {
+      const blob = await gerarModeloMoradores();
+      baixarBlob(blob, "modelo-moradores.xlsx");
+    } finally {
+      setGerandoModelo(false);
+    }
   }
 
   function montarConfigRelatorio() {
@@ -225,20 +234,25 @@ export default function MoradoresPage() {
           <div className="card">
             <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
             <p className="mt-1 text-sm text-navy-500">
-              Baixe o modelo, preencha unidade/apartamento, bloco, nome e telefone (e-mail é
-              opcional) e suba o arquivo de volta aqui.
+              Baixe o modelo em Excel já formatado, preencha apartamento, nome, bloco e telefone
+              (e-mail é opcional) e suba o arquivo de volta aqui.
             </p>
             <div className="mt-4">
-              <button type="button" onClick={baixarModelo} className="btn-primary">
-                ⬇ Baixar modelo de planilha
+              <button
+                type="button"
+                onClick={baixarModelo}
+                disabled={gerandoModelo}
+                className="btn-primary border-2 border-navy-900/20 px-8 py-4 text-base disabled:opacity-60"
+              >
+                {gerandoModelo ? "Gerando..." : "⬇ Baixar modelo de planilha"}
               </button>
             </div>
             <div className="mt-4 border-t border-navy-100 pt-4">
-              <label className="label-field">Já preencheu? Suba o arquivo aqui</label>
+              <label className="label-field">Já preencheu? Suba o arquivo aqui (.xlsx ou .csv)</label>
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleArquivoSelecionado}
                 className="text-sm text-navy-600"
               />
