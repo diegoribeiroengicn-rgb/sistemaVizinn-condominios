@@ -571,6 +571,12 @@ create table if not exists public.fornecedores (
   created_at timestamptz not null default now()
 );
 
+-- Vendedor/representante da empresa fornecedora, separado do contato
+-- principal genérico já existente — usado no cadastro manual e na
+-- importação por planilha (ver lib/fornecedores.js).
+alter table public.fornecedores add column if not exists vendedor_nome text;
+alter table public.fornecedores add column if not exists vendedor_contato text;
+
 create index if not exists fornecedores_condominio_id_idx on public.fornecedores (condominio_id);
 
 alter table public.fornecedores enable row level security;

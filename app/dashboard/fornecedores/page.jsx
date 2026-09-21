@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -13,8 +13,14 @@ import {
   STATUS_STYLES,
   TIPO_LABELS,
   calcularNotaMedia,
+  parseFornecedoresCsv,
+  parseFornecedoresXlsx,
+  gerarModeloFornecedores,
+  COLUNAS_RELATORIO,
 } from "@/lib/fornecedores";
 import { formatarMoeda } from "@/lib/financeiro";
+import { baixarBlob } from "@/lib/xlsx";
+import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = {
   razaoSocial: "",
@@ -28,6 +34,8 @@ const emptyForm = {
   endereco: "",
   site: "",
   contatoPrincipal: "",
+  vendedorNome: "",
+  vendedorContato: "",
   observacoes: "",
   status: "ativo",
 };
@@ -69,6 +77,14 @@ export default function FornecedoresPage() {
   const [avaliacaoForm, setAvaliacaoForm] = useState(emptyAvaliacao);
   const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [busca, setBusca] = useState("");
+
+  const [preview, setPreview] = useState(null); // { linhas, erros }
+  const [importando, setImportando] = useState(false);
+  const [importResumo, setImportResumo] = useState("");
+  const [gerandoModelo, setGerandoModelo] = useState(false);
+  const [exportando, setExportando] = useState(null);
+  const fileInputRef = useRef(null);
 
   const podeCriar = temPermissao("fornecedores", "criar");
   const podeEditar = temPermissao("fornecedores", "editar");
@@ -138,6 +154,8 @@ export default function FornecedoresPage() {
       endereco: form.endereco.trim() || null,
       site: form.site.trim() || null,
       contato_principal: form.contatoPrincipal.trim() || null,
+      vendedor_nome: form.vendedorNome.trim() || null,
+      vendedor_contato: form.vendedorContato.trim() || null,
       observacoes: form.observacoes.trim() || null,
       status: form.status,
     };
@@ -171,6 +189,8 @@ export default function FornecedoresPage() {
       endereco: fornecedor.endereco || "",
       site: fornecedor.site || "",
       contatoPrincipal: fornecedor.contato_principal || "",
+      vendedorNome: fornecedor.vendedor_nome || "",
+      vendedorContato: fornecedor.vendedor_contato || "",
       observacoes: fornecedor.observacoes || "",
       status: fornecedor.status,
     });
@@ -183,6 +203,103 @@ export default function FornecedoresPage() {
     setRemovingId(null);
     if (deleteError) setError(deleteError.message);
     else load();
+  }
+
+  function handleArquivoSelecionado(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResumo("");
+    const reader = new FileReader();
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreview(parseFornecedoresCsv(String(reader.result || "")));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreview(await parseFornecedoresXlsx(reader.result));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function cancelarImportacao() {
+    setPreview(null);
+    setImportResumo("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function confirmarImportacao() {
+    if (!condominio?.id || !preview?.linhas?.length) return;
+    setImportando(true);
+    setError("");
+
+    const payload = preview.linhas.map((l) => ({
+      condominio_id: condominio.id,
+      razao_social: l.nome,
+      telefone: l.telefone || null,
+      vendedor_nome: l.vendedor || null,
+      vendedor_contato: l.vendedorContato || null,
+      documento: l.cnpj || null,
+      categoria: l.atividade || null,
+      tipo: "empresa",
+      status: "ativo",
+    }));
+
+    const { error: importError } = await supabase.from("fornecedores").insert(payload);
+    setImportando(false);
+
+    if (importError) {
+      setError(importError.message);
+      return;
+    }
+    setImportResumo(`${payload.length} fornecedor(es) importado(s) com sucesso.`);
+    setPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    load();
+  }
+
+  async function baixarModelo() {
+    setGerandoModelo(true);
+    try {
+      const blob = await gerarModeloFornecedores();
+      baixarBlob(blob, "modelo-fornecedores.xlsx");
+    } finally {
+      setGerandoModelo(false);
+    }
+  }
+
+  function montarConfigRelatorio() {
+    return {
+      condominioNome: condominio?.nome,
+      tipoLabel: "Fornecedores",
+      periodoLabel: "",
+      filtros: [
+        ...(filtroStatus ? [{ label: "Status", valor: STATUS_LABELS[filtroStatus] }] : []),
+        ...(busca ? [{ label: "Busca", valor: busca }] : []),
+      ],
+      colunas: COLUNAS_RELATORIO,
+      linhas: fornecedoresFiltrados.map((f) => ({ ...f, statusLabel: STATUS_LABELS[f.status] })),
+      resumo: [{ label: "Total de fornecedores", valor: fornecedoresFiltrados.length }],
+      geradoEm: new Date(),
+      geradoPor: nomeUsuario,
+    };
+  }
+
+  async function handleExportarPdf() {
+    setExportando("pdf");
+    try {
+      gerarPdf(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
+  }
+
+  async function handleExportarDocx() {
+    setExportando("docx");
+    try {
+      await gerarDocx(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
   }
 
   async function handleEnviarAvaliacao(fornecedor) {
@@ -237,7 +354,15 @@ export default function FornecedoresPage() {
   // pior; quem ainda não tem avaliação nenhuma fica no fim, em ordem
   // alfabética. Sem algoritmo de peso/complexidade — só a média mesmo.
   const fornecedoresFiltrados = useMemo(() => {
-    const lista = filtroStatus ? fornecedores.filter((f) => f.status === filtroStatus) : fornecedores;
+    let lista = filtroStatus ? fornecedores.filter((f) => f.status === filtroStatus) : fornecedores;
+    const termo = busca.trim().toLowerCase();
+    if (termo) {
+      lista = lista.filter((f) =>
+        [f.razao_social, f.nome_fantasia, f.documento, f.categoria, f.vendedor_nome]
+          .filter(Boolean)
+          .some((v) => v.toLowerCase().includes(termo))
+      );
+    }
     return [...lista].sort((a, b) => {
       const notaA = historicoPorFornecedor[a.id]?.notaMedia;
       const notaB = historicoPorFornecedor[b.id]?.notaMedia;
@@ -246,7 +371,7 @@ export default function FornecedoresPage() {
       if (notaB == null) return -1;
       return notaB - notaA;
     });
-  }, [fornecedores, filtroStatus, historicoPorFornecedor]);
+  }, [fornecedores, filtroStatus, busca, historicoPorFornecedor]);
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -263,6 +388,99 @@ export default function FornecedoresPage() {
           ranking abaixo (ordenado do melhor pro pior).
         </p>
       </div>
+
+      {podeCriar && (
+        <div className="card">
+          <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
+          <p className="mt-1 text-sm text-navy-500">
+            Baixe o modelo em Excel já formatado, preencha nome, telefone, vendedor, contato do
+            vendedor, CNPJ e atividade da empresa, e suba o arquivo de volta aqui.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={baixarModelo}
+              disabled={gerandoModelo}
+              className="btn-primary border-2 border-navy-900/20 px-8 py-4 text-base disabled:opacity-60"
+            >
+              {gerandoModelo ? "Gerando..." : "⬇ Baixar modelo de planilha"}
+            </button>
+          </div>
+          <div className="mt-4 border-t border-navy-100 pt-4">
+            <label className="label-field">Já preencheu? Suba o arquivo aqui (.xlsx ou .csv)</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={handleArquivoSelecionado}
+              className="text-sm text-navy-600"
+            />
+          </div>
+
+          {importResumo && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumo}</p>}
+
+          {preview && (
+            <div className="mt-4 space-y-3">
+              {preview.erros.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                  {preview.erros.map((e, i) => (
+                    <p key={i}>{e}</p>
+                  ))}
+                </div>
+              )}
+
+              {preview.linhas.length === 0 ? (
+                <p className="text-sm text-coral-700">Nenhuma linha válida encontrada no arquivo.</p>
+              ) : (
+                <>
+                  <p className="text-sm text-navy-600">
+                    Encontrei <strong>{preview.linhas.length}</strong> fornecedor(es) para importar. Confira antes
+                    de confirmar:
+                  </p>
+                  <div className="max-h-64 overflow-y-auto rounded-lg border border-navy-100">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-navy-50 text-navy-500">
+                        <tr>
+                          <th className="px-3 py-2">Nome</th>
+                          <th className="px-3 py-2">Telefone</th>
+                          <th className="px-3 py-2">Vendedor</th>
+                          <th className="px-3 py-2">Contato do vendedor</th>
+                          <th className="px-3 py-2">CNPJ</th>
+                          <th className="px-3 py-2">Atividade</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.linhas.map((l, i) => (
+                          <tr key={i} className="border-t border-navy-50">
+                            <td className="px-3 py-1.5">{l.nome}</td>
+                            <td className="px-3 py-1.5">{l.telefone}</td>
+                            <td className="px-3 py-1.5">{l.vendedor}</td>
+                            <td className="px-3 py-1.5">{l.vendedorContato}</td>
+                            <td className="px-3 py-1.5">{l.cnpj}</td>
+                            <td className="px-3 py-1.5">{l.atividade}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={confirmarImportacao} disabled={importando} className="btn-primary">
+                      {importando ? "Importando..." : `Confirmar importação (${preview.linhas.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelarImportacao}
+                      className="text-sm font-semibold text-navy-500 hover:underline"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {podeCriar && (
         <div className="card">
@@ -383,6 +601,22 @@ export default function FornecedoresPage() {
                 onChange={(e) => setForm((f) => ({ ...f, contatoPrincipal: e.target.value }))}
               />
             </div>
+            <div>
+              <label className="label-field">Vendedor da empresa (opcional)</label>
+              <input
+                className="input-field"
+                value={form.vendedorNome}
+                onChange={(e) => setForm((f) => ({ ...f, vendedorNome: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="label-field">Contato do vendedor (opcional)</label>
+              <input
+                className="input-field"
+                value={form.vendedorContato}
+                onChange={(e) => setForm((f) => ({ ...f, vendedorContato: e.target.value }))}
+              />
+            </div>
             <div className="sm:col-span-2">
               <label className="label-field">Observações (opcional)</label>
               <textarea
@@ -408,14 +642,36 @@ export default function FornecedoresPage() {
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
 
-      <select className="input-field w-auto" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-        <option value="">Todos os status</option>
-        {STATUS_ORDER.map((s) => (
-          <option key={s} value={s}>
-            {STATUS_LABELS[s]}
-          </option>
-        ))}
-      </select>
+      <div className="flex flex-wrap items-center gap-3">
+        <select className="input-field w-auto" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+          <option value="">Todos os status</option>
+          {STATUS_ORDER.map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+        <input
+          className="input-field flex-1"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nome, documento, categoria ou vendedor..."
+        />
+        <button
+          onClick={handleExportarPdf}
+          disabled={Boolean(exportando) || fornecedoresFiltrados.length === 0}
+          className="btn-secondary disabled:opacity-50"
+        >
+          {exportando === "pdf" ? "Gerando..." : "Baixar PDF"}
+        </button>
+        <button
+          onClick={handleExportarDocx}
+          disabled={Boolean(exportando) || fornecedoresFiltrados.length === 0}
+          className="btn-secondary disabled:opacity-50"
+        >
+          {exportando === "docx" ? "Gerando..." : "Baixar Word"}
+        </button>
+      </div>
 
       {loading ? (
         <p className="text-navy-500">Carregando fornecedores...</p>
@@ -448,6 +704,11 @@ export default function FornecedoresPage() {
                     <p className="mt-1 text-xs text-navy-400">
                       {[f.categoria, f.documento, f.telefone, f.whatsapp, f.email].filter(Boolean).join(" · ")}
                     </p>
+                    {(f.vendedor_nome || f.vendedor_contato) && (
+                      <p className="mt-1 text-xs text-navy-400">
+                        Vendedor: {[f.vendedor_nome, f.vendedor_contato].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                   </div>
                 </div>
 
