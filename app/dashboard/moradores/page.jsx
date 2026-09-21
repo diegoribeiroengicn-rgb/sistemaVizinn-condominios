@@ -5,12 +5,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
-import { parseMoradoresCsv, gerarModeloCsv } from "@/lib/moradores";
+import { parseMoradoresCsv, gerarModeloCsv, COLUNAS_RELATORIO } from "@/lib/moradores";
+import { baixarArquivo } from "@/lib/csv";
+import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = { unidade: "", bloco: "", nome: "", telefone: "", email: "", observacoes: "" };
 
 export default function MoradoresPage() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
+  const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
+  const [exportando, setExportando] = useState(null);
   const [moradores, setMoradores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -154,14 +158,39 @@ export default function MoradoresPage() {
   }
 
   function baixarModelo() {
-    const csv = gerarModeloCsv();
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "modelo-moradores.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    baixarArquivo(gerarModeloCsv(), "modelo-moradores.csv");
+  }
+
+  function montarConfigRelatorio() {
+    return {
+      condominioNome: condominio?.nome,
+      tipoLabel: "Moradores",
+      periodoLabel: "",
+      filtros: busca ? [{ label: "Busca", valor: busca }] : [],
+      colunas: COLUNAS_RELATORIO,
+      linhas: moradoresFiltrados,
+      resumo: [{ label: "Total de moradores", valor: moradoresFiltrados.length }],
+      geradoEm: new Date(),
+      geradoPor: nomeUsuario,
+    };
+  }
+
+  async function handleExportarPdf() {
+    setExportando("pdf");
+    try {
+      gerarPdf(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
+  }
+
+  async function handleExportarDocx() {
+    setExportando("docx");
+    try {
+      await gerarDocx(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
   }
 
   const moradoresFiltrados = useMemo(() => {
@@ -358,12 +387,28 @@ export default function MoradoresPage() {
 
         {error && <p className="text-sm text-coral-700">{error}</p>}
 
-        <input
-          className="input-field"
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por unidade, bloco ou nome..."
-        />
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            className="input-field flex-1"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por unidade, bloco ou nome..."
+          />
+          <button
+            onClick={handleExportarPdf}
+            disabled={Boolean(exportando) || moradoresFiltrados.length === 0}
+            className="btn-secondary disabled:opacity-50"
+          >
+            {exportando === "pdf" ? "Gerando..." : "Baixar PDF"}
+          </button>
+          <button
+            onClick={handleExportarDocx}
+            disabled={Boolean(exportando) || moradoresFiltrados.length === 0}
+            className="btn-secondary disabled:opacity-50"
+          >
+            {exportando === "docx" ? "Gerando..." : "Baixar Word"}
+          </button>
+        </div>
 
         {loading ? (
           <p className="text-navy-500">Carregando moradores...</p>

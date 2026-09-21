@@ -1,11 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
-import { FUNCAO_SUGESTOES, STATUS_LABELS, STATUS_ORDER, STATUS_STYLES, formatarWhatsapp } from "@/lib/colaboradores";
+import {
+  FUNCAO_SUGESTOES,
+  STATUS_LABELS,
+  STATUS_ORDER,
+  STATUS_STYLES,
+  formatarWhatsapp,
+  parseColaboradoresCsv,
+  gerarModeloCsvColaboradores,
+  COLUNAS_RELATORIO,
+} from "@/lib/colaboradores";
+import { baixarArquivo } from "@/lib/csv";
+import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = {
   nome: "",
@@ -26,7 +37,8 @@ const emptyForm = {
 };
 
 export default function ColaboradoresPage() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
+  const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
   const [colaboradores, setColaboradores] = useState([]);
   const [membros, setMembros] = useState([]);
   const [chamados, setChamados] = useState([]);
@@ -39,6 +51,12 @@ export default function ColaboradoresPage() {
   const [editingId, setEditingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState("");
+
+  const [preview, setPreview] = useState(null); // { linhas, erros }
+  const [importando, setImportando] = useState(false);
+  const [importResumo, setImportResumo] = useState("");
+  const [exportando, setExportando] = useState(null);
+  const fileInputRef = useRef(null);
 
   const podeCriar = temPermissao("colaboradores", "criar");
   const podeEditar = temPermissao("colaboradores", "editar");
@@ -154,6 +172,57 @@ export default function ColaboradoresPage() {
     else load();
   }
 
+  function handleArquivoSelecionado(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResumo("");
+    const reader = new FileReader();
+    reader.onload = () => {
+      const texto = String(reader.result || "");
+      setPreview(parseColaboradoresCsv(texto));
+    };
+    reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+    reader.readAsText(file, "utf-8");
+  }
+
+  function cancelarImportacao() {
+    setPreview(null);
+    setImportResumo("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function confirmarImportacao() {
+    if (!condominio?.id || !preview?.linhas?.length) return;
+    setImportando(true);
+    setError("");
+
+    const payload = preview.linhas.map((l) => ({
+      condominio_id: condominio.id,
+      nome: l.nome,
+      funcao: l.funcao,
+      setor: l.setor || null,
+      telefone: l.telefone || null,
+      email: l.email || null,
+      status: "ativo",
+    }));
+
+    const { error: importError } = await supabase.from("colaboradores").insert(payload);
+    setImportando(false);
+
+    if (importError) {
+      setError(importError.message);
+      return;
+    }
+    setImportResumo(`${payload.length} colaborador(es) importado(s) com sucesso.`);
+    setPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    load();
+  }
+
+  function baixarModelo() {
+    baixarArquivo(gerarModeloCsvColaboradores(), "modelo-colaboradores.csv");
+  }
+
   const indicadoresPorColaborador = useMemo(() => {
     const mapa = {};
     for (const c of colaboradores) {
@@ -183,6 +252,38 @@ export default function ColaboradoresPage() {
   const colaboradoresFiltrados = filtroStatus
     ? colaboradores.filter((c) => c.status === filtroStatus)
     : colaboradores;
+
+  function montarConfigRelatorio() {
+    return {
+      condominioNome: condominio?.nome,
+      tipoLabel: "Colaboradores",
+      periodoLabel: "",
+      filtros: filtroStatus ? [{ label: "Status", valor: STATUS_LABELS[filtroStatus] }] : [],
+      colunas: COLUNAS_RELATORIO,
+      linhas: colaboradoresFiltrados.map((c) => ({ ...c, statusLabel: STATUS_LABELS[c.status] })),
+      resumo: [{ label: "Total de colaboradores", valor: colaboradoresFiltrados.length }],
+      geradoEm: new Date(),
+      geradoPor: nomeUsuario,
+    };
+  }
+
+  async function handleExportarPdf() {
+    setExportando("pdf");
+    try {
+      gerarPdf(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
+  }
+
+  async function handleExportarDocx() {
+    setExportando("docx");
+    try {
+      await gerarDocx(montarConfigRelatorio());
+    } finally {
+      setExportando(null);
+    }
+  }
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -219,6 +320,90 @@ export default function ColaboradoresPage() {
             </p>
           </div>
         </div>
+
+        {podeCriar && (
+          <div className="card">
+            <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
+            <p className="mt-1 text-sm text-navy-500">
+              Suba um arquivo <strong>.csv</strong> com as colunas nome, função, setor e telefone
+              (e-mail é opcional). No Excel ou Google Sheets, use &ldquo;Salvar como&rdquo; /
+              &ldquo;Fazer download&rdquo; e escolha o formato CSV.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleArquivoSelecionado}
+                className="text-sm text-navy-600"
+              />
+              <button type="button" onClick={baixarModelo} className="text-xs font-semibold text-navy-700 hover:underline">
+                Baixar modelo de planilha
+              </button>
+            </div>
+
+            {importResumo && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumo}</p>}
+
+            {preview && (
+              <div className="mt-4 space-y-3">
+                {preview.erros.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                    {preview.erros.map((e, i) => (
+                      <p key={i}>{e}</p>
+                    ))}
+                  </div>
+                )}
+
+                {preview.linhas.length === 0 ? (
+                  <p className="text-sm text-coral-700">Nenhuma linha válida encontrada no arquivo.</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-navy-600">
+                      Encontrei <strong>{preview.linhas.length}</strong> colaborador(es) para importar. Confira antes
+                      de confirmar:
+                    </p>
+                    <div className="max-h-64 overflow-y-auto rounded-lg border border-navy-100">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-navy-50 text-navy-500">
+                          <tr>
+                            <th className="px-3 py-2">Nome</th>
+                            <th className="px-3 py-2">Função</th>
+                            <th className="px-3 py-2">Setor</th>
+                            <th className="px-3 py-2">Telefone</th>
+                            <th className="px-3 py-2">E-mail</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.linhas.map((l, i) => (
+                            <tr key={i} className="border-t border-navy-50">
+                              <td className="px-3 py-1.5">{l.nome}</td>
+                              <td className="px-3 py-1.5">{l.funcao}</td>
+                              <td className="px-3 py-1.5">{l.setor}</td>
+                              <td className="px-3 py-1.5">{l.telefone}</td>
+                              <td className="px-3 py-1.5">{l.email}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={confirmarImportacao} disabled={importando} className="btn-primary">
+                        {importando ? "Importando..." : `Confirmar importação (${preview.linhas.length})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelarImportacao}
+                        className="text-sm font-semibold text-navy-500 hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {podeCriar && (
           <div className="card">
@@ -394,14 +579,30 @@ export default function ColaboradoresPage() {
 
         {error && <p className="text-sm text-coral-700">{error}</p>}
 
-        <select className="input-field w-auto" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
-          <option value="">Todos os status</option>
-          {STATUS_ORDER.map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <select className="input-field w-auto" value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)}>
+            <option value="">Todos os status</option>
+            {STATUS_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleExportarPdf}
+            disabled={Boolean(exportando) || colaboradoresFiltrados.length === 0}
+            className="btn-secondary disabled:opacity-50"
+          >
+            {exportando === "pdf" ? "Gerando..." : "Baixar PDF"}
+          </button>
+          <button
+            onClick={handleExportarDocx}
+            disabled={Boolean(exportando) || colaboradoresFiltrados.length === 0}
+            className="btn-secondary disabled:opacity-50"
+          >
+            {exportando === "docx" ? "Gerando..." : "Baixar Word"}
+          </button>
+        </div>
 
         {loading ? (
           <p className="text-navy-500">Carregando colaboradores...</p>
