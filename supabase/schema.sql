@@ -1290,16 +1290,19 @@ alter table public.propostas add column if not exists anexo_nome text;
 -- conseguia atualizar a linha, o que impedia por exemplo anexar um
 -- arquivo sem ser o aprovador).
 drop policy if exists "Owners and conselheiros can view propostas" on public.propostas;
+drop policy if exists "Members can view propostas" on public.propostas;
 create policy "Members can view propostas"
   on public.propostas for select
   using (public.membro_tem_modulo(condominio_id, 'propostas'));
 
 drop policy if exists "Owners can insert propostas" on public.propostas;
+drop policy if exists "Members can insert propostas" on public.propostas;
 create policy "Members can insert propostas"
   on public.propostas for insert
   with check (public.membro_tem_permissao(condominio_id, 'propostas', 'criar'));
 
 drop policy if exists "Owners and conselheiros can update propostas" on public.propostas;
+drop policy if exists "Members can update propostas" on public.propostas;
 create policy "Members can update propostas"
   on public.propostas for update
   using (
