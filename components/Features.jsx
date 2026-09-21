@@ -19,6 +19,16 @@ const features = [
     title: "Sem intermediários",
     text: "Fale direto com o síndico e a administradora, sem burocracia extra.",
   },
+  {
+    icon: "🎓",
+    title: "Academia Vizinn",
+    text: "Vídeos curtos que ensinam a usar cada parte do sistema — do cadastro de morador à emissão de relatório. Alguns são livres pra qualquer visitante, outros liberam no teste grátis ou pra assinantes.",
+  },
+  {
+    icon: "✅",
+    title: "Fornecedores validados",
+    text: "Uma rede compartilhada entre condomínios Vizinn, com CNPJ único por fornecedor e reputação real baseada em avaliações de outros síndicos — nada fictício.",
+  },
 ];
 
 export default function Features() {
