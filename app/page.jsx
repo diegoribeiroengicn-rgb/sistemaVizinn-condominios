@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import LandingHero from "@/components/LandingHero";
 import Features from "@/components/Features";
+import AcademiaDestaque from "@/components/AcademiaDestaque";
+import EcossistemaFornecedores from "@/components/EcossistemaFornecedores";
 import Pricing from "@/components/Pricing";
 import FinalCta from "@/components/FinalCta";
 import SignupForm from "@/components/SignupForm";
@@ -42,6 +44,8 @@ export default function HomePage() {
       <Header onStart={() => openSignup("growth")} onLogin={() => setAuthView("login")} />
       <LandingHero onStart={() => openSignup("growth")} />
       <Features />
+      <AcademiaDestaque onStart={() => openSignup("growth")} />
+      <EcossistemaFornecedores onStart={() => openSignup("growth")} />
       <Pricing onSelectPlan={openSignup} />
       <FinalCta onStart={() => openSignup("growth")} />
 

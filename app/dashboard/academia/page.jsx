@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { NIVEL_ACESSO_LABELS, NIVEL_ACESSO_STYLES, pareceAcessivel } from "@/lib/academia";
 
 export default function AcademiaPage() {
-  const { condominio } = useAuth();
+  const { condominio, isAdmin } = useAuth();
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -51,12 +52,19 @@ export default function AcademiaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-xl font-bold text-navy-900">Academia Vizinn</h1>
-        <p className="mt-1 text-sm text-navy-500">
-          Vídeos curtos pra tirar o máximo proveito do sistema — alguns são públicos, outros
-          liberados durante o teste grátis ou exclusivos para assinantes.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-xl font-bold text-navy-900">Academia Vizinn</h1>
+          <p className="mt-1 text-sm text-navy-500">
+            Vídeos curtos pra tirar o máximo proveito do sistema — alguns são públicos, outros
+            liberados durante o teste grátis ou exclusivos para assinantes.
+          </p>
+        </div>
+        {isAdmin && (
+          <Link href="/admin/academia" className="btn-secondary shrink-0 text-sm">
+            Gerenciar vídeos (admin)
+          </Link>
+        )}
       </div>
 
       {error && <p className="text-sm text-coral-700">{error}</p>}

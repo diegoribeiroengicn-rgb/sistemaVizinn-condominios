@@ -74,6 +74,28 @@ body {
   background-color: rgb(var(--bg-page));
 }
 
+/* Barra de rolagem estilizada do menu lateral — fina, discreta em
+   repouso e no tom coral da marca ao passar o mouse, em vez da barra
+   cinza padrão do navegador. Firefox usa scrollbar-color; Chrome/Safari
+   usam os pseudo-elementos ::-webkit-scrollbar. */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(228, 93, 78, 0.35) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(228, 93, 78, 0.35);
+  border-radius: 9999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(228, 93, 78, 0.75);
+}
+
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center rounded-full bg-coral px-6 py-3 font-semibold text-white shadow-soft transition hover:bg-coral-600 disabled:cursor-not-allowed disabled:opacity-60;

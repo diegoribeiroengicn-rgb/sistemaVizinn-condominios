@@ -21,18 +21,25 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
 
   async function handleBuscar(e) {
     e.preventDefault();
-    setBuscando(true);
     setError("");
 
-    let query = supabase.from("fornecedores_globais").select("id, cnpj, razao_social, nome_fantasia, categoria, endereco");
+    // Categoria é só um refinamento — precisa de nome ou CNPJ digitado
+    // pra buscar. Sem isso, selecionar só a categoria listaria a rede
+    // inteira daquele ramo, o que não é a ideia aqui.
     const termo = busca.trim();
-    if (termo) {
-      const digitos = termo.replace(/\D/g, "");
-      if (digitos.length >= 4) {
-        query = query.ilike("cnpj", `%${digitos}%`);
-      } else {
-        query = query.or(`razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%`);
-      }
+    if (!termo) {
+      setResultados(null);
+      setError("Digite o nome ou CNPJ do fornecedor pra buscar.");
+      return;
+    }
+
+    setBuscando(true);
+    let query = supabase.from("fornecedores_globais").select("id, cnpj, razao_social, nome_fantasia, categoria, endereco");
+    const digitos = termo.replace(/\D/g, "");
+    if (digitos.length >= 4) {
+      query = query.ilike("cnpj", `%${digitos}%`);
+    } else {
+      query = query.or(`razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%`);
     }
     if (categoria) query = query.eq("categoria", categoria);
 
@@ -81,17 +88,18 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
         <h2 className="font-display text-lg font-bold text-navy-900">Rede de Fornecedores Vizinn</h2>
         <p className="mt-1 text-sm text-navy-500">
           Pesquise fornecedores já usados por outros condomínios do Vizinn, com reputação real
-          baseada em avaliações — e adicione direto ao cadastro deste condomínio.
+          baseada em avaliações — e adicione direto ao cadastro deste condomínio. Digite o nome ou
+          CNPJ; a categoria é só um filtro extra, não uma listagem por si só.
         </p>
         <form onSubmit={handleBuscar} className="mt-4 flex flex-wrap gap-3">
           <input
             className="input-field flex-1"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome ou CNPJ..."
+            placeholder="Nome ou CNPJ (obrigatório)..."
           />
           <select className="input-field w-auto" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-            <option value="">Todas as categorias</option>
+            <option value="">Filtrar por categoria (opcional)</option>
             {CATEGORIAS_SUGERIDAS.map((c) => (
               <option key={c} value={c}>
                 {c}

@@ -172,7 +172,7 @@ export default function DashboardSidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-2">
+      <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-2">
         {navItems.map((item) => {
           const active = pathname === item.href;
           return (
