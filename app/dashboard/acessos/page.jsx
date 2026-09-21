@@ -48,44 +48,73 @@ function togglePermissao(permissoes, modulo, acao) {
 // cada módulo (ACOES_POR_MODULO); o resto fica "—".
 function PermissoesEditor({ permissoes, onChange }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-navy-100">
-      <table className="w-full text-sm">
-        <thead className="bg-navy-50/50 text-left text-navy-500">
-          <tr>
-            <th className="px-3 py-2 font-medium">Módulo</th>
-            {ACOES.map((acao) => (
-              <th key={acao} className="px-3 py-2 text-center font-medium">
-                {ACAO_LABELS[acao]}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {ALL_MODULOS.map((modulo) => (
-            <tr key={modulo} className="border-t border-navy-50">
-              <td className="px-3 py-2 font-medium text-navy-800">{MODULO_LABELS[modulo]}</td>
-              {ACOES.map((acao) => {
-                const disponivel = (ACOES_POR_MODULO[modulo] || []).includes(acao);
-                return (
-                  <td key={acao} className="px-3 py-2 text-center">
-                    {disponivel ? (
-                      <input
-                        type="checkbox"
-                        checked={(permissoes[modulo] || []).includes(acao)}
-                        onChange={() => onChange(togglePermissao(permissoes, modulo, acao))}
-                        className="h-4 w-4 rounded border-navy-300 text-coral focus:ring-coral"
-                      />
-                    ) : (
-                      <span className="text-navy-200">—</span>
-                    )}
-                  </td>
-                );
-              })}
+    <>
+      {/* Telas pequenas: um bloco por módulo, ações lado a lado sem rolagem lateral. */}
+      <div className="space-y-2 md:hidden">
+        {ALL_MODULOS.map((modulo) => {
+          const acoesDisponiveis = ACOES_POR_MODULO[modulo] || [];
+          if (acoesDisponiveis.length === 0) return null;
+          return (
+            <div key={modulo} className="rounded-xl border border-navy-100 p-3">
+              <p className="text-sm font-medium text-navy-800">{MODULO_LABELS[modulo]}</p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                {acoesDisponiveis.map((acao) => (
+                  <label key={acao} className="flex items-center gap-1.5 text-xs text-navy-600">
+                    <input
+                      type="checkbox"
+                      checked={(permissoes[modulo] || []).includes(acao)}
+                      onChange={() => onChange(togglePermissao(permissoes, modulo, acao))}
+                      className="h-4 w-4 rounded border-navy-300 text-coral focus:ring-coral"
+                    />
+                    {ACAO_LABELS[acao]}
+                  </label>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Telas médias e grandes: grade completa módulo x ação. */}
+      <div className="hidden rounded-xl border border-navy-100 md:block">
+        <table className="w-full text-sm">
+          <thead className="bg-navy-50/50 text-left text-navy-500">
+            <tr>
+              <th className="px-3 py-2 font-medium">Módulo</th>
+              {ACOES.map((acao) => (
+                <th key={acao} className="px-3 py-2 text-center font-medium">
+                  {ACAO_LABELS[acao]}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {ALL_MODULOS.map((modulo) => (
+              <tr key={modulo} className="border-t border-navy-50">
+                <td className="px-3 py-2 font-medium text-navy-800">{MODULO_LABELS[modulo]}</td>
+                {ACOES.map((acao) => {
+                  const disponivel = (ACOES_POR_MODULO[modulo] || []).includes(acao);
+                  return (
+                    <td key={acao} className="px-3 py-2 text-center">
+                      {disponivel ? (
+                        <input
+                          type="checkbox"
+                          checked={(permissoes[modulo] || []).includes(acao)}
+                          onChange={() => onChange(togglePermissao(permissoes, modulo, acao))}
+                          className="h-4 w-4 rounded border-navy-300 text-coral focus:ring-coral"
+                        />
+                      ) : (
+                        <span className="text-navy-200">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -558,85 +587,174 @@ export default function AcessosPage() {
       ) : membros.length === 0 ? (
         <div className="card text-center text-navy-400">Nenhum acesso delimitado criado ainda.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="w-full text-sm">
-            <thead className="border-b border-navy-100 bg-navy-50/50 text-left text-navy-500">
-              <tr>
-                <th className="px-4 py-3 font-medium">Nome</th>
-                <th className="px-4 py-3 font-medium">Telefone</th>
-                <th className="px-4 py-3 font-medium">Login (e-mail)</th>
-                <th className="px-4 py-3 font-medium">Papel</th>
-                <th className="px-4 py-3 font-medium">Permissões</th>
-                <th className="px-4 py-3 font-medium">Aprovação</th>
-                <th className="px-4 py-3 font-medium">Unidade</th>
-                <th className="px-4 py-3 font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {membros.map((m) => (
-                <tr key={m.id} className="border-b border-navy-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-navy-900">{m.nome}</td>
-                  <td className="px-4 py-3 text-navy-600">{m.telefone || "-"}</td>
-                  <td className="px-4 py-3 text-navy-600">{m.email}</td>
-                  <td className="px-4 py-3 text-navy-600">{PAPEL_LABELS[m.papel]}</td>
-                  <td className="px-4 py-3">
-                    {resumoPermissoes(m.permissoes).length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {resumoPermissoes(m.permissoes).map(([modulo, acoes]) => (
-                          <span
-                            key={modulo}
-                            title={acoes.map((a) => ACAO_LABELS[a]).join(", ")}
-                            className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600"
-                          >
-                            {MODULO_LABELS[modulo]}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-navy-400">Nenhuma</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-navy-600">
-                    {papelPodeRequererAprovacao(m.papel)
-                      ? m.requer_aprovacao
-                        ? "Precisa aprovar"
-                        : "Livre"
-                      : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-navy-600">
-                    {[m.bloco && `Bloco ${m.bloco}`, m.unidade && `Apto ${m.unidade}`]
-                      .filter(Boolean)
-                      .join(" — ") || "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => openEdit(m)}
-                        className="text-xs font-semibold text-navy-700 hover:underline"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleResetPassword(m)}
-                        disabled={resettingId === m.id}
-                        className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
-                      >
-                        {resettingId === m.id ? "Gerando..." : "Redefinir senha"}
-                      </button>
-                      <button
-                        onClick={() => handleRemove(m)}
-                        disabled={removingId === m.id}
-                        className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                      >
-                        {removingId === m.id ? "Removendo..." : "Remover acesso"}
-                      </button>
+        <>
+          {/* Telas pequenas: um card por acesso, sem rolagem lateral. */}
+          <div className="space-y-3 md:hidden">
+            {membros.map((m) => (
+              <div key={m.id} className="card">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-navy-900">{m.nome}</p>
+                    <p className="text-xs text-navy-500">{PAPEL_LABELS[m.papel]}</p>
+                  </div>
+                </div>
+                <dl className="mt-2 space-y-1 text-xs text-navy-600">
+                  <div>
+                    <dt className="text-navy-400">Login (e-mail)</dt>
+                    <dd>{m.email}</dd>
+                  </div>
+                  {m.telefone && (
+                    <div>
+                      <dt className="text-navy-400">Telefone</dt>
+                      <dd>{m.telefone}</dd>
                     </div>
-                  </td>
+                  )}
+                  <div>
+                    <dt className="text-navy-400">Unidade</dt>
+                    <dd>
+                      {[m.bloco && `Bloco ${m.bloco}`, m.unidade && `Apto ${m.unidade}`]
+                        .filter(Boolean)
+                        .join(" — ") || "-"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-navy-400">Aprovação</dt>
+                    <dd>
+                      {papelPodeRequererAprovacao(m.papel)
+                        ? m.requer_aprovacao
+                          ? "Precisa aprovar"
+                          : "Livre"
+                        : "-"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-navy-400">Permissões</dt>
+                    <dd>
+                      {resumoPermissoes(m.permissoes).length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {resumoPermissoes(m.permissoes).map(([modulo, acoes]) => (
+                            <span
+                              key={modulo}
+                              title={acoes.map((a) => ACAO_LABELS[a]).join(", ")}
+                              className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600"
+                            >
+                              {MODULO_LABELS[modulo]}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        "Nenhuma"
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    onClick={() => openEdit(m)}
+                    className="text-xs font-semibold text-navy-700 hover:underline"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => handleResetPassword(m)}
+                    disabled={resettingId === m.id}
+                    className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                  >
+                    {resettingId === m.id ? "Gerando..." : "Redefinir senha"}
+                  </button>
+                  <button
+                    onClick={() => handleRemove(m)}
+                    disabled={removingId === m.id}
+                    className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                  >
+                    {removingId === m.id ? "Removendo..." : "Remover acesso"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Telas médias e grandes: tabela completa. */}
+          <div className="card hidden p-0 md:block">
+            <table className="w-full text-sm">
+              <thead className="border-b border-navy-100 bg-navy-50/50 text-left text-navy-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Nome</th>
+                  <th className="px-4 py-3 font-medium">Telefone</th>
+                  <th className="px-4 py-3 font-medium">Login (e-mail)</th>
+                  <th className="px-4 py-3 font-medium">Papel</th>
+                  <th className="px-4 py-3 font-medium">Permissões</th>
+                  <th className="px-4 py-3 font-medium">Aprovação</th>
+                  <th className="px-4 py-3 font-medium">Unidade</th>
+                  <th className="px-4 py-3 font-medium">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {membros.map((m) => (
+                  <tr key={m.id} className="border-b border-navy-50 last:border-0">
+                    <td className="px-4 py-3 font-medium text-navy-900">{m.nome}</td>
+                    <td className="px-4 py-3 text-navy-600">{m.telefone || "-"}</td>
+                    <td className="px-4 py-3 text-navy-600">{m.email}</td>
+                    <td className="px-4 py-3 text-navy-600">{PAPEL_LABELS[m.papel]}</td>
+                    <td className="px-4 py-3">
+                      {resumoPermissoes(m.permissoes).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {resumoPermissoes(m.permissoes).map(([modulo, acoes]) => (
+                            <span
+                              key={modulo}
+                              title={acoes.map((a) => ACAO_LABELS[a]).join(", ")}
+                              className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600"
+                            >
+                              {MODULO_LABELS[modulo]}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-navy-400">Nenhuma</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-navy-600">
+                      {papelPodeRequererAprovacao(m.papel)
+                        ? m.requer_aprovacao
+                          ? "Precisa aprovar"
+                          : "Livre"
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-navy-600">
+                      {[m.bloco && `Bloco ${m.bloco}`, m.unidade && `Apto ${m.unidade}`]
+                        .filter(Boolean)
+                        .join(" — ") || "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => openEdit(m)}
+                          className="text-xs font-semibold text-navy-700 hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(m)}
+                          disabled={resettingId === m.id}
+                          className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                        >
+                          {resettingId === m.id ? "Gerando..." : "Redefinir senha"}
+                        </button>
+                        <button
+                          onClick={() => handleRemove(m)}
+                          disabled={removingId === m.id}
+                          className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                        >
+                          {removingId === m.id ? "Removendo..." : "Remover acesso"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {!isSindico && pendencias.length > 0 && (

@@ -278,62 +278,118 @@ export default function PortariaPage() {
         ) : registrosFiltrados.length === 0 ? (
           <div className="mt-4 text-center text-navy-400">Nenhum registro encontrado.</div>
         ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-navy-100 text-left text-navy-500">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Pessoa</th>
-                  <th className="px-3 py-2 font-medium">Unidade</th>
-                  <th className="px-3 py-2 font-medium">Entrada</th>
-                  <th className="px-3 py-2 font-medium">Saída</th>
-                  <th className="px-3 py-2 font-medium">Tipo</th>
-                  <th className="px-3 py-2 font-medium">Veículo</th>
-                  <th className="px-3 py-2 font-medium">Placa</th>
-                  <th className="px-3 py-2 font-medium">Registrado por</th>
-                  {podeEditar && <th className="px-3 py-2 font-medium">Ações</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {registrosFiltrados.map((r) => (
-                  <tr key={r.id} className="border-b border-navy-50 last:border-0">
-                    <td className="px-3 py-2 font-medium text-navy-900">{r.nome_pessoa}</td>
-                    <td className="px-3 py-2 text-navy-600">{r.unidade || "-"}</td>
-                    <td className="px-3 py-2 text-navy-600">
-                      {new Date(r.entrada_em).toLocaleString("pt-BR")}
-                    </td>
-                    <td className="px-3 py-2 text-navy-600">
-                      {r.saida_em ? (
-                        new Date(r.saida_em).toLocaleString("pt-BR")
-                      ) : (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          Dentro
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-navy-600">{TIPO_LABELS[r.tipo_acesso]}</td>
-                    <td className="px-3 py-2 text-navy-600">
-                      {r.forma_entrada === "carro" ? "Carro" : "A pé"}
-                    </td>
-                    <td className="px-3 py-2 text-navy-600">{r.placa_veiculo || "-"}</td>
-                    <td className="px-3 py-2 text-navy-600">{r.entrada_por || "-"}</td>
-                    {podeEditar && (
-                      <td className="px-3 py-2">
-                        {!r.saida_em && (
-                          <button
-                            onClick={() => handleSaida(r)}
-                            disabled={saindoId === r.id}
-                            className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                          >
-                            {saindoId === r.id ? "..." : "Registrar saída"}
-                          </button>
+          <>
+            {/* Telas pequenas: cards empilhados, sem rolagem lateral. */}
+            <div className="mt-4 space-y-3 md:hidden">
+              {registrosFiltrados.map((r) => (
+                <div key={r.id} className="rounded-xl border border-navy-100 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-navy-900">{r.nome_pessoa}</p>
+                      <p className="text-xs text-navy-500">
+                        {TIPO_LABELS[r.tipo_acesso]}
+                        {r.unidade ? ` · Unidade ${r.unidade}` : ""}
+                      </p>
+                    </div>
+                    {!r.saida_em && (
+                      <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        Dentro
+                      </span>
+                    )}
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-navy-600">
+                    <div>
+                      <dt className="text-navy-400">Entrada</dt>
+                      <dd>{new Date(r.entrada_em).toLocaleString("pt-BR")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-navy-400">Saída</dt>
+                      <dd>{r.saida_em ? new Date(r.saida_em).toLocaleString("pt-BR") : "-"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-navy-400">Veículo</dt>
+                      <dd>{r.forma_entrada === "carro" ? "Carro" : "A pé"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-navy-400">Placa</dt>
+                      <dd>{r.placa_veiculo || "-"}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-navy-400">Registrado por</dt>
+                      <dd>{r.entrada_por || "-"}</dd>
+                    </div>
+                  </dl>
+                  {podeEditar && !r.saida_em && (
+                    <button
+                      onClick={() => handleSaida(r)}
+                      disabled={saindoId === r.id}
+                      className="mt-2 text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                    >
+                      {saindoId === r.id ? "..." : "Registrar saída"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Telas médias e grandes: tabela completa. */}
+            <div className="mt-4 hidden md:block">
+              <table className="w-full text-sm">
+                <thead className="border-b border-navy-100 text-left text-navy-500">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Pessoa</th>
+                    <th className="px-3 py-2 font-medium">Unidade</th>
+                    <th className="px-3 py-2 font-medium">Entrada</th>
+                    <th className="px-3 py-2 font-medium">Saída</th>
+                    <th className="px-3 py-2 font-medium">Tipo</th>
+                    <th className="px-3 py-2 font-medium">Veículo</th>
+                    <th className="px-3 py-2 font-medium">Placa</th>
+                    <th className="px-3 py-2 font-medium">Registrado por</th>
+                    {podeEditar && <th className="px-3 py-2 font-medium">Ações</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {registrosFiltrados.map((r) => (
+                    <tr key={r.id} className="border-b border-navy-50 last:border-0">
+                      <td className="px-3 py-2 font-medium text-navy-900">{r.nome_pessoa}</td>
+                      <td className="px-3 py-2 text-navy-600">{r.unidade || "-"}</td>
+                      <td className="px-3 py-2 text-navy-600">
+                        {new Date(r.entrada_em).toLocaleString("pt-BR")}
+                      </td>
+                      <td className="px-3 py-2 text-navy-600">
+                        {r.saida_em ? (
+                          new Date(r.saida_em).toLocaleString("pt-BR")
+                        ) : (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            Dentro
+                          </span>
                         )}
                       </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <td className="px-3 py-2 text-navy-600">{TIPO_LABELS[r.tipo_acesso]}</td>
+                      <td className="px-3 py-2 text-navy-600">
+                        {r.forma_entrada === "carro" ? "Carro" : "A pé"}
+                      </td>
+                      <td className="px-3 py-2 text-navy-600">{r.placa_veiculo || "-"}</td>
+                      <td className="px-3 py-2 text-navy-600">{r.entrada_por || "-"}</td>
+                      {podeEditar && (
+                        <td className="px-3 py-2">
+                          {!r.saida_em && (
+                            <button
+                              onClick={() => handleSaida(r)}
+                              disabled={saindoId === r.id}
+                              className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                            >
+                              {saindoId === r.id ? "..." : "Registrar saída"}
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>
