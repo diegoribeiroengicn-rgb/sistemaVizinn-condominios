@@ -1403,3 +1403,29 @@ create policy "Members with fornecedores access can insert globais"
 -- é o que impede um condomínio de sobrescrever dado usado por outros.
 grant select, insert on public.fornecedores_globais to authenticated;
 grant all on public.fornecedores_globais to service_role;
+
+-- Reputação agregada de um fornecedor global (usada na busca da Rede
+-- de Fornecedores Vizinn) — só números agregados, nunca linha crua de
+-- outro condomínio: não vaza nome de condomínio, comentário ou
+-- avaliação individual de ninguém, só "nota média", "quantas
+-- avaliações" e "quantos condomínios" (contagem, não identidade).
+-- SECURITY DEFINER pra poder somar dados de todos os condomínios sem
+-- abrir uma policy de leitura cruzada em `fornecedores`/
+-- `avaliacoes_fornecedor` (que continuam isoladas por tenant).
+create or replace function public.reputacao_fornecedor_global(p_fornecedor_global_id uuid)
+returns table (nota_media numeric, total_avaliacoes bigint, total_condominios bigint)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    round(avg((av.nota_qualidade + av.nota_prazo + av.nota_custo + av.nota_atendimento) / 4.0), 1) as nota_media,
+    count(av.id) as total_avaliacoes,
+    count(distinct f.condominio_id) as total_condominios
+  from public.fornecedores f
+  left join public.avaliacoes_fornecedor av on av.fornecedor_id = f.id
+  where f.fornecedor_global_id = p_fornecedor_global_id;
+$$;
+
+grant execute on function public.reputacao_fornecedor_global(uuid) to authenticated;

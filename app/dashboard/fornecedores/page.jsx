@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import RedeFornecedoresVizinn from "@/components/RedeFornecedoresVizinn";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   CATEGORIAS_SUGERIDAS,
@@ -79,6 +80,7 @@ export default function FornecedoresPage() {
   const [avaliacaoForm, setAvaliacaoForm] = useState(emptyAvaliacao);
   const [enviandoAvaliacao, setEnviandoAvaliacao] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [abaFornecedores, setAbaFornecedores] = useState("meus");
   const [busca, setBusca] = useState("");
 
   const [preview, setPreview] = useState(null); // { linhas, erros }
@@ -402,6 +404,11 @@ export default function FornecedoresPage() {
     });
   }, [fornecedores, filtroStatus, busca, historicoPorFornecedor]);
 
+  const meusFornecedoresGlobalIds = useMemo(
+    () => new Set(fornecedores.map((f) => f.fornecedor_global_id).filter(Boolean)),
+    [fornecedores]
+  );
+
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
   }
@@ -418,6 +425,40 @@ export default function FornecedoresPage() {
         </p>
       </div>
 
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setAbaFornecedores("meus")}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            abaFornecedores === "meus" ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+          }`}
+        >
+          Meus fornecedores
+        </button>
+        <button
+          type="button"
+          onClick={() => setAbaFornecedores("rede")}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            abaFornecedores === "rede" ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
+          }`}
+        >
+          🌐 Rede Vizinn
+        </button>
+      </div>
+
+      {abaFornecedores === "rede" && (
+        <RedeFornecedoresVizinn
+          condominioId={condominio.id}
+          meusFornecedoresGlobalIds={meusFornecedoresGlobalIds}
+          onAdicionado={() => {
+            setAbaFornecedores("meus");
+            load();
+          }}
+        />
+      )}
+
+      {abaFornecedores === "meus" && (
+      <>
       {podeCriar && (
         <div className="card">
           <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
@@ -852,6 +893,8 @@ export default function FornecedoresPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
     </ModuloGuard>
