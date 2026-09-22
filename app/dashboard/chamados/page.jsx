@@ -225,6 +225,25 @@ export default function ChamadosPage() {
     }).catch((err) => console.error("Erro ao notificar responsável:", err));
   }
 
+  // Ao concluir, quem precisa saber é o morador que abriu o chamado
+  // (se o solicitante for um condômino) — não o responsável, que já
+  // sabe porque foi ele quem marcou como concluído.
+  function notificarConclusao(chamado, resultado) {
+    if (!chamado.solicitante_id) return;
+    authedFetch("/api/notificar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        condominioId: condominio.id,
+        evento: "chamado_concluido",
+        chamadoId: chamado.id,
+        titulo: chamado.titulo,
+        solicitanteId: chamado.solicitante_id,
+        resultado,
+      }),
+    }).catch((err) => console.error("Erro ao notificar conclusão:", err));
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!condominio?.id || !form.titulo.trim()) return;
@@ -335,6 +354,9 @@ export default function ChamadosPage() {
           membroUserId: !updates.responsavel_colaborador_id ? updates.responsavel_id : null,
         }
       );
+    }
+    if (vaiConcluir) {
+      notificarConclusao({ ...chamado, ...updates }, updates.resultado);
     }
 
     setGerenciandoId(null);

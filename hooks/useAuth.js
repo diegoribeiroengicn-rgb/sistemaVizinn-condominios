@@ -101,6 +101,23 @@ export function AuthProvider({ children }) {
             .then(({ error }) => {
               if (error) console.error("Erro ao registrar login na auditoria:", error.message);
             });
+
+          // Alerta de login pro síndico — opcional, ele mesmo entrando
+          // nunca dispara (só existe `m` pra quem NÃO é dono). A rota
+          // confere de novo se está ativado antes de mandar qualquer
+          // e-mail (condominios.notificar_acessos_login).
+          if (m) {
+            fetch("/api/notificar", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({
+                condominioId: c.id,
+                evento: "acesso_login",
+                nome: usuarioNome,
+                papel,
+              }),
+            }).catch((err) => console.error("Erro ao notificar login:", err));
+          }
         }
       } else {
         setCondominio(null);

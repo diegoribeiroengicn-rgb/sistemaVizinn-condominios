@@ -1602,3 +1602,14 @@ as $$
 $$;
 
 grant execute on function public.condominios_publicos_fornecedor_global(uuid) to authenticated;
+
+-- Notificações automáticas: opções por registro (avisar todos os
+-- moradores) e por condomínio (alerta de login). Tudo aditivo, padrão
+-- desligado — nada muda pra quem já usa o sistema sem mexer nisso.
+alter table public.manutencoes add column if not exists notificar_moradores boolean not null default false;
+alter table public.ocorrencias add column if not exists notificar_moradores_geral boolean not null default false;
+alter table public.avisos add column if not exists notificar_moradores boolean not null default false;
+
+-- Alerta de login: opcional, o síndico decide em Configurações se quer
+-- receber um e-mail quando um membro (não ele mesmo) entra no sistema.
+alter table public.condominios add column if not exists notificar_acessos_login boolean not null default false;

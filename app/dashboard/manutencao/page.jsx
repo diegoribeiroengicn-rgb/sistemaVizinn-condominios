@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import PropostasDoRegistro from "@/components/PropostasDoRegistro";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
@@ -43,6 +44,7 @@ const emptyForm = {
   fornecedorId: "",
   colaboradorId: "",
   alertaDias: "",
+  notificarMoradores: false,
 };
 
 const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
@@ -162,32 +164,52 @@ export default function ManutencaoPage() {
     setError("");
     const chamadoId = searchParams.get("chamadoId") || null;
     const fornecedor = fornecedores.find((f) => f.id === form.fornecedorId);
-    const { error: insertError } = await supabase.from("manutencoes").insert({
-      condominio_id: condominio.id,
-      titulo: form.titulo.trim(),
-      descricao: form.descricao.trim() || null,
-      unidade: form.unidade.trim() || null,
-      categoria: form.categoria.trim() || null,
-      tipo: form.tipo,
-      periodicidade: form.tipo === "recorrente" ? form.periodicidade : null,
-      periodicidade_dias:
-        form.tipo === "recorrente" && form.periodicidade === "personalizada"
-          ? Number(form.periodicidadeDias) || null
-          : null,
-      data_prevista: form.dataPrevista || null,
-      fornecedor_id: form.fornecedorId || null,
-      fornecedor_nome: fornecedor?.razao_social || null,
-      responsavel_colaborador_id: form.colaboradorId || null,
-      alerta_dias_antecedencia: form.alertaDias ? Number(form.alertaDias) : null,
-      status: "aberta",
-      chamado_origem_id: chamadoId,
-    });
+    const { data: manutencaoCriada, error: insertError } = await supabase
+      .from("manutencoes")
+      .insert({
+        condominio_id: condominio.id,
+        titulo: form.titulo.trim(),
+        descricao: form.descricao.trim() || null,
+        unidade: form.unidade.trim() || null,
+        categoria: form.categoria.trim() || null,
+        tipo: form.tipo,
+        periodicidade: form.tipo === "recorrente" ? form.periodicidade : null,
+        periodicidade_dias:
+          form.tipo === "recorrente" && form.periodicidade === "personalizada"
+            ? Number(form.periodicidadeDias) || null
+            : null,
+        data_prevista: form.dataPrevista || null,
+        fornecedor_id: form.fornecedorId || null,
+        fornecedor_nome: fornecedor?.razao_social || null,
+        responsavel_colaborador_id: form.colaboradorId || null,
+        alerta_dias_antecedencia: form.alertaDias ? Number(form.alertaDias) : null,
+        status: "aberta",
+        chamado_origem_id: chamadoId,
+        notificar_moradores: form.notificarMoradores,
+      })
+      .select()
+      .single();
     setSubmitting(false);
 
     if (insertError) {
       setError(insertError.message);
       return;
     }
+
+    if (form.notificarMoradores) {
+      authedFetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condominioId: condominio.id,
+          evento: "manutencao_aviso",
+          referenciaId: manutencaoCriada.id,
+          titulo: form.titulo.trim(),
+          mensagem: form.descricao.trim(),
+        }),
+      }).catch((err) => console.error("Erro ao notificar moradores:", err));
+    }
+
     setForm(emptyForm);
     if (chamadoId) router.replace("/dashboard/manutencao");
     load();
@@ -685,6 +707,16 @@ export default function ManutencaoPage() {
                 value={form.descricao}
                 onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
               />
+            </div>
+            <div className="sm:col-span-2 rounded-lg border border-navy-100 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                <input
+                  type="checkbox"
+                  checked={form.notificarMoradores}
+                  onChange={(e) => setForm((f) => ({ ...f, notificarMoradores: e.target.checked }))}
+                />
+                Avisar todos os moradores por e-mail sobre essa manutenção
+              </label>
             </div>
             <div className="sm:col-span-2">
               <button type="submit" disabled={submitting} className="btn-primary">

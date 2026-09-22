@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
+import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 
-const emptyForm = { titulo: "", mensagem: "" };
+const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false };
 
 export default function AvisosPage() {
   const { condominio, temPermissao } = useAuth();
@@ -45,17 +46,37 @@ export default function AvisosPage() {
 
     setSubmitting(true);
     setError("");
-    const { error: insertError } = await supabase.from("avisos").insert({
-      condominio_id: condominio.id,
-      titulo: form.titulo.trim(),
-      mensagem: form.mensagem.trim(),
-    });
+    const { data: avisoCriado, error: insertError } = await supabase
+      .from("avisos")
+      .insert({
+        condominio_id: condominio.id,
+        titulo: form.titulo.trim(),
+        mensagem: form.mensagem.trim(),
+        notificar_moradores: form.notificarMoradores,
+      })
+      .select()
+      .single();
     setSubmitting(false);
 
     if (insertError) {
       setError(insertError.message);
       return;
     }
+
+    if (form.notificarMoradores) {
+      authedFetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condominioId: condominio.id,
+          evento: "aviso_publicado",
+          referenciaId: avisoCriado.id,
+          titulo: form.titulo.trim(),
+          mensagem: form.mensagem.trim(),
+        }),
+      }).catch((err) => console.error("Erro ao notificar moradores:", err));
+    }
+
     setForm(emptyForm);
     load();
   }
@@ -106,6 +127,16 @@ export default function AvisosPage() {
                 required
               />
             </div>
+            <div className="rounded-lg border border-navy-100 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                <input
+                  type="checkbox"
+                  checked={form.notificarMoradores}
+                  onChange={(e) => setForm((f) => ({ ...f, notificarMoradores: e.target.checked }))}
+                />
+                Avisar todos os moradores por e-mail
+              </label>
+            </div>
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "Publicando..." : "Publicar aviso"}
             </button>
@@ -124,7 +155,14 @@ export default function AvisosPage() {
           {avisos.map((a) => (
             <div key={a.id} className="card flex items-start justify-between gap-4">
               <div>
-                <h3 className="font-semibold text-navy-900">{a.titulo}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold text-navy-900">{a.titulo}</h3>
+                  {a.notificar_moradores && (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                      📣 Moradores notificados
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-sm text-navy-600">{a.mensagem}</p>
                 <p className="mt-2 text-xs text-navy-400">
                   {new Date(a.created_at).toLocaleString("pt-BR")}

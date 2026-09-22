@@ -8,7 +8,7 @@ import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 
-const emptyForm = { titulo: "", descricao: "", unidade: "", bloco: "", notificarMorador: false };
+const emptyForm = { titulo: "", descricao: "", unidade: "", bloco: "", notificarMorador: false, notificarTodos: false };
 
 export default function OcorrenciasPage() {
   const { condominio, user, member, temPermissao } = useAuth();
@@ -71,6 +71,7 @@ export default function OcorrenciasPage() {
         unidade: form.unidade.trim() || null,
         bloco: form.bloco.trim() || null,
         notificar_morador: form.notificarMorador,
+        notificar_moradores_geral: form.notificarTodos,
       })
       .select()
       .single();
@@ -94,6 +95,19 @@ export default function OcorrenciasPage() {
           descricao: form.descricao.trim(),
         }),
       }).catch((err) => console.error("Erro ao notificar morador:", err));
+    }
+    if (form.notificarTodos) {
+      authedFetch("/api/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condominioId: condominio.id,
+          evento: "ocorrencia_aviso_geral",
+          referenciaId: ocorrenciaCriada.id,
+          titulo: form.titulo.trim(),
+          mensagem: form.descricao.trim(),
+        }),
+      }).catch((err) => console.error("Erro ao notificar moradores:", err));
     }
 
     setForm(emptyForm);
@@ -169,6 +183,17 @@ export default function OcorrenciasPage() {
               )}
             </div>
 
+            <div className="rounded-lg border border-navy-100 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                <input
+                  type="checkbox"
+                  checked={form.notificarTodos}
+                  onChange={(e) => setForm((f) => ({ ...f, notificarTodos: e.target.checked }))}
+                />
+                Avisar todos os moradores por e-mail sobre essa ocorrência
+              </label>
+            </div>
+
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "Registrando..." : "Registrar ocorrência"}
             </button>
@@ -191,6 +216,11 @@ export default function OcorrenciasPage() {
                 {o.notificar_morador && (
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
                     📦 Morador notificado
+                  </span>
+                )}
+                {o.notificar_moradores_geral && (
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                    📣 Todos os moradores notificados
                   </span>
                 )}
               </div>

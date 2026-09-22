@@ -12,6 +12,7 @@ export default function ConfiguracoesPage() {
   const [salvandoAlerta, setSalvandoAlerta] = useState(false);
   const [alertaSalvo, setAlertaSalvo] = useState(false);
   const [salvandoDistribuicao, setSalvandoDistribuicao] = useState(false);
+  const [salvandoNotificarLogin, setSalvandoNotificarLogin] = useState(false);
 
   async function salvarAlertaPadrao() {
     if (!condominio?.id) return;
@@ -36,6 +37,17 @@ export default function ConfiguracoesPage() {
       .update({ chamados_distribuicao_automatica: ativar })
       .eq("id", condominio.id);
     setSalvandoDistribuicao(false);
+    if (!error) refreshCondominio();
+  }
+
+  async function alternarNotificarLogin(ativar) {
+    if (!condominio?.id) return;
+    setSalvandoNotificarLogin(true);
+    const { error } = await supabase
+      .from("condominios")
+      .update({ notificar_acessos_login: ativar })
+      .eq("id", condominio.id);
+    setSalvandoNotificarLogin(false);
     if (!error) refreshCondominio();
   }
 
@@ -126,6 +138,25 @@ export default function ConfiguracoesPage() {
               onChange={(e) => alternarDistribuicaoAutomatica(e.target.checked)}
             />
             Ativar distribuição automática
+          </label>
+        </div>
+      )}
+
+      {role === "sindico" && (
+        <div className="card">
+          <h2 className="font-semibold text-navy-900">Notificações de acesso</h2>
+          <p className="mt-1 text-sm text-navy-500">
+            Quando ligada, você recebe um e-mail toda vez que algum membro (não você) entra no
+            sistema. Desligada por padrão.
+          </p>
+          <label className="mt-3 flex items-center gap-2 text-sm font-medium text-navy-700">
+            <input
+              type="checkbox"
+              checked={Boolean(condominio?.notificar_acessos_login)}
+              disabled={salvandoNotificarLogin}
+              onChange={(e) => alternarNotificarLogin(e.target.checked)}
+            />
+            Avisar por e-mail quando alguém entrar no sistema
           </label>
         </div>
       )}
