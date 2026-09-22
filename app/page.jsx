@@ -48,8 +48,8 @@ export default function HomePage() {
       <AcademiaDestaque onStart={() => openSignup("growth")} />
       <EcossistemaFornecedores onStart={() => openSignup("growth")} />
       <Pricing onSelectPlan={openSignup} />
-      <ContactSection />
       <FinalCta onStart={() => openSignup("growth")} />
+      <ContactSection />
 
       <footer className="border-t border-navy-100 py-8 text-center text-sm text-navy-400">
         © {new Date().getFullYear()} Vizinn — Condomínio Inteligente
