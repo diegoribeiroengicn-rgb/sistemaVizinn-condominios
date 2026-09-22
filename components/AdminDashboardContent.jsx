@@ -7,6 +7,7 @@ import AdminManageModal from "@/components/AdminManageModal";
 import AdminSaturacaoPainel from "@/components/AdminSaturacaoPainel";
 import AdminFaturamentoPainel from "@/components/AdminFaturamentoPainel";
 import AdminCrescimentoGrafico from "@/components/AdminCrescimentoGrafico";
+import AdminDominioDestaque from "@/components/AdminDominioDestaque";
 
 const STATUS_LABELS = {
   active: "Ativo",
@@ -104,6 +105,8 @@ export default function AdminDashboardContent() {
           Visão geral de todos os condomínios cadastrados na Vizinn.
         </p>
       </div>
+
+      <AdminDominioDestaque />
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {kpis.map((kpi) => (
