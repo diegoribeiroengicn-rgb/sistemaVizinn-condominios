@@ -269,7 +269,7 @@ async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, 
     nome: morador.nome,
     email: morador.email,
     whatsapp: normalizarTelefone({ telefone: morador.telefone }),
-    template: WHATSAPP_TEMPLATES.chamado_atribuido,
+    template: WHATSAPP_TEMPLATES.chamado_morador,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Chamado registrado: ${titulo}`,
