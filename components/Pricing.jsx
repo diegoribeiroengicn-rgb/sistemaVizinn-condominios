@@ -57,6 +57,35 @@ export default function Pricing({ onSelectPlan }) {
             </div>
           ))}
         </div>
+
+        <div className="card mt-6 flex flex-col gap-6 border-navy-200 bg-white lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <span className="inline-block w-fit rounded-full bg-navy-100 px-3 py-1 text-xs font-semibold text-navy-600">
+              Sob consulta
+            </span>
+            <h3 className="mt-3 font-display text-xl font-bold text-navy-900">
+              Administradoras e síndicos com mais de um condomínio
+            </h3>
+            <p className="mt-1 max-w-xl text-sm text-navy-500">
+              Um único login e senha pra administrar vários condomínios ao mesmo tempo, num painel
+              centralizado — sem precisar de uma conta separada pra cada prédio.
+            </p>
+            <ul className="mt-4 space-y-2 text-sm text-navy-700">
+              <li className="flex items-center gap-2">
+                <span className="text-coral">✓</span> Login único pra todos os condomínios que você administra
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-coral">✓</span> Troque de condomínio sem precisar sair e entrar de novo
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-coral">✓</span> Condições especiais de preço por volume de condomínios
+              </li>
+            </ul>
+          </div>
+          <a href="#contato" className="btn-secondary flex-none text-center">
+            Falar com a gente
+          </a>
+        </div>
       </div>
     </section>
   );
