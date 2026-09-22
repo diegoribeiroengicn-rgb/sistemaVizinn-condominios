@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "@/lib/adminFetch";
 import { PLANS, getPlan } from "@/lib/plans";
 import AdminManageModal from "@/components/AdminManageModal";
+import AdminSaturacaoPainel from "@/components/AdminSaturacaoPainel";
+import AdminFaturamentoPainel from "@/components/AdminFaturamentoPainel";
+import AdminCrescimentoGrafico from "@/components/AdminCrescimentoGrafico";
 
 const STATUS_LABELS = {
   active: "Ativo",
@@ -170,6 +173,15 @@ export default function AdminDashboardContent() {
             </div>
           )}
         </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <AdminFaturamentoPainel />
+        <AdminCrescimentoGrafico condominios={data.condominios} />
+      </section>
+
+      <section>
+        <AdminSaturacaoPainel />
       </section>
 
       <section>

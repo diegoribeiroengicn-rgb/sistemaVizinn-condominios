@@ -1623,3 +1623,31 @@ alter table public.condominios add column if not exists notificar_acessos_login 
 alter table public.chamados add column if not exists morador_id uuid references public.moradores (id) on delete set null;
 alter table public.chamados add column if not exists morador_nome text;
 alter table public.chamados add column if not exists notificar_morador boolean not null default true;
+
+-- ---------------------------------------------------------------------
+-- Financeiro do Vizinn (a própria empresa, não os condomínios clientes)
+-- — contas a pagar e a receber da operação (hospedagem, banco de dados,
+-- e-mail, WhatsApp, etc), visível só no painel admin. Tabela única com
+-- "tipo" (pagar/receber) em vez de duas tabelas, já que o volume aqui é
+-- baixo e as duas visões compartilham a mesma forma.
+create table if not exists public.vizinn_lancamentos (
+  id uuid primary key default gen_random_uuid(),
+  tipo text not null check (tipo in ('pagar', 'receber')),
+  descricao text not null,
+  categoria text,
+  valor numeric(12,2) not null,
+  data_vencimento date,
+  data_pagamento date,
+  status text not null default 'pendente' check (status in ('pendente', 'pago', 'cancelado')),
+  recorrente boolean not null default false,
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists vizinn_lancamentos_tipo_status_idx on public.vizinn_lancamentos (tipo, status);
+
+alter table public.vizinn_lancamentos enable row level security;
+-- Sem políticas de select/insert: só o service_role acessa (rotas
+-- /api/admin/lancamentos, gated por requireAdmin), mesmo padrão de
+-- outras tabelas exclusivas do painel admin.
+grant all on public.vizinn_lancamentos to service_role;
