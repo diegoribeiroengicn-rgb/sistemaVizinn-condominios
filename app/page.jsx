@@ -9,6 +9,7 @@ import Features from "@/components/Features";
 import AcademiaDestaque from "@/components/AcademiaDestaque";
 import EcossistemaFornecedores from "@/components/EcossistemaFornecedores";
 import Pricing from "@/components/Pricing";
+import ContactSection from "@/components/ContactSection";
 import FinalCta from "@/components/FinalCta";
 import SignupForm from "@/components/SignupForm";
 import LoginForm from "@/components/LoginForm";
@@ -47,6 +48,7 @@ export default function HomePage() {
       <AcademiaDestaque onStart={() => openSignup("growth")} />
       <EcossistemaFornecedores onStart={() => openSignup("growth")} />
       <Pricing onSelectPlan={openSignup} />
+      <ContactSection />
       <FinalCta onStart={() => openSignup("growth")} />
 
       <footer className="border-t border-navy-100 py-8 text-center text-sm text-navy-400">
