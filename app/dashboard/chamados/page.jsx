@@ -35,6 +35,8 @@ const emptyForm = {
   dataPrevista: "",
   responsavel: "",
   colaboradorId: "",
+  moradorId: "",
+  notificarMorador: true,
 };
 
 const emptyFiltro = { status: "", tipo: "", soAtrasados: false };
@@ -71,6 +73,7 @@ export default function ChamadosPage() {
   const [chamados, setChamados] = useState([]);
   const [membros, setMembros] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
+  const [moradoresDisponiveis, setMoradoresDisponiveis] = useState([]);
   const [manutencoesVinculadas, setManutencoesVinculadas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -165,6 +168,17 @@ export default function ChamadosPage() {
     load();
   }, [load]);
 
+  // Lista mínima de moradores pro seletor opcional em "Novo chamado" —
+  // rota própria (não select direto) porque quem pode abrir um chamado
+  // (ex: porteiro) nem sempre tem acesso ao módulo Moradores.
+  useEffect(() => {
+    if (!condominio?.id || !podeCriar) return;
+    authedFetch(`/api/moradores-basico?condominioId=${condominio.id}`)
+      .then((res) => res.json())
+      .then((json) => setMoradoresDisponiveis(json.moradores || []))
+      .catch((err) => console.error("Erro ao carregar moradores:", err));
+  }, [condominio?.id, podeCriar]);
+
   // Responsável só pode ser quem trabalha no prédio (síndico, subsíndico,
   // administrador, zelador, porteiro) — nunca condômino ou conselheiro.
   const responsaveis = useMemo(() => {
@@ -225,11 +239,12 @@ export default function ChamadosPage() {
     }).catch((err) => console.error("Erro ao notificar responsável:", err));
   }
 
-  // Ao concluir, quem precisa saber é o morador que abriu o chamado
-  // (se o solicitante for um condômino) — não o responsável, que já
-  // sabe porque foi ele quem marcou como concluído.
+  // Ao concluir, quem precisa saber é o morador — não o responsável, que
+  // já sabe porque foi ele quem marcou como concluído. Prioriza o
+  // morador vinculado ao chamado; sem isso, cai no solicitante original
+  // se ele for um condômino com login.
   function notificarConclusao(chamado, resultado) {
-    if (!chamado.solicitante_id) return;
+    if (!chamado.morador_id && !chamado.solicitante_id) return;
     authedFetch("/api/notificar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -238,10 +253,25 @@ export default function ChamadosPage() {
         evento: "chamado_concluido",
         chamadoId: chamado.id,
         titulo: chamado.titulo,
+        moradorId: chamado.morador_id || null,
         solicitanteId: chamado.solicitante_id,
         resultado,
       }),
     }).catch((err) => console.error("Erro ao notificar conclusão:", err));
+  }
+
+  function notificarMoradorVinculado(chamado) {
+    authedFetch("/api/notificar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        condominioId: condominio.id,
+        evento: "chamado_morador",
+        chamadoId: chamado.id,
+        titulo: chamado.titulo,
+        moradorId: chamado.morador_id,
+      }),
+    }).catch((err) => console.error("Erro ao notificar morador:", err));
   }
 
   async function handleCreate(e) {
@@ -259,6 +289,8 @@ export default function ChamadosPage() {
     if (!colaboradorId && tipoFinal === "condominio" && condominio?.chamados_distribuicao_automatica) {
       colaboradorId = escolherColaboradorAutomatico()?.id || null;
     }
+
+    const moradorSelecionado = moradoresDisponiveis.find((m) => m.id === form.moradorId);
 
     const { data: chamadoCriado, error: insertError } = await supabase
       .from("chamados")
@@ -280,6 +312,9 @@ export default function ChamadosPage() {
         data_prevista: form.dataPrevista || null,
         status: "aberto",
         ocorrencia_origem_id: ocorrenciaId,
+        morador_id: form.moradorId || null,
+        morador_nome: moradorSelecionado?.nome || null,
+        notificar_morador: form.moradorId ? form.notificarMorador : false,
       })
       .select()
       .single();
@@ -294,6 +329,9 @@ export default function ChamadosPage() {
       colaboradorId,
       membroUserId: !colaboradorId ? responsavelSelecionado?.userId : null,
     });
+    if (form.moradorId && form.notificarMorador) {
+      notificarMoradorVinculado(chamadoCriado);
+    }
 
     setForm(emptyForm);
     if (ocorrenciaId) router.replace("/dashboard/chamados");
@@ -602,6 +640,36 @@ export default function ChamadosPage() {
                 onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
               />
             </div>
+            {!isCondomino && moradoresDisponiveis.length > 0 && (
+              <div className="sm:col-span-2 rounded-lg border border-navy-100 p-3">
+                <label className="label-field">Morador vinculado (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.moradorId}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, moradorId: e.target.value, notificarMorador: e.target.value ? true : f.notificarMorador }))
+                  }
+                >
+                  <option value="">Nenhum morador vinculado</option>
+                  {moradoresDisponiveis.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}
+                      {m.unidade ? ` — ${[m.bloco && `Bloco ${m.bloco}`, `Apto ${m.unidade}`].filter(Boolean).join(", ")}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {form.moradorId && (
+                  <label className="mt-2 flex items-center gap-2 text-sm font-medium text-navy-700">
+                    <input
+                      type="checkbox"
+                      checked={form.notificarMorador}
+                      onChange={(e) => setForm((f) => ({ ...f, notificarMorador: e.target.checked }))}
+                    />
+                    Avisar esse morador por e-mail e WhatsApp
+                  </label>
+                )}
+              </div>
+            )}
             {condominio?.chamados_distribuicao_automatica && !isCondomino && form.tipo === "condominio" && (
               <p className="sm:col-span-2 text-xs text-navy-500">
                 Distribuição automática ativada: se você não escolher um colaborador, o sistema
@@ -751,6 +819,11 @@ export default function ChamadosPage() {
                           className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRAZO_BADGE_STYLES[prazo.nivel]}`}
                         >
                           {prazo.emoji} {prazo.label}
+                        </span>
+                      )}
+                      {c.morador_id && c.notificar_morador && (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                          📣 {c.morador_nome || "Morador"} notificado
                         </span>
                       )}
                     </div>

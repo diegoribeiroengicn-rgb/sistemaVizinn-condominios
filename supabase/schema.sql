@@ -1613,3 +1613,13 @@ alter table public.avisos add column if not exists notificar_moradores boolean n
 -- Alerta de login: opcional, o síndico decide em Configurações se quer
 -- receber um e-mail quando um membro (não ele mesmo) entra no sistema.
 alter table public.condominios add column if not exists notificar_acessos_login boolean not null default false;
+
+-- Chamados: vínculo opcional com um morador do cadastro (tabela
+-- moradores — funciona mesmo pra quem não tem login no sistema), pra
+-- quem abre o chamado em nome de alguém (ex: porteiro registrando uma
+-- reclamação) poder avisar esse morador por e-mail/WhatsApp. A caixinha
+-- de notificar vem sempre marcada por padrão quando um morador é
+-- escolhido — dá pra desmarcar antes de criar o chamado.
+alter table public.chamados add column if not exists morador_id uuid references public.moradores (id) on delete set null;
+alter table public.chamados add column if not exists morador_nome text;
+alter table public.chamados add column if not exists notificar_morador boolean not null default true;

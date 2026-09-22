@@ -16,6 +16,7 @@ export async function POST(request) {
   if (evento === "manutencao_aviso") return handleAvisoGeralMoradores(request, condominioId, body, "manutencao");
   if (evento === "aviso_publicado") return handleAvisoGeralMoradores(request, condominioId, body, "avisos");
   if (evento === "chamado_atribuido") return handleChamadoAtribuido(request, condominioId, body);
+  if (evento === "chamado_morador") return handleChamadoMorador(request, condominioId, body);
   if (evento === "chamado_concluido") return handleChamadoConcluido(request, condominioId, body);
   if (evento === "acesso_login") return handleAcessoLogin(request, condominioId, body);
   return NextResponse.json({ error: "Evento de notificação desconhecido." }, { status: 400 });
@@ -238,27 +239,84 @@ async function handleChamadoAtribuido(request, condominioId, { chamadoId, titulo
   return NextResponse.json({ success: true, notificado: true, resultados });
 }
 
-// Quando um chamado é concluído, quem precisa saber é o MORADOR que
-// abriu (se o solicitante for um condômino) — não o colaborador que
-// executou, que já sabe porque foi ele quem marcou como concluído.
-async function handleChamadoConcluido(request, condominioId, { chamadoId, titulo, solicitanteId, resultado }) {
-  const auth = await requireCondominioAccess(request, condominioId, "chamados", "editar");
+// Ao criar o chamado com um morador vinculado (campo opcional — pra
+// quando quem abre é a portaria/síndico registrando em nome de
+// alguém), avisa direto pelo cadastro em Moradores — não depende da
+// pessoa ter login no sistema.
+async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, moradorId }) {
+  const auth = await requireCondominioAccess(request, condominioId, "chamados", "criar");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-  if (!solicitanteId) return NextResponse.json({ success: true, notificado: false, aviso: "Chamado sem solicitante." });
+  if (!moradorId) return NextResponse.json({ success: true, notificado: false, aviso: "Chamado sem morador vinculado." });
 
   const { supabaseAdmin } = auth;
 
-  const { data: solicitante, error } = await supabaseAdmin
-    .from("membros")
-    .select("nome, email, telefone, papel")
-    .eq("user_id", solicitanteId)
+  const { data: morador, error } = await supabaseAdmin
+    .from("moradores")
+    .select("nome, email, telefone")
+    .eq("id", moradorId)
     .eq("condominio_id", condominioId)
-    .eq("papel", "condomino")
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!morador) return NextResponse.json({ success: true, notificado: false, aviso: "Morador não encontrado." });
 
-  if (!solicitante) {
-    return NextResponse.json({ success: true, notificado: false, aviso: "Solicitante não é um morador com acesso ao sistema." });
+  const { data: condominio } = await supabaseAdmin.from("condominios").select("nome").eq("id", condominioId).maybeSingle();
+  const nomeCondominio = condominio?.nome || "seu condomínio";
+
+  const resultados = await notificarPessoa(supabaseAdmin, {
+    condominioId,
+    evento: "chamado_morador",
+    referenciaId: chamadoId,
+    nome: morador.nome,
+    email: morador.email,
+    whatsapp: normalizarTelefone({ telefone: morador.telefone }),
+    template: WHATSAPP_TEMPLATES.chamado_atribuido,
+    fromName: nomeCondominio,
+    parametrosEmail: {
+      subject: `Chamado registrado: ${titulo}`,
+      html: `<p>Olá, ${morador.nome}!</p><p>Um chamado foi registrado em seu nome: <strong>${titulo}</strong>. Você será avisado quando for concluído.</p>`,
+    },
+    parametrosWhatsapp: [morador.nome, titulo],
+  });
+
+  return NextResponse.json({ success: true, notificado: true, resultados });
+}
+
+// Quando um chamado é concluído, quem precisa saber é o MORADOR — não
+// o colaborador que executou, que já sabe porque foi ele quem marcou
+// como concluído. Prioriza o morador explicitamente vinculado
+// (moradorId, funciona mesmo sem login); sem isso, cai no solicitante
+// original SE ele for um condômino com login (fluxo de quando o
+// próprio morador abre o chamado logado no sistema).
+async function handleChamadoConcluido(request, condominioId, { chamadoId, titulo, moradorId, solicitanteId, resultado }) {
+  const auth = await requireCondominioAccess(request, condominioId, "chamados", "editar");
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const { supabaseAdmin } = auth;
+
+  let destinatario = null;
+  if (moradorId) {
+    const { data: morador, error } = await supabaseAdmin
+      .from("moradores")
+      .select("nome, email, telefone")
+      .eq("id", moradorId)
+      .eq("condominio_id", condominioId)
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (morador) destinatario = { nome: morador.nome, email: morador.email, whatsapp: normalizarTelefone({ telefone: morador.telefone }) };
+  } else if (solicitanteId) {
+    const { data: solicitante, error } = await supabaseAdmin
+      .from("membros")
+      .select("nome, email, telefone")
+      .eq("user_id", solicitanteId)
+      .eq("condominio_id", condominioId)
+      .eq("papel", "condomino")
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (solicitante) destinatario = { nome: solicitante.nome, email: solicitante.email, whatsapp: normalizarTelefone({ telefone: solicitante.telefone }) };
+  }
+
+  if (!destinatario) {
+    return NextResponse.json({ success: true, notificado: false, aviso: "Nenhum morador vinculado a este chamado." });
   }
 
   const { data: condominio } = await supabaseAdmin.from("condominios").select("nome").eq("id", condominioId).maybeSingle();
@@ -269,16 +327,16 @@ async function handleChamadoConcluido(request, condominioId, { chamadoId, titulo
     condominioId,
     evento: "chamado_concluido",
     referenciaId: chamadoId,
-    nome: solicitante.nome,
-    email: solicitante.email,
-    whatsapp: normalizarTelefone({ telefone: solicitante.telefone }),
+    nome: destinatario.nome,
+    email: destinatario.email,
+    whatsapp: destinatario.whatsapp,
     template: WHATSAPP_TEMPLATES.chamado_concluido,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Seu chamado foi concluído: ${titulo}`,
-      html: `<p>Olá, ${solicitante.nome}!</p><p>O chamado <strong>${titulo}</strong> que você abriu foi concluído.</p>${resultadoTexto ? `<p>${resultadoTexto}</p>` : ""}`,
+      html: `<p>Olá, ${destinatario.nome}!</p><p>O chamado <strong>${titulo}</strong> foi concluído.</p>${resultadoTexto ? `<p>${resultadoTexto}</p>` : ""}`,
     },
-    parametrosWhatsapp: [solicitante.nome, titulo, resultadoTexto],
+    parametrosWhatsapp: [destinatario.nome, titulo, resultadoTexto],
   });
 
   return NextResponse.json({ success: true, notificado: true, resultados });
