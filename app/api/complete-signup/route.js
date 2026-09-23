@@ -2,16 +2,22 @@ import { NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlan, getStripePriceId, TRIAL_PERIOD_DAYS } from "@/lib/plans";
+import { cupomEstaValido } from "@/lib/cupons";
 
-// Finalizes signup after the R$ 1 card-validation payment succeeded:
+// Finalizes signup after the adesão payment succeeded (or after a
+// 100%-off "isenção" coupon skipped payment entirely):
 // 1) creates/loads the Stripe customer and attaches the confirmed card
+//    (when there was a card to attach — isento signups have none)
 // 2) creates the subscription for the chosen plan (with a 14-day trial)
 // 3) creates the Supabase auth user
-// 4) creates the "condominios" row linked to that user
+// 4) creates the "condominios" row linked to that user, recording
+//    which cupom (if any) was used and how much adesão was paid
 export async function POST(request) {
   const body = await request.json();
   const {
     paymentIntentId,
+    isento,
+    cupomCodigo,
     email,
     password,
     fullName,
@@ -22,7 +28,7 @@ export async function POST(request) {
     endereco,
   } = body;
 
-  if (!paymentIntentId || !email || !password || !condominioNome) {
+  if ((!paymentIntentId && !isento) || !email || !password || !condominioNome) {
     return NextResponse.json({ error: "Dados obrigatórios ausentes." }, { status: 400 });
   }
 
@@ -41,15 +47,31 @@ export async function POST(request) {
   }
 
   try {
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (paymentIntent.status !== "succeeded") {
-      return NextResponse.json(
-        { error: "Pagamento de validação não foi confirmado." },
-        { status: 400 }
-      );
-    }
+    let paymentMethodId = null;
+    let taxaAdesaoPaga = 0;
 
-    const paymentMethodId = paymentIntent.payment_method;
+    if (isento) {
+      // Confirma de novo, no servidor, que o cupom de isenção
+      // continua válido — nunca confia só no que o cliente mandou.
+      const { data: cupomIsento } = await supabaseAdmin
+        .from("cupons")
+        .select("*")
+        .eq("codigo", (cupomCodigo || "").trim().toUpperCase())
+        .maybeSingle();
+      if (!cupomIsento || !cupomEstaValido(cupomIsento) || cupomIsento.tipo !== "isencao") {
+        return NextResponse.json({ error: "Cupom de isenção inválido ou expirado." }, { status: 400 });
+      }
+    } else {
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (paymentIntent.status !== "succeeded") {
+        return NextResponse.json(
+          { error: "Pagamento da taxa de adesão não foi confirmado." },
+          { status: 400 }
+        );
+      }
+      paymentMethodId = paymentIntent.payment_method;
+      taxaAdesaoPaga = paymentIntent.amount / 100;
+    }
 
     const existing = await stripe.customers.list({ email, limit: 1 });
     const customer =
@@ -100,6 +122,24 @@ export async function POST(request) {
 
     const ownerId = userData.user.id;
 
+    // Vincula o cupom usado (se ainda válido) pra rastrear qual
+    // vendedor gerou a venda e incrementa o contador de uso dele.
+    let cupomAplicado = null;
+    if (cupomCodigo?.trim()) {
+      const { data: cupomRow } = await supabaseAdmin
+        .from("cupons")
+        .select("*")
+        .eq("codigo", cupomCodigo.trim().toUpperCase())
+        .maybeSingle();
+      if (cupomRow && cupomEstaValido(cupomRow)) {
+        cupomAplicado = cupomRow;
+        await supabaseAdmin
+          .from("cupons")
+          .update({ usos_atual: cupomRow.usos_atual + 1 })
+          .eq("id", cupomRow.id);
+      }
+    }
+
     const { error: condoError } = await supabaseAdmin.from("condominios").insert({
       owner_id: ownerId,
       owner_email: email,
@@ -113,6 +153,8 @@ export async function POST(request) {
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription?.id || null,
       status: subscription ? subscription.status : "trialing",
+      cupom_id: cupomAplicado?.id || null,
+      taxa_adesao_paga: taxaAdesaoPaga,
     });
 
     if (condoError) {

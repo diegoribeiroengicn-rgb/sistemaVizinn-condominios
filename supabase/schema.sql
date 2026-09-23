@@ -1767,3 +1767,61 @@ create trigger filtrar_palavroes_avaliacao
   before insert or update on public.avaliacoes_fornecedor
   for each row
   execute function public.trg_filtrar_palavroes_avaliacao();
+
+-- ---------------------------------------------------------------------
+-- Taxa de adesão, vendedores e cupons de desconto. A taxa de adesão
+-- substitui o antigo R$ 1 de validação de cartão no cadastro — agora
+-- cobra o valor real (editável por plano em /admin/pagamentos), com
+-- desconto de cupom quando houver. Tudo isso vive só no Vizinn (não
+-- são cupons nativos do Stripe) — a cobrança em si continua passando
+-- pelo Stripe normalmente, só o valor final já sai calculado.
+create table if not exists public.taxas_adesao (
+  plano_id text primary key,
+  valor numeric(10,2) not null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.taxas_adesao (plano_id, valor) values
+  ('starter', 39.00),
+  ('growth', 79.00),
+  ('pro', 159.00)
+on conflict (plano_id) do nothing;
+
+alter table public.taxas_adesao enable row level security;
+grant all on public.taxas_adesao to service_role;
+
+create table if not exists public.vendedores (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  email text,
+  telefone text,
+  comissao_percentual numeric(5,2),
+  ativo boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+alter table public.vendedores enable row level security;
+grant all on public.vendedores to service_role;
+
+create table if not exists public.cupons (
+  id uuid primary key default gen_random_uuid(),
+  codigo text not null unique,
+  vendedor_id uuid references public.vendedores (id) on delete set null,
+  tipo text not null default 'percentual' check (tipo in ('percentual', 'valor_fixo', 'isencao')),
+  valor numeric(10,2),
+  ativo boolean not null default true,
+  usos_maximo integer,
+  usos_atual integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists cupons_codigo_idx on public.cupons (codigo);
+
+alter table public.cupons enable row level security;
+grant all on public.cupons to service_role;
+
+-- Guarda no condomínio qual cupom foi usado (se algum) e quanto foi
+-- efetivamente cobrado de adesão — é a partir daqui que o relatório de
+-- "quanto cada vendedor tem a receber" é calculado.
+alter table public.condominios add column if not exists cupom_id uuid references public.cupons (id) on delete set null;
+alter table public.condominios add column if not exists taxa_adesao_paga numeric(10,2);

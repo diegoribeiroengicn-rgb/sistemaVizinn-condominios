@@ -14,7 +14,9 @@ cobrança via Stripe e dashboard do síndico, tudo em uma única URL.
 2. Ao clicar em "Começar", abre o formulário de cadastro: dados pessoais,
    dados do condomínio e escolha de plano (Starter R$49 / Growth R$99 / Pro
    R$199).
-3. O cartão é validado com uma cobrança de R$ 1,00 (Stripe Elements embutido).
+3. É cobrada a taxa de adesão do plano escolhido (editável em `/admin/pagamentos`),
+   com desconto de cupom se houver — a cobrança em si também valida o cartão
+   (Stripe Elements embutido). Cupom de isenção total (100%) pula a cobrança.
 4. Após a confirmação, o backend cria o cliente e a assinatura no Stripe (com
    14 dias de teste), cria o usuário no Supabase Auth e o registro na tabela
    `condominios`.

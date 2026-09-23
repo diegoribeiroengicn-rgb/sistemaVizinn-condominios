@@ -58,7 +58,7 @@ export default function StripePaymentForm({ onSuccess, onBack, submitting, setSu
           disabled={!stripe || submitting}
           className="btn-primary flex-1"
         >
-          {submitting ? "Processando..." : "Começar teste"}
+          {submitting ? "Processando..." : "Pagar adesão e criar conta"}
         </button>
       </div>
     </form>

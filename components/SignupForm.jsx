@@ -6,6 +6,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import { getStripeClient } from "@/lib/stripeClient";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { PLANS } from "@/lib/plans";
+import { calcularAdesaoComCupom } from "@/lib/cupons";
 import StripePaymentForm from "@/components/StripePaymentForm";
 
 const STEPS = { DADOS: "dados", PAGAMENTO: "pagamento", SUCESSO: "sucesso" };
@@ -37,10 +38,42 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [clientSecret, setClientSecret] = useState(null);
   const [countdown, setCountdown] = useState(3);
+  const [taxasAdesao, setTaxasAdesao] = useState({});
+  const [cupomInput, setCupomInput] = useState("");
+  const [cupomAplicado, setCupomAplicado] = useState(null); // { codigo, tipo, valor }
+  const [validandoCupom, setValidandoCupom] = useState(false);
+  const [erroCupom, setErroCupom] = useState("");
 
   useEffect(() => {
     setPlanId(initialPlan);
   }, [initialPlan]);
+
+  useEffect(() => {
+    fetch("/api/public/taxas-adesao")
+      .then((res) => res.json())
+      .then((data) => setTaxasAdesao(data.taxas || {}))
+      .catch(() => {});
+  }, []);
+
+  async function aplicarCupom() {
+    if (!cupomInput.trim()) return;
+    setValidandoCupom(true);
+    setErroCupom("");
+    try {
+      const res = await fetch(`/api/public/validar-cupom?codigo=${encodeURIComponent(cupomInput.trim())}`);
+      const data = await res.json();
+      if (!data.valido) {
+        setErroCupom(data.error || "Cupom inválido.");
+        setCupomAplicado(null);
+        return;
+      }
+      setCupomAplicado({ codigo: data.codigo, tipo: data.tipo, valor: data.valor });
+    } catch {
+      setErroCupom("Não foi possível validar o cupom agora.");
+    } finally {
+      setValidandoCupom(false);
+    }
+  }
 
   const stripePromise = useMemo(() => getStripeClient(), []);
 
@@ -69,16 +102,45 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
       const res = await fetch("/api/create-payment-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, email: form.email }),
+        body: JSON.stringify({ planId, email: form.email, cupomCodigo: cupomAplicado?.codigo || "" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao iniciar pagamento.");
+
+      if (data.isento) {
+        await finalizarCadastro({ isento: true });
+        return;
+      }
+
       setClientSecret(data.clientSecret);
       setStep(STEPS.PAGAMENTO);
     } catch (err) {
       setFormError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function finalizarCadastro({ paymentIntentId, isento }) {
+    setFormError("");
+    try {
+      const res = await fetch("/api/complete-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          planId,
+          paymentIntentId,
+          isento: isento || false,
+          cupomCodigo: cupomAplicado?.codigo || "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao concluir cadastro.");
+      setStep(STEPS.SUCESSO);
+    } catch (err) {
+      setFormError(err.message);
+      setSubmitting(false);
     }
   }
 
@@ -104,24 +166,7 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
   }
 
   async function handlePaymentSuccess(paymentIntent) {
-    setFormError("");
-    try {
-      const res = await fetch("/api/complete-signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          planId,
-          paymentIntentId: paymentIntent.id,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao concluir cadastro.");
-      setStep(STEPS.SUCESSO);
-    } catch (err) {
-      setFormError(err.message);
-      setSubmitting(false);
-    }
+    await finalizarCadastro({ paymentIntentId: paymentIntent.id });
   }
 
   // Auto-login + redirect once the success screen is shown.
@@ -282,10 +327,49 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
                       <span className="text-sm text-navy-500">até {plan.unitLimit} un</span>
                     </span>
                   </span>
-                  <span className="font-semibold text-navy-900">R$ {plan.price}/mês</span>
+                  <span className="text-right">
+                    <span className="block font-semibold text-navy-900">R$ {plan.price}/mês</span>
+                    {taxasAdesao[plan.id] != null && (
+                      <span className="block text-xs text-navy-400">
+                        + R$ {taxasAdesao[plan.id]} de adesão
+                      </span>
+                    )}
+                  </span>
                 </label>
               ))}
             </div>
+          </div>
+
+          <div>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">
+              Cupom de desconto (opcional)
+            </h3>
+            <div className="flex gap-2">
+              <input
+                className="input-field flex-1"
+                value={cupomInput}
+                onChange={(e) => {
+                  setCupomInput(e.target.value);
+                  setCupomAplicado(null);
+                  setErroCupom("");
+                }}
+                placeholder="Código do cupom"
+              />
+              <button
+                type="button"
+                onClick={aplicarCupom}
+                disabled={validandoCupom || !cupomInput.trim()}
+                className="btn-secondary flex-none"
+              >
+                {validandoCupom ? "Validando..." : "Aplicar"}
+              </button>
+            </div>
+            {erroCupom && <p className="mt-1 text-xs text-coral-700">{erroCupom}</p>}
+            {cupomAplicado && (
+              <p className="mt-1 text-xs font-semibold text-emerald-700">
+                Cupom &quot;{cupomAplicado.codigo}&quot; aplicado — desconto na taxa de adesão.
+              </p>
+            )}
           </div>
 
           {formError && <p className="text-sm text-coral-700">{formError}</p>}
@@ -323,8 +407,9 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
         <div className="space-y-4">
           <div className="rounded-lg bg-navy-50 px-4 py-3 text-sm text-navy-700">
             Plano <strong>{selectedPlan.name}</strong> — R$ {selectedPlan.price}/mês após 14
-            dias grátis. Cobraremos <strong>R$ 1,00</strong> agora apenas para validar o
-            cartão.
+            dias grátis. Cobraremos a taxa de adesão de{" "}
+            <strong>R$ {calcularAdesaoComCupom(taxasAdesao[planId], cupomAplicado)}</strong>{" "}
+            agora.
           </div>
           <Elements stripe={stripePromise} options={{ clientSecret }}>
             <StripePaymentForm

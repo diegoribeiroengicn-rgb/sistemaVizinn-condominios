@@ -29,6 +29,9 @@ export default function AdminHeader() {
           <Link href="/admin/financeiro" className="btn-ghost text-cream-100 hover:bg-white/10">
             Financeiro
           </Link>
+          <Link href="/admin/pagamentos" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Pagamentos
+          </Link>
         </nav>
 
         <div className="flex items-center gap-3">
