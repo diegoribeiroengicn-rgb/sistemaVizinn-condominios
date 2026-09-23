@@ -1651,3 +1651,38 @@ alter table public.vizinn_lancamentos enable row level security;
 -- /api/admin/lancamentos, gated por requireAdmin), mesmo padrão de
 -- outras tabelas exclusivas do painel admin.
 grant all on public.vizinn_lancamentos to service_role;
+
+-- ---------------------------------------------------------------------
+-- Preparação pra "Pro+ Multicondomínios" (feature futura, ainda não
+-- construída): um síndico/administradora vai poder gerenciar vários
+-- condomínios com um único login/senha, trocando entre eles dentro do
+-- dashboard — continua vendo um condomínio por vez, só muda a
+-- facilidade de alternar sem precisar de contas separadas. É um
+-- adicional cobrado por fora do plano de cada condomínio individual.
+--
+-- O índice único abaixo só deixava existir 1 condomínio por dono —
+-- precisa cair pra um síndico poder ser owner de mais de um. Sem
+-- nenhum outro código usando isso ainda, remover não muda em nada o
+-- fluxo atual (hoje, na prática, continua existindo só 1 por dono).
+drop index if exists public.condominios_owner_id_key;
+
+-- Quem tem o Pro+ ativo — por enquanto só uma flag controlável pelo
+-- painel admin (ver /api/admin/toggle-pro-plus); o dashboard
+-- multicondomínios em si (trocar de condomínio na UI) ainda não
+-- existe, isso só deixa a base pronta pra quando ele for construído.
+create table if not exists public.contas_sindico (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  pro_plus_multicondominios boolean not null default false,
+  pro_plus_desde timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table public.contas_sindico enable row level security;
+
+drop policy if exists "Owner can view own conta_sindico" on public.contas_sindico;
+create policy "Owner can view own conta_sindico"
+  on public.contas_sindico for select
+  using (auth.uid() = user_id);
+
+grant select on public.contas_sindico to authenticated;
+grant all on public.contas_sindico to service_role;

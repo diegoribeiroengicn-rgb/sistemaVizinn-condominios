@@ -7,6 +7,7 @@ import { getPlan } from "@/lib/plans";
 export default function AdminManageModal({ condominio, onClose, onChanged }) {
   const [note, setNote] = useState(condominio.access_note || "");
   const [courtesyUntil, setCourtesyUntil] = useState(condominio.courtesy_until || "");
+  const [proPlus, setProPlus] = useState(Boolean(condominio.pro_plus_multicondominios));
   const [busyAction, setBusyAction] = useState(null);
   const [error, setError] = useState("");
 
@@ -31,6 +32,25 @@ export default function AdminManageModal({ condominio, onClose, onChanged }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao executar ação.");
       onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleToggleProPlus(ativo) {
+    setBusyAction("proPlus");
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/toggle-pro-plus", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ condominioId: condominio.id, ativo }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao atualizar Pro+.");
+      setProPlus(ativo);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -73,6 +93,22 @@ export default function AdminManageModal({ condominio, onClose, onChanged }) {
             onChange={(e) => setNote(e.target.value)}
             placeholder='Ex: "Promessa de pagamento até 05/10" ou "Cortesia - cliente beta"'
           />
+        </div>
+
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-navy-100 p-3">
+          <div>
+            <p className="text-sm font-semibold text-navy-900">Pro+ Multicondomínios</p>
+            <p className="text-xs text-navy-400">
+              Libera pro dono desse condomínio administrar vários condomínios com o mesmo login (cobrado à parte).
+            </p>
+          </div>
+          <button
+            onClick={() => handleToggleProPlus(!proPlus)}
+            disabled={busyAction !== null}
+            className={proPlus ? "btn-primary flex-none text-sm" : "btn-secondary flex-none text-sm"}
+          >
+            {busyAction === "proPlus" ? "Salvando..." : proPlus ? "Ativo — desativar" : "Ativar Pro+"}
+          </button>
         </div>
 
         {error && <p className="mb-4 text-sm text-coral-700">{error}</p>}

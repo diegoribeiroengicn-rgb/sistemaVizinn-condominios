@@ -212,7 +212,14 @@ export default function AdminDashboardContent() {
             <tbody>
               {data.condominios.map((c) => (
                 <tr key={c.id} className="border-b border-navy-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-navy-900">{c.nome}</td>
+                  <td className="px-4 py-3 font-medium text-navy-900">
+                    {c.nome}
+                    {c.pro_plus_multicondominios && (
+                      <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                        Pro+
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-navy-600">
                     {c.responsavel_nome || "-"}
                     <br />

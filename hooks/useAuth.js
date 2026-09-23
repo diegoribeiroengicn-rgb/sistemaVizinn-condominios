@@ -43,7 +43,12 @@ export function AuthProvider({ children }) {
     if (!supabase || !userId) return { condominio: null, member: null };
 
     const [ownedResult, membroResult] = await Promise.all([
-      supabase.from("condominios").select("*").eq("owner_id", userId).maybeSingle(),
+      // .limit(1) é defensivo pro "Pro+ Multicondomínios" (futuro): um
+      // dono já pode ter mais de 1 condomínio no banco (o índice único
+      // que impedia isso foi removido), mas o dashboard de trocar entre
+      // eles ainda não existe — até lá, sempre entra no mais antigo em
+      // vez de quebrar o login com múltiplas linhas.
+      supabase.from("condominios").select("*").eq("owner_id", userId).order("created_at", { ascending: true }).limit(1).maybeSingle(),
       supabase.from("membros").select("*, condominios(*)").eq("user_id", userId).maybeSingle(),
     ]);
 

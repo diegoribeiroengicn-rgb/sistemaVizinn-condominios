@@ -23,6 +23,16 @@ export async function GET(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const { data: contasSindico } = await supabaseAdmin
+    .from("contas_sindico")
+    .select("user_id, pro_plus_multicondominios");
+  const proPlusPorDono = new Set(
+    (contasSindico || []).filter((c) => c.pro_plus_multicondominios).map((c) => c.user_id)
+  );
+  for (const c of condominios) {
+    c.pro_plus_multicondominios = proPlusPorDono.has(c.owner_id);
+  }
+
   let mrr = 0;
   let projectedMrr = 0;
   let activeCount = 0;
