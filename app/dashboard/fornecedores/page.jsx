@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import TermosFornecedoresGate from "@/components/TermosFornecedoresGate";
 import RedeFornecedoresVizinn from "@/components/RedeFornecedoresVizinn";
 import CategoriasFornecedorInput from "@/components/CategoriasFornecedorInput";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
@@ -433,6 +434,7 @@ export default function FornecedoresPage() {
 
   return (
     <ModuloGuard modulo="fornecedores">
+    <TermosFornecedoresGate>
     <div className="space-y-6">
       <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Fornecedores</h1>
@@ -928,6 +930,7 @@ export default function FornecedoresPage() {
       </>
       )}
     </div>
+    </TermosFornecedoresGate>
     </ModuloGuard>
   );
 }

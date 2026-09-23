@@ -1686,3 +1686,84 @@ create policy "Owner can view own conta_sindico"
 
 grant select on public.contas_sindico to authenticated;
 grant all on public.contas_sindico to service_role;
+
+-- ---------------------------------------------------------------------
+-- Termos de uso do módulo Fornecedores — aceite obrigatório na
+-- primeira vez que a pessoa acessa (ver TermosFornecedoresGate.jsx).
+-- Presença da linha = aceitou; "não aceito" simplesmente não grava
+-- nada e manda de volta pro dashboard (pergunta de novo na próxima
+-- visita).
+create table if not exists public.termos_fornecedores_aceites (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  aceito_em timestamptz not null default now()
+);
+
+alter table public.termos_fornecedores_aceites enable row level security;
+
+drop policy if exists "User can view own aceite fornecedores" on public.termos_fornecedores_aceites;
+create policy "User can view own aceite fornecedores"
+  on public.termos_fornecedores_aceites for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "User can insert own aceite fornecedores" on public.termos_fornecedores_aceites;
+create policy "User can insert own aceite fornecedores"
+  on public.termos_fornecedores_aceites for insert
+  with check (auth.uid() = user_id);
+
+grant select, insert on public.termos_fornecedores_aceites to authenticated;
+grant all on public.termos_fornecedores_aceites to service_role;
+
+-- Filtro de linguagem ofensiva nos comentários de avaliação de
+-- fornecedor (estilo Reclame Aqui: troca a palavra inteira por
+-- asteriscos do mesmo tamanho). Roda como trigger no banco — não
+-- importa por onde a avaliação é inserida (o app insere direto do
+-- cliente via RLS, sem passar por uma API própria), o filtro sempre é
+-- aplicado antes de gravar. Lista básica, dá pra estender depois.
+create or replace function public.filtrar_palavroes(texto text)
+returns text
+language plpgsql
+immutable
+as $$
+declare
+  palavras text[] := array[
+    'arrombado', 'arrombada', 'babaca', 'bosta', 'buceta', 'caralho',
+    'corno', 'corna', 'cuzao', 'desgracado', 'desgracada', 'escroto',
+    'escrota', 'fdp', 'filho da puta', 'fodase', 'fudido', 'fudida',
+    'idiota', 'imbecil', 'merda', 'otario', 'otaria', 'pariu', 'piranha',
+    'porra', 'punheta', 'puta', 'putaria', 'retardado', 'retardada',
+    'safado', 'safada', 'vagabundo', 'vagabunda', 'vadia', 'viado',
+    'xoxota', 'cacete', 'pqp', 'vsf'
+  ];
+  palavra text;
+  resultado text := texto;
+begin
+  if texto is null then
+    return texto;
+  end if;
+  foreach palavra in array palavras loop
+    resultado := regexp_replace(
+      resultado,
+      '\y' || palavra || '\y',
+      repeat('*', length(palavra)),
+      'gi'
+    );
+  end loop;
+  return resultado;
+end;
+$$;
+
+create or replace function public.trg_filtrar_palavroes_avaliacao()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.observacao := public.filtrar_palavroes(new.observacao);
+  return new;
+end;
+$$;
+
+drop trigger if exists filtrar_palavroes_avaliacao on public.avaliacoes_fornecedor;
+create trigger filtrar_palavroes_avaliacao
+  before insert or update on public.avaliacoes_fornecedor
+  for each row
+  execute function public.trg_filtrar_palavroes_avaliacao();
