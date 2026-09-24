@@ -12,22 +12,29 @@ const STATUS_STYLES = {
   inativo: "bg-navy-100 text-navy-500",
 };
 
+const PAGE_SIZE = 20;
+
 export default function AdminFornecedoresContent() {
   const [fornecedores, setFornecedores] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [q, setQ] = useState("");
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  const [pagina, setPagina] = useState(1);
   const [selecionadoId, setSelecionadoId] = useState(null);
 
-  const load = useCallback(async (termo) => {
+  const load = useCallback(async (termo, page) => {
     setLoading(true);
     setError("");
     try {
-      const params = termo ? `?q=${encodeURIComponent(termo)}` : "";
-      const res = await authedFetch(`/api/admin/fornecedores-globais${params}`);
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (termo) params.set("q", termo);
+      const res = await authedFetch(`/api/admin/fornecedores-globais?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao carregar fornecedores.");
       setFornecedores(json.fornecedores);
+      setTotal(json.total ?? json.fornecedores.length);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -36,19 +43,24 @@ export default function AdminFornecedoresContent() {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(buscaAplicada, pagina);
+  }, [load, buscaAplicada, pagina]);
 
   function handleBuscar(e) {
     e.preventDefault();
-    load(q);
+    setPagina(1);
+    setBuscaAplicada(q.trim());
   }
+
+  const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold text-navy-900">Base geral de Fornecedores</h1>
+          <h1 className="font-display text-xl font-bold text-navy-900">
+            Base geral de Fornecedores ({total})
+          </h1>
           <p className="mt-1 text-sm text-navy-500">
             Identidade única por CNPJ, compartilhada entre condomínios — o Ecossistema de
             Fornecedores Vizinn.
@@ -113,11 +125,33 @@ export default function AdminFornecedoresContent() {
         </div>
       )}
 
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between text-sm text-navy-500">
+          <button
+            onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            disabled={pagina <= 1}
+            className="btn-ghost text-sm disabled:opacity-40"
+          >
+            ← Anterior
+          </button>
+          <span>
+            Página {pagina} de {totalPaginas}
+          </span>
+          <button
+            onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+            disabled={pagina >= totalPaginas}
+            className="btn-ghost text-sm disabled:opacity-40"
+          >
+            Próxima →
+          </button>
+        </div>
+      )}
+
       {selecionadoId && (
         <AdminFornecedorGlobalModal
           fornecedorId={selecionadoId}
           onClose={() => setSelecionadoId(null)}
-          onChanged={() => load(q)}
+          onChanged={() => load(buscaAplicada, pagina)}
         />
       )}
     </div>

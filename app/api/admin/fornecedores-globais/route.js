@@ -14,14 +14,21 @@ export async function GET(request) {
   const supabaseAdmin = getSupabaseAdmin();
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
-  let query = supabaseAdmin.from("fornecedores_globais").select("*").order("razao_social", { ascending: true });
+  let query = supabaseAdmin
+    .from("fornecedores_globais")
+    .select("*", { count: "exact" })
+    .order("razao_social", { ascending: true });
   if (q) {
     const digitos = q.replace(/\D/g, "");
     if (digitos.length >= 4) query = query.ilike("cnpj", `%${digitos}%`);
     else query = query.or(`razao_social.ilike.%${q}%,nome_fantasia.ilike.%${q}%`);
   }
-  const { data: globais, error } = await query.limit(200);
+  const { data: globais, error, count } = await query.range(from, to);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const { data: locais, error: locaisError } = await supabaseAdmin
@@ -51,7 +58,7 @@ export async function GET(request) {
     nivel_destaque: nivelPorGlobal[g.id] || 0,
   }));
 
-  return NextResponse.json({ fornecedores });
+  return NextResponse.json({ fornecedores, total: count ?? 0, page, pageSize });
 }
 
 export async function PATCH(request) {
