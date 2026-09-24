@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import PropostasDoRegistro from "@/components/PropostasDoRegistro";
+import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
@@ -440,6 +441,13 @@ export default function ManutencaoPage() {
               {programandoId === o.id ? "Programando..." : "Programar próxima manutenção"}
             </button>
           )}
+          <BotaoExcluirComAuditoria
+            tabela="manutencoes"
+            modulo="manutencao"
+            registroId={o.id}
+            descricao="este registro de manutenção"
+            onExcluido={load}
+          />
         </div>
 
         {gerenciandoId === o.id && gerenciarForm && (

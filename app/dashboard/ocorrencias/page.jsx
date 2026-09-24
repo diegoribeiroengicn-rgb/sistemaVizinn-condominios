@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
+import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 
 const emptyForm = { titulo: "", descricao: "", unidade: "", bloco: "", notificarMorador: false, notificarTodos: false };
@@ -231,14 +232,23 @@ export default function OcorrenciasPage() {
                   .join(" · ")}{" "}
                 · {new Date(o.created_at).toLocaleString("pt-BR")}
               </p>
-              {podeGerarChamado && (
-                <button
-                  onClick={() => gerarChamado(o)}
-                  className="mt-2 text-xs font-semibold text-navy-700 hover:underline"
-                >
-                  Gerar chamado
-                </button>
-              )}
+              <div className="mt-2 flex items-center gap-4">
+                {podeGerarChamado && (
+                  <button
+                    onClick={() => gerarChamado(o)}
+                    className="text-xs font-semibold text-navy-700 hover:underline"
+                  >
+                    Gerar chamado
+                  </button>
+                )}
+                <BotaoExcluirComAuditoria
+                  tabela="ocorrencias"
+                  modulo="ocorrencias"
+                  registroId={o.id}
+                  descricao="esta ocorrência"
+                  onExcluido={load}
+                />
+              </div>
             </div>
           ))}
         </div>

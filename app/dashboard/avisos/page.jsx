@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
+import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 
 const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false };
@@ -17,10 +18,8 @@ export default function AvisosPage() {
   const [form, setForm] = useState(emptyForm);
   useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
 
   const podeCriar = temPermissao("avisos", "criar");
-  const podeExcluir = temPermissao("avisos", "excluir");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -79,15 +78,6 @@ export default function AvisosPage() {
 
     setForm(emptyForm);
     load();
-  }
-
-  async function handleDelete(id) {
-    if (!confirm("Excluir este aviso?")) return;
-    setDeletingId(id);
-    const { error: deleteError } = await supabase.from("avisos").delete().eq("id", id);
-    setDeletingId(null);
-    if (deleteError) setError(deleteError.message);
-    else load();
   }
 
   if (!condominio) {
@@ -168,15 +158,14 @@ export default function AvisosPage() {
                   {new Date(a.created_at).toLocaleString("pt-BR")}
                 </p>
               </div>
-              {podeExcluir && (
-                <button
-                  onClick={() => handleDelete(a.id)}
-                  disabled={deletingId === a.id}
-                  className="flex-none text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                >
-                  {deletingId === a.id ? "..." : "Excluir"}
-                </button>
-              )}
+              <BotaoExcluirComAuditoria
+                tabela="avisos"
+                modulo="avisos"
+                registroId={a.id}
+                descricao="este aviso"
+                onExcluido={load}
+                className="flex-none text-xs font-semibold text-coral hover:underline"
+              />
             </div>
           ))}
         </div>

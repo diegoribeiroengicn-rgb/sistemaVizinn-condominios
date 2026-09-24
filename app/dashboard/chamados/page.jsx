@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
+import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { PAPEIS_EQUIPE } from "@/lib/permissoes";
 import {
@@ -910,6 +911,13 @@ export default function ChamadosPage() {
                       Avaliar atendimento
                     </button>
                   )}
+                  <BotaoExcluirComAuditoria
+                    tabela="chamados"
+                    modulo="chamados"
+                    registroId={c.id}
+                    descricao="este chamado"
+                    onExcluido={load}
+                  />
                 </div>
 
                 {gerenciandoId === c.id && gerenciarForm && (

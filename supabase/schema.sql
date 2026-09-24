@@ -2114,3 +2114,32 @@ set
     'O Vizinn reúne em um só lugar: Chamados (abertura e acompanhamento de solicitações), Avisos (comunicados do síndico), Ocorrências, Portaria (controle de entrada/saída e encomendas), Moradores, Fornecedores (com a Rede Vizinn compartilhada entre condomínios) e Financeiro (contas a pagar/receber) — tudo com notificação automática por e-mail e WhatsApp pra quem precisa saber na hora.'
   )
 where titulo = 'O que é o Vizinn';
+
+-- ---------------------------------------------------------------------
+-- Síndico pode excluir Chamados, Ocorrências e Manutenção (Avisos já
+-- tinha essa policy). Cada exclusão já fica registrada sozinha em
+-- Auditoria pelo gatilho automático (trg_auditoria_*, já existente
+-- nessas tabelas, com uma cópia completa do registro apagado); o
+-- motivo digitado pelo síndico entra como uma linha manual extra (ver
+-- components/BotaoExcluirComAuditoria.jsx). "excluir" continua de
+-- propósito fora de ACOES_POR_MODULO pra esses 3 módulos
+-- (lib/permissoes.js) — sem opção na tela de Acessos pra delegar essa
+-- ação, então só o síndico (membro_tem_permissao trata o dono do
+-- condomínio como tendo toda ação, em qualquer módulo) consegue.
+drop policy if exists "Owners can delete chamados" on public.chamados;
+create policy "Owners can delete chamados"
+  on public.chamados for delete
+  using (public.membro_tem_permissao(condominio_id, 'chamados', 'excluir'));
+grant delete on public.chamados to authenticated;
+
+drop policy if exists "Owners can delete ocorrencias" on public.ocorrencias;
+create policy "Owners can delete ocorrencias"
+  on public.ocorrencias for delete
+  using (public.membro_tem_permissao(condominio_id, 'ocorrencias', 'excluir'));
+grant delete on public.ocorrencias to authenticated;
+
+drop policy if exists "Owners can delete manutencoes" on public.manutencoes;
+create policy "Owners can delete manutencoes"
+  on public.manutencoes for delete
+  using (public.membro_tem_permissao(condominio_id, 'manutencao', 'excluir'));
+grant delete on public.manutencoes to authenticated;
