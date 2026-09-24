@@ -1825,3 +1825,128 @@ grant all on public.cupons to service_role;
 -- "quanto cada vendedor tem a receber" é calculado.
 alter table public.condominios add column if not exists cupom_id uuid references public.cupons (id) on delete set null;
 alter table public.condominios add column if not exists taxa_adesao_paga numeric(10,2);
+
+-- ---------------------------------------------------------------------
+-- Chatbot Nível 1 (FAQ + manual conversacional, sem IA) — base de
+-- conhecimento editável pelo painel admin, sem precisar de deploy pra
+-- cadastrar conteúdo novo (mesmo princípio da Academia de vídeos).
+-- Busca por palavra-chave usando o dicionário "portuguese" nativo do
+-- Postgres (lida com variações/plural razoavelmente bem, sem precisar
+-- de IA nenhuma).
+create table if not exists public.base_conhecimento (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null unique,
+  modulo text,
+  -- null = aparece pra qualquer papel logado; um papel específico (ex:
+  -- "sindico") restringe a resposta só pra quem tem esse papel.
+  papel_alvo text,
+  -- true = também visível pra quem NÃO está logado (visitante da
+  -- landing page) — conteúdo institucional/comercial, nunca operação
+  -- interna de um condomínio.
+  publico boolean not null default false,
+  resposta_curta text not null,
+  -- opcional: passo a passo detalhado, revelado só quando a pessoa
+  -- pede ("quer que eu explique passo a passo?").
+  passo_a_passo text,
+  palavras_chave text[] not null default '{}',
+  ativo boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists base_conhecimento_busca_idx on public.base_conhecimento
+  using gin (to_tsvector('portuguese', titulo || ' ' || resposta_curta || ' ' || array_to_string(palavras_chave, ' ')));
+
+alter table public.base_conhecimento enable row level security;
+
+-- Leitura: qualquer pessoa autenticada vê tudo que não é restrito por
+-- papel (RLS não filtra por papel — isso é refinado na própria rota
+-- /api/chat/perguntar, que já sabe o papel de quem pergunta); a rota
+-- pública (visitante) usa o service role e filtra só publico = true.
+drop policy if exists "Authenticated can view base de conhecimento" on public.base_conhecimento;
+create policy "Authenticated can view base de conhecimento"
+  on public.base_conhecimento for select
+  using (auth.uid() is not null and ativo = true);
+
+grant select on public.base_conhecimento to authenticated;
+grant all on public.base_conhecimento to service_role;
+
+-- Conteúdo inicial (edite/expanda pelo painel /admin/chatbot depois —
+-- isto aqui só evita começar com a base vazia).
+insert into public.base_conhecimento (titulo, modulo, publico, resposta_curta, passo_a_passo, palavras_chave) values
+  ('Cadastrar um morador', 'moradores', false,
+   'Vai em Moradores > Novo morador, preenche os dados (nome, unidade, contato) e salva.',
+   '1. No menu lateral, clica em "Moradores".
+2. Clica no botão "Novo morador".
+3. Preenche nome, unidade, bloco e contato (e-mail/telefone).
+4. Clica em "Salvar".',
+   array['morador','cadastrar morador','novo morador','adicionar morador']),
+
+  ('Cadastrar um visitante', 'acessos', false,
+   'Vai em Acessos > Visitantes > Novo cadastro, preenche os dados do visitante e o período de visita.',
+   '1. No menu lateral, clica em "Acessos".
+2. Escolhe a aba "Visitantes".
+3. Clica em "Novo cadastro".
+4. Preenche nome do visitante, data e horário previstos.
+5. Salva — a portaria já consegue ver esse cadastro.',
+   array['visitante','convidado','liberar entrada','autorizar visita']),
+
+  ('Abrir um chamado', 'chamados', false,
+   'Vai em Chamados > Novo chamado, escreve o título e a descrição do problema, escolhe o tipo e salva.',
+   '1. No menu lateral, clica em "Chamados".
+2. Clica em "Novo chamado".
+3. Escreve um título curto e a descrição do problema.
+4. Escolhe o tipo/prioridade, se aplicável.
+5. Clica em "Salvar" — o responsável já é notificado.',
+   array['chamado','abrir chamado','solicitacao','problema','manutencao']),
+
+  ('Registrar uma ocorrência', 'ocorrencias', false,
+   'Vai em Ocorrências > Nova ocorrência, descreve o que aconteceu e salva.',
+   '1. No menu lateral, clica em "Ocorrências".
+2. Clica em "Nova ocorrência".
+3. Descreve o que aconteceu (data, local, detalhes).
+4. Clica em "Salvar".',
+   array['ocorrencia','registrar ocorrencia','reclamacao','problema no condominio']),
+
+  ('Como funciona a portaria', 'portaria', false,
+   'O módulo Portaria registra entrada e saída de pessoas, encomendas e veículos, e mostra quem tem visita autorizada pra hoje.',
+   null,
+   array['portaria','entrada','saida','encomenda','veiculo']),
+
+  ('Cadastrar um prestador/fornecedor', 'fornecedores', false,
+   'Vai em Fornecedores > Novo fornecedor, preenche os dados (nome, CNPJ/CPF, categoria) e salva.',
+   '1. No menu lateral, clica em "Fornecedores".
+2. Clica em "Novo fornecedor".
+3. Preenche razão social, documento e categoria de serviço.
+4. Clica em "Salvar".',
+   array['prestador','fornecedor','cadastrar prestador','empresa','profissional']),
+
+  ('Ver os avisos do condomínio', 'avisos', false,
+   'Vai em Avisos, no menu lateral — lá aparecem todos os comunicados publicados pelo síndico, do mais recente pro mais antigo.',
+   null,
+   array['aviso','comunicado','ver avisos','mural']),
+
+  ('Emitir/consultar boleto', 'financeiro', false,
+   'Os boletos ficam dentro de Financeiro > Contas a Receber. Fale com o síndico se precisar da segunda via de um boleto específico.',
+   null,
+   array['boleto','segunda via','pagamento','financeiro']),
+
+  ('Esqueci minha senha', null, true,
+   'Na tela de login, clica em "Esqueci minha senha" e informa seu e-mail cadastrado — você recebe um link pra criar uma nova senha.',
+   null,
+   array['esqueci a senha','recuperar senha','trocar senha','nao lembro senha']),
+
+  ('Não consigo acessar o sistema', null, true,
+   'Confere se o e-mail e a senha estão corretos e se você está usando o link certo do seu condomínio. Se continuar sem conseguir, fala com o síndico ou usa o Fale Conosco no site.',
+   null,
+   array['nao consigo entrar','erro ao logar','acesso bloqueado','login nao funciona']),
+
+  ('O que é o Vizinn', null, true,
+   'O Vizinn é um sistema de gestão condominial completo: financeiro, chamados, avisos, portaria, moradores e muito mais, com notificações automáticas por WhatsApp e e-mail.',
+   null,
+   array['o que e o vizinn','sobre o vizinn','o que voces fazem']),
+
+  ('Como contratar o Vizinn', null, true,
+   'É só clicar em "Começar" na página inicial, escolher um plano e preencher o cadastro — você já começa com 14 dias grátis.',
+   null,
+   array['contratar','assinar','como comecar','planos','preco'])
+on conflict (titulo) do nothing;

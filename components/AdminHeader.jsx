@@ -32,6 +32,9 @@ export default function AdminHeader() {
           <Link href="/admin/pagamentos" className="btn-ghost text-cream-100 hover:bg-white/10">
             Pagamentos
           </Link>
+          <Link href="/admin/chatbot" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Chatbot
+          </Link>
         </nav>
 
         <div className="flex items-center gap-3">

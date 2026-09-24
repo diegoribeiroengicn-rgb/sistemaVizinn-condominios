@@ -2,6 +2,7 @@ import { Inter, Libre_Baskerville } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import ChatbotWidget from "@/components/ChatbotWidget";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -29,7 +30,10 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-screen bg-cream-50 font-sans text-navy-900 antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {children}
+          <ChatbotWidget />
+        </AuthProvider>
       </body>
     </html>
   );
