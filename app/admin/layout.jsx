@@ -1,12 +1,12 @@
 import AdminGuard from "@/components/AdminGuard";
-import AdminHeader from "@/components/AdminHeader";
+import AdminSidebar from "@/components/AdminSidebar";
 
 export default function AdminLayout({ children }) {
   return (
     <AdminGuard>
-      <div className="min-h-screen bg-cream-50">
-        <AdminHeader />
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">{children}</main>
+      <div className="flex min-h-screen bg-cream-50">
+        <AdminSidebar />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
       </div>
     </AdminGuard>
   );

@@ -221,7 +221,7 @@ acesso a Auditoria).
     acessos/                  # Síndico cria/remove contas delimitadas (só síndico)
     configuracoes/
   admin/
-    layout.jsx                # AdminGuard + AdminHeader
+    layout.jsx                # AdminGuard + AdminSidebar
     page.jsx                  # Painel do administrador (owner)
   api/
     create-payment-intent/   # Cria PaymentIntent de R$1 (validação do cartão)
