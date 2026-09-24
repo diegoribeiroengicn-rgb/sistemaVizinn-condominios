@@ -35,9 +35,20 @@ export async function GET(request) {
     (condominiosPorGlobal[l.fornecedor_global_id] ||= new Set()).add(l.condominio_id);
   }
 
+  const idsGlobais = (globais || []).map((g) => g.id);
+  const { data: destaques } = idsGlobais.length
+    ? await supabaseAdmin
+        .from("fornecedores_destaque_comercial")
+        .select("fornecedor_global_id, nivel")
+        .in("fornecedor_global_id", idsGlobais)
+    : { data: [] };
+  const nivelPorGlobal = {};
+  for (const d of destaques || []) nivelPorGlobal[d.fornecedor_global_id] = d.nivel;
+
   const fornecedores = (globais || []).map((g) => ({
     ...g,
     total_condominios: condominiosPorGlobal[g.id]?.size || 0,
+    nivel_destaque: nivelPorGlobal[g.id] || 0,
   }));
 
   return NextResponse.json({ fornecedores });

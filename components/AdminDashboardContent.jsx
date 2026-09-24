@@ -3,11 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { authedFetch } from "@/lib/adminFetch";
 import { PLANS, getPlan } from "@/lib/plans";
+import { isCondominioAtivo } from "@/lib/condominios";
 import AdminManageModal from "@/components/AdminManageModal";
 import AdminSaturacaoPainel from "@/components/AdminSaturacaoPainel";
 import AdminFaturamentoPainel from "@/components/AdminFaturamentoPainel";
 import AdminCrescimentoGrafico from "@/components/AdminCrescimentoGrafico";
 import AdminDominioDestaque from "@/components/AdminDominioDestaque";
+
+const PAGE_SIZE = 20;
 
 const STATUS_LABELS = {
   active: "Ativo",
@@ -45,6 +48,18 @@ export default function AdminDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [managing, setManaging] = useState(null);
 
+  // Listagem/busca de condomínios: paginada e buscada direto no banco
+  // (ver /api/admin/condominios-buscar), separada das agregações da
+  // tela (data.condominios acima segue alimentando os KPIs/gráficos
+  // como já era).
+  const [busca, setBusca] = useState("");
+  const [buscaAplicada, setBuscaAplicada] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [listaCondominios, setListaCondominios] = useState([]);
+  const [totalCondominiosBusca, setTotalCondominiosBusca] = useState(0);
+  const [carregandoLista, setCarregandoLista] = useState(true);
+  const [erroLista, setErroLista] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -60,9 +75,39 @@ export default function AdminDashboardContent() {
     }
   }, []);
 
+  const loadLista = useCallback(async (termo, page) => {
+    setCarregandoLista(true);
+    setErroLista("");
+    try {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      if (termo) params.set("q", termo);
+      const res = await authedFetch(`/api/admin/condominios-buscar?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao buscar condomínios.");
+      setListaCondominios(json.itens);
+      setTotalCondominiosBusca(json.total);
+    } catch (err) {
+      setErroLista(err.message);
+    } finally {
+      setCarregandoLista(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadLista(buscaAplicada, pagina);
+  }, [loadLista, buscaAplicada, pagina]);
+
+  function handleBuscarCondominios(e) {
+    e.preventDefault();
+    setPagina(1);
+    setBuscaAplicada(busca.trim());
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(totalCondominiosBusca / PAGE_SIZE));
 
   if (loading) {
     return <p className="text-navy-500">Carregando painel administrativo...</p>;
@@ -188,19 +233,48 @@ export default function AdminDashboardContent() {
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">
-            Condomínios ({data.totalCondominios})
+            Condomínios ({totalCondominiosBusca})
           </h2>
-          <button onClick={load} className="btn-ghost text-sm">
+          <button onClick={() => loadLista(buscaAplicada, pagina)} className="btn-ghost text-sm">
             Atualizar
           </button>
         </div>
+
+        <form onSubmit={handleBuscarCondominios} className="mb-3 flex gap-3">
+          <input
+            className="input-field flex-1"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nome ou CNPJ (com ou sem pontuação)..."
+          />
+          <button type="submit" className="btn-primary text-sm">
+            Buscar
+          </button>
+          {buscaAplicada && (
+            <button
+              type="button"
+              className="btn-ghost text-sm"
+              onClick={() => {
+                setBusca("");
+                setPagina(1);
+                setBuscaAplicada("");
+              }}
+            >
+              Limpar
+            </button>
+          )}
+        </form>
+
+        {erroLista && <p className="mb-3 text-sm text-coral-700">{erroLista}</p>}
+
         <div className="card overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="border-b border-navy-100 bg-navy-50/50 text-left text-navy-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Condomínio</th>
+                <th className="px-4 py-3 font-medium">CNPJ</th>
                 <th className="px-4 py-3 font-medium">Responsável</th>
                 <th className="px-4 py-3 font-medium">Plano</th>
                 <th className="px-4 py-3 font-medium">Unidades</th>
@@ -210,57 +284,104 @@ export default function AdminDashboardContent() {
               </tr>
             </thead>
             <tbody>
-              {data.condominios.map((c) => (
-                <tr key={c.id} className="border-b border-navy-50 last:border-0">
-                  <td className="px-4 py-3 font-medium text-navy-900">
-                    {c.nome}
-                    {c.pro_plus_multicondominios && (
-                      <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
-                        Pro+
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-navy-600">
-                    {c.responsavel_nome || "-"}
-                    <br />
-                    <span className="text-xs text-navy-400">{c.owner_email}</span>
-                  </td>
-                  <td className="px-4 py-3 text-navy-600">{getPlan(c.plano).name}</td>
-                  <td className="px-4 py-3 text-navy-600">
-                    {c.unidades_ativas ?? 0}/{c.unidades_limite}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                        STATUS_STYLES[c.status] || "bg-navy-100 text-navy-500"
-                      }`}
-                    >
-                      {STATUS_LABELS[c.status] || c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-navy-500">
-                    {c.created_at ? new Date(c.created_at).toLocaleDateString("pt-BR") : "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <button
-                      onClick={() => setManaging(c)}
-                      className="text-xs font-semibold text-coral hover:underline"
-                    >
-                      Gerenciar
-                    </button>
+              {listaCondominios.map((c) => {
+                const ativo = isCondominioAtivo(c.status);
+                return (
+                  <tr key={c.id} className="border-b border-navy-50 last:border-0">
+                    <td className="px-4 py-3 font-medium text-navy-900">
+                      {c.nome}
+                      {c.pro_plus_multicondominios && (
+                        <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                          Pro+
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-navy-600">{c.cnpj || "-"}</td>
+                    <td className="px-4 py-3 text-navy-600">
+                      {c.responsavel_nome || "-"}
+                      <br />
+                      <span className="text-xs text-navy-400">{c.owner_email}</span>
+                    </td>
+                    <td className="px-4 py-3 text-navy-600">{getPlan(c.plano).name}</td>
+                    <td className="px-4 py-3 text-navy-600">
+                      {c.unidades_ativas ?? 0}/{c.unidades_limite}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            ativo ? "bg-emerald-100 text-emerald-700" : "bg-navy-100 text-navy-500"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${ativo ? "bg-emerald-600" : "bg-navy-400"}`}
+                          />
+                          {ativo ? "ATIVO" : "INATIVO"}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            STATUS_STYLES[c.status] || "bg-navy-100 text-navy-500"
+                          }`}
+                        >
+                          {STATUS_LABELS[c.status] || c.status}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-navy-500">
+                      {c.created_at ? new Date(c.created_at).toLocaleDateString("pt-BR") : "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => setManaging(c)}
+                        className="text-xs font-semibold text-coral hover:underline"
+                      >
+                        Gerenciar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!carregandoLista && listaCondominios.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-navy-400">
+                    {buscaAplicada
+                      ? "Nenhum condomínio encontrado com esse nome/CNPJ."
+                      : "Nenhum condomínio cadastrado ainda."}
                   </td>
                 </tr>
-              ))}
-              {data.condominios.length === 0 && (
+              )}
+              {carregandoLista && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-navy-400">
-                    Nenhum condomínio cadastrado ainda.
+                  <td colSpan={8} className="px-4 py-8 text-center text-navy-400">
+                    Carregando...
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
+
+        {totalPaginas > 1 && (
+          <div className="mt-3 flex items-center justify-between text-sm text-navy-500">
+            <button
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              disabled={pagina <= 1}
+              className="btn-ghost text-sm disabled:opacity-40"
+            >
+              ← Anterior
+            </button>
+            <span>
+              Página {pagina} de {totalPaginas}
+            </span>
+            <button
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              disabled={pagina >= totalPaginas}
+              className="btn-ghost text-sm disabled:opacity-40"
+            >
+              Próxima →
+            </button>
+          </div>
+        )}
       </section>
 
       {managing && (
@@ -269,7 +390,7 @@ export default function AdminDashboardContent() {
           onClose={() => setManaging(null)}
           onChanged={async () => {
             setManaging(null);
-            await load();
+            await Promise.all([load(), loadLista(buscaAplicada, pagina)]);
           }}
         />
       )}

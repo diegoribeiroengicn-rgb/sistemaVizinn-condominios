@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
 import { formatarCnpj } from "@/lib/validacaoDocumentos";
 import AdminFornecedorGlobalModal from "@/components/AdminFornecedorGlobalModal";
+import BolinhasDestaqueComercial from "@/components/BolinhasDestaqueComercial";
 
 const STATUS_STYLES = {
   ativo: "bg-emerald-100 text-emerald-700",
@@ -101,9 +102,12 @@ export default function AdminFornecedoresContent() {
                     .join(" · ")}
                 </p>
               </div>
-              <span className="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-600">
-                {f.total_condominios} condomínio{f.total_condominios === 1 ? "" : "s"}
-              </span>
+              <div className="flex items-center gap-3">
+                <BolinhasDestaqueComercial nivel={f.nivel_destaque} tamanho="text-xs" />
+                <span className="rounded-full bg-navy-50 px-3 py-1 text-xs font-medium text-navy-600">
+                  {f.total_condominios} condomínio{f.total_condominios === 1 ? "" : "s"}
+                </span>
+              </div>
             </button>
           ))}
         </div>

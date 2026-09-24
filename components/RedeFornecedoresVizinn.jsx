@@ -7,10 +7,13 @@ import { formatarCnpj } from "@/lib/validacaoDocumentos";
 
 // Busca na base compartilhada de fornecedores de todo o ecossistema
 // Vizinn (não só os cadastrados neste condomínio) — ver
-// fornecedores_globais em supabase/schema.sql. Reputação vem de uma
-// função no banco que só devolve números agregados (nota média,
-// quantidade de avaliações, quantidade de condomínios), nunca dado
-// cru de outro condomínio.
+// fornecedores_globais em supabase/schema.sql. A ordem dos resultados
+// já vem pronta do banco (buscar_fornecedores_rede: destaque comercial
+// vigente → nota média → rodízio controlado entre empatados) — nunca
+// reordenar aqui, e os campos de destaque/pagamento nem existem nesse
+// retorno, só a reputação agregada (nota média, quantidade de
+// avaliações, quantidade de condomínios), nunca dado cru de outro
+// condomínio.
 export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresGlobalIds, onAdicionado }) {
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState("");
@@ -31,22 +34,13 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
     }
 
     setBuscando(true);
-    let query = supabase
-      .from("fornecedores_globais")
-      .select("id, cnpj, razao_social, nome_fantasia, categoria, categorias, endereco");
-    if (termo) {
-      const digitos = termo.replace(/\D/g, "");
-      if (digitos.length >= 4) {
-        query = query.ilike("cnpj", `%${digitos}%`);
-      } else {
-        query = query.or(`razao_social.ilike.%${termo}%,nome_fantasia.ilike.%${termo}%`);
-      }
-    }
-    // Um fornecedor pode atuar em mais de uma categoria — `contains`
-    // acha quem tem essa categoria em qualquer posição do array.
-    if (categoria) query = query.contains("categorias", [categoria]);
-
-    const { data, error: buscaError } = await query.order("razao_social", { ascending: true }).limit(30);
+    // A ordenação (destaque comercial → nota → rodízio) acontece
+    // inteira dentro da função — o resultado já chega na ordem certa,
+    // nunca reordenar no cliente.
+    const { data, error: buscaError } = await supabase.rpc("buscar_fornecedores_rede", {
+      p_termo: termo || null,
+      p_categoria: categoria || null,
+    });
     if (buscaError) {
       setBuscando(false);
       setError(buscaError.message);
@@ -55,11 +49,18 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
 
     const comReputacao = await Promise.all(
       (data || []).map(async (f) => {
-        const [{ data: rep }, { data: condominiosPublicos }] = await Promise.all([
-          supabase.rpc("reputacao_fornecedor_global", { p_fornecedor_global_id: f.id }),
-          supabase.rpc("condominios_publicos_fornecedor_global", { p_fornecedor_global_id: f.id }),
-        ]);
-        return { ...f, reputacao: rep?.[0] || null, condominiosPublicos: condominiosPublicos || [] };
+        const { data: condominiosPublicos } = await supabase.rpc("condominios_publicos_fornecedor_global", {
+          p_fornecedor_global_id: f.id,
+        });
+        return {
+          ...f,
+          reputacao: {
+            nota_media: f.nota_media,
+            total_avaliacoes: f.total_avaliacoes,
+            total_condominios: f.total_condominios,
+          },
+          condominiosPublicos: condominiosPublicos || [],
+        };
       })
     );
     setResultados(comReputacao);

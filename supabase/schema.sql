@@ -1947,3 +1947,142 @@ insert into public.base_conhecimento (titulo, modulo, publico, resposta_curta, p
    null,
    array['contratar','assinar','como comecar','planos','preco'])
 on conflict (titulo) do nothing;
+
+-- ---------------------------------------------------------------------
+-- Busca escalável de Condomínios (painel admin) — nome por trecho e
+-- CNPJ com ou sem pontuação, sem carregar a base inteira no navegador
+-- pra filtrar. Índices GIN trigram (pg_trgm) sustentam ILIKE '%...%'
+-- com performance mesmo com dezenas de milhares de linhas.
+create extension if not exists pg_trgm;
+
+-- Coluna gerada (sempre em sincronia com `cnpj`, sem trigger) só com os
+-- dígitos — assim "12.345.678/0001-90" e "12345678000190" acham o
+-- mesmo condomínio. regexp_replace é IMMUTABLE, então é seguro numa
+-- coluna gerada/índice (ver o índice que quebrou com 42P17 antes:
+-- to_tsvector('portuguese', ...) não é IMMUTABLE; isto aqui é).
+alter table public.condominios add column if not exists cnpj_digits text
+  generated always as (regexp_replace(coalesce(cnpj, ''), '\D', '', 'g')) stored;
+
+create index if not exists condominios_nome_trgm_idx on public.condominios using gin (nome gin_trgm_ops);
+create index if not exists condominios_cnpj_digits_trgm_idx on public.condominios using gin (cnpj_digits gin_trgm_ops);
+
+-- ---------------------------------------------------------------------
+-- Fornecedores — Nível de Destaque Comercial: informação exclusivamente
+-- administrativa/comercial (o "quem pagou pra aparecer primeiro"),
+-- nunca exposta a fornecedor, condomínio ou morador. Só influencia a
+-- ORDEM de exibição na Rede de Fornecedores Vizinn — nunca a nota, que
+-- continua vindo só das avaliações reais (ver avaliacoes_fornecedor).
+create table if not exists public.fornecedores_destaque_comercial (
+  id uuid primary key default gen_random_uuid(),
+  fornecedor_global_id uuid not null unique references public.fornecedores_globais (id) on delete cascade,
+  nivel integer not null default 0 check (nivel between 0 and 3),
+  situacao_pagamento text not null default 'pendente' check (situacao_pagamento in ('pendente', 'pago', 'vencido', 'cancelado')),
+  destaque_ativo boolean not null default false,
+  data_inicio date,
+  data_fim date,
+  observacoes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.fornecedores_destaque_comercial enable row level security;
+-- Sem nenhuma policy pra "authenticated": nível/pagamento comercial é
+-- informação só do painel admin (service_role) — nem síndico, nem
+-- fornecedor, nem morador conseguem ler essa tabela de jeito nenhum,
+-- mesmo tentando direto pela API do Supabase.
+grant all on public.fornecedores_destaque_comercial to service_role;
+
+-- Histórico de alterações do destaque comercial — nunca apagado, só
+-- registrado a cada mudança feita pelo painel admin (ver rota
+-- /api/admin/fornecedores-globais/[id]/destaque).
+create table if not exists public.fornecedores_destaque_historico (
+  id uuid primary key default gen_random_uuid(),
+  fornecedor_global_id uuid not null references public.fornecedores_globais (id) on delete cascade,
+  alterado_por uuid references auth.users (id),
+  alterado_por_email text,
+  nivel_anterior integer,
+  nivel_novo integer,
+  situacao_pagamento_anterior text,
+  situacao_pagamento_novo text,
+  destaque_ativo_anterior boolean,
+  destaque_ativo_novo boolean,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists fornecedores_destaque_historico_global_idx
+  on public.fornecedores_destaque_historico (fornecedor_global_id, created_at desc);
+
+alter table public.fornecedores_destaque_historico enable row level security;
+grant all on public.fornecedores_destaque_historico to service_role;
+
+-- Busca ranqueada da Rede de Fornecedores Vizinn: nível de destaque
+-- comercial (só quando pago + ativo + dentro da vigência) → nota média
+-- real → rodízio controlado entre empatados. A chave de desempate usa
+-- a data de hoje (não o horário exato), então a ordem fica estável
+-- durante o dia inteiro — não reembaralha a cada F5 — mas gira no dia
+-- seguinte, distribuindo a exposição ao longo do tempo em vez de sorteio
+-- puro a cada carregamento. SECURITY DEFINER porque precisa ler
+-- fornecedores_destaque_comercial (sem policy pra authenticated) e
+-- agregar avaliacoes_fornecedor de todos os condomínios — os campos de
+-- destaque/pagamento NUNCA aparecem no retorno da função, só entram no
+-- ORDER BY.
+create or replace function public.buscar_fornecedores_rede(p_termo text default null, p_categoria text default null)
+returns table (
+  id uuid,
+  cnpj text,
+  razao_social text,
+  nome_fantasia text,
+  categoria text,
+  categorias text[],
+  endereco text,
+  nota_media numeric,
+  total_avaliacoes bigint,
+  total_condominios bigint
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  with parametros as (
+    select
+      nullif(trim(p_termo), '') as termo,
+      regexp_replace(coalesce(p_termo, ''), '\D', '', 'g') as digitos,
+      nullif(trim(p_categoria), '') as categoria
+  )
+  select
+    f.id, f.cnpj, f.razao_social, f.nome_fantasia, f.categoria, f.categorias, f.endereco,
+    rep.nota_media, coalesce(rep.total_avaliacoes, 0), coalesce(rep.total_condominios, 0)
+  from public.fornecedores_globais f
+  cross join parametros p
+  left join lateral (
+    select
+      round(avg((av.nota_qualidade + av.nota_prazo + av.nota_custo + av.nota_atendimento) / 4.0), 1) as nota_media,
+      count(av.id) as total_avaliacoes,
+      count(distinct ff.condominio_id) as total_condominios
+    from public.fornecedores ff
+    left join public.avaliacoes_fornecedor av on av.fornecedor_id = ff.id
+    where ff.fornecedor_global_id = f.id
+  ) rep on true
+  left join public.fornecedores_destaque_comercial d on d.fornecedor_global_id = f.id
+  where f.status = 'ativo'
+    and (p.categoria is null or f.categorias @> array[p.categoria] or f.categoria = p.categoria)
+    and (
+      p.termo is null
+      or f.razao_social ilike '%' || p.termo || '%'
+      or f.nome_fantasia ilike '%' || p.termo || '%'
+      or (length(p.digitos) >= 4 and regexp_replace(coalesce(f.cnpj, ''), '\D', '', 'g') ilike '%' || p.digitos || '%')
+    )
+  order by
+    (case
+      when d.destaque_ativo is true and d.situacao_pagamento = 'pago' and coalesce(d.nivel, 0) > 0
+        and (d.data_inicio is null or d.data_inicio <= current_date)
+        and (d.data_fim is null or d.data_fim >= current_date)
+      then d.nivel else 0
+    end) desc,
+    rep.nota_media desc nulls last,
+    md5(f.id::text || to_char(current_date, 'YYYY-MM-DD')) asc
+  limit 30;
+$$;
+
+grant execute on function public.buscar_fornecedores_rede(text, text) to authenticated;
