@@ -2086,3 +2086,31 @@ as $$
 $$;
 
 grant execute on function public.buscar_fornecedores_rede(text, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Chatbot: correção do algoritmo de busca (ver lib/buscaConhecimento.js
+-- — deixou de comparar por substring de frase inteira e passou a
+-- comparar por frase-chave/palavra com peso por especificidade, o que
+-- corrigia o bug de perguntas genéricas caindo na resposta de login).
+-- Só falta reforçar o item institucional com mais palavras-chave e um
+-- passo_a_passo, pra perguntas tipo "como funciona o sistema?"/"esse
+-- sistema é bom?" terem um alvo forte pra vencer. Aditivo (|| e
+-- coalesce), não apaga nada que já foi cadastrado/editado pelo admin.
+update public.base_conhecimento
+set
+  palavras_chave = (
+    select array(
+      select distinct unnest(
+        palavras_chave || array[
+          'funciona', 'como funciona', 'vale a pena', 'e bom',
+          'esse sistema e bom', 'recursos', 'beneficios', 'diferenciais',
+          'modulos do vizinn'
+        ]
+      )
+    )
+  ),
+  passo_a_passo = coalesce(
+    passo_a_passo,
+    'O Vizinn reúne em um só lugar: Chamados (abertura e acompanhamento de solicitações), Avisos (comunicados do síndico), Ocorrências, Portaria (controle de entrada/saída e encomendas), Moradores, Fornecedores (com a Rede Vizinn compartilhada entre condomínios) e Financeiro (contas a pagar/receber) — tudo com notificação automática por e-mail e WhatsApp pra quem precisa saber na hora.'
+  )
+where titulo = 'O que é o Vizinn';

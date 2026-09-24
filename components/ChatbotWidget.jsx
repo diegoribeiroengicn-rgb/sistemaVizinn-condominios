@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { ehPerguntaDeContinuacao } from "@/lib/buscaConhecimento";
 
 const SAUDACAO = {
   id: "saudacao",
@@ -27,6 +28,10 @@ export default function ChatbotWidget() {
   const [escalando, setEscalando] = useState(false);
   const [escaladoOk, setEscaladoOk] = useState(false);
   const idRef = useRef(1);
+  // Não é memória de conversa de verdade — só guarda o último item
+  // encontrado pra dar sentido a perguntas de continuação tipo "e
+  // depois?" (ver ehPerguntaDeContinuacao em lib/buscaConhecimento.js).
+  const ultimoItemRef = useRef(null);
 
   function proximoId() {
     idRef.current += 1;
@@ -63,10 +68,22 @@ export default function ChatbotWidget() {
       const data = await res.json();
       if (data.encontrado) {
         push({ from: "bot", texto: data.respostaCurta, passoAPasso: data.passoAPasso });
+        ultimoItemRef.current = { passoAPasso: data.passoAPasso || null, jaMostrado: false };
+      } else if (ehPerguntaDeContinuacao(pergunta) && ultimoItemRef.current) {
+        if (ultimoItemRef.current.passoAPasso && !ultimoItemRef.current.jaMostrado) {
+          push({ from: "bot", texto: ultimoItemRef.current.passoAPasso });
+          ultimoItemRef.current.jaMostrado = true;
+        } else {
+          push({
+            from: "bot",
+            texto: "Isso é tudo que eu tenho sobre esse assunto. Posso ajudar com mais alguma coisa?",
+          });
+        }
       } else {
         push({
           from: "bot",
-          texto: "Não encontrei uma resposta automática pra isso. Quer que eu encaminhe sua dúvida pra nosso atendimento?",
+          texto:
+            "Não tenho informação suficiente para responder isso com segurança. Posso ajudar com as funcionalidades e procedimentos disponíveis no Vizinn.",
         });
       }
     } catch {
