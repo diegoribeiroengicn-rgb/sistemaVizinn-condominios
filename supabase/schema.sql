@@ -2071,6 +2071,8 @@ as $$
       p.termo is null
       or f.razao_social ilike '%' || p.termo || '%'
       or f.nome_fantasia ilike '%' || p.termo || '%'
+      or f.categoria ilike '%' || p.termo || '%'
+      or exists (select 1 from unnest(f.categorias) cat where cat ilike '%' || p.termo || '%')
       or (length(p.digitos) >= 4 and regexp_replace(coalesce(f.cnpj, ''), '\D', '', 'g') ilike '%' || p.digitos || '%')
     )
   order by

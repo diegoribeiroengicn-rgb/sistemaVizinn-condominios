@@ -108,7 +108,7 @@ export default function RedeFornecedoresVizinn({ condominioId, meusFornecedoresG
             className="input-field flex-1"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Nome ou CNPJ (opcional)..."
+            placeholder="Nome, CNPJ ou atividade (ex: piscina)..."
           />
           <select className="input-field w-auto" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
             <option value="">Todas as categorias</option>
