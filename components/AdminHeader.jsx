@@ -20,6 +20,9 @@ export default function AdminHeader() {
           <Link href="/admin" className="btn-ghost text-cream-100 hover:bg-white/10">
             Visão geral
           </Link>
+          <Link href="/admin/condominios" className="btn-ghost text-cream-100 hover:bg-white/10">
+            Condomínios
+          </Link>
           <Link href="/admin/fornecedores" className="btn-ghost text-cream-100 hover:bg-white/10">
             Fornecedores
           </Link>
