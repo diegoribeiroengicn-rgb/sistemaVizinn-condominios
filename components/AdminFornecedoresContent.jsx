@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
 import { formatarCnpj } from "@/lib/validacaoDocumentos";
 import AdminFornecedorGlobalModal from "@/components/AdminFornecedorGlobalModal";
+import AdminFornecedorGlobalCriarModal from "@/components/AdminFornecedorGlobalCriarModal";
 import BolinhasDestaqueComercial from "@/components/BolinhasDestaqueComercial";
 
 const STATUS_STYLES = {
@@ -12,7 +13,9 @@ const STATUS_STYLES = {
   inativo: "bg-navy-100 text-navy-500",
 };
 
-const PAGE_SIZE = 20;
+// Sem paginação por clique: carrega tudo de uma vez e a lista inteira
+// fica visível rolando a página, um fornecedor embaixo do outro.
+const PAGE_SIZE = 2000;
 
 export default function AdminFornecedoresContent() {
   const [fornecedores, setFornecedores] = useState([]);
@@ -23,6 +26,7 @@ export default function AdminFornecedoresContent() {
   const [buscaAplicada, setBuscaAplicada] = useState("");
   const [pagina, setPagina] = useState(1);
   const [selecionadoId, setSelecionadoId] = useState(null);
+  const [criando, setCriando] = useState(false);
 
   const load = useCallback(async (termo, page) => {
     setLoading(true);
@@ -80,6 +84,9 @@ export default function AdminFornecedoresContent() {
         />
         <button type="submit" className="btn-primary">
           Buscar
+        </button>
+        <button type="button" onClick={() => setCriando(true)} className="btn-primary whitespace-nowrap">
+          + Novo fornecedor
         </button>
       </form>
 
@@ -152,6 +159,13 @@ export default function AdminFornecedoresContent() {
           fornecedorId={selecionadoId}
           onClose={() => setSelecionadoId(null)}
           onChanged={() => load(buscaAplicada, pagina)}
+        />
+      )}
+
+      {criando && (
+        <AdminFornecedorGlobalCriarModal
+          onClose={() => setCriando(false)}
+          onCreated={() => load(buscaAplicada, pagina)}
         />
       )}
     </div>

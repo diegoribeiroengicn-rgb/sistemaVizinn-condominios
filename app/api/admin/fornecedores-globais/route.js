@@ -15,7 +15,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim();
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
+  const pageSize = Math.min(2000, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -58,7 +58,47 @@ export async function GET(request) {
     nivel_destaque: nivelPorGlobal[g.id] || 0,
   }));
 
-  return NextResponse.json({ fornecedores, total: count ?? 0, page, pageSize });
+  return NextResponse.json(
+    { fornecedores, total: count ?? 0, page, pageSize },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+  );
+}
+
+export async function POST(request) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const body = await request.json();
+  const cnpj = (body.cnpj || "").replace(/\D/g, "");
+  const razaoSocial = (body.razao_social || "").trim();
+  if (!razaoSocial) return NextResponse.json({ error: "Razão social é obrigatória." }, { status: 400 });
+  if (cnpj.length !== 14) return NextResponse.json({ error: "CNPJ inválido — informe os 14 dígitos." }, { status: 400 });
+
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: existente } = await supabaseAdmin
+    .from("fornecedores_globais")
+    .select("id")
+    .eq("cnpj", cnpj)
+    .maybeSingle();
+  if (existente) {
+    return NextResponse.json({ error: "Já existe um fornecedor na base geral com esse CNPJ." }, { status: 409 });
+  }
+
+  const { data: criado, error } = await supabaseAdmin
+    .from("fornecedores_globais")
+    .insert({
+      cnpj,
+      razao_social: razaoSocial,
+      nome_fantasia: body.nome_fantasia?.trim() || null,
+      endereco: body.endereco?.trim() || null,
+      categorias: body.categorias || [],
+      categoria: body.categorias?.[0] || null,
+      status: body.status || "ativo",
+    })
+    .select("id")
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, id: criado.id });
 }
 
 export async function PATCH(request) {

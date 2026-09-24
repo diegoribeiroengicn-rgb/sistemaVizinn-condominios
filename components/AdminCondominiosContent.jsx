@@ -6,7 +6,9 @@ import { getPlan } from "@/lib/plans";
 import { isCondominioAtivo } from "@/lib/condominios";
 import AdminManageModal from "@/components/AdminManageModal";
 
-const PAGE_SIZE = 20;
+// Sem paginação por clique: carrega tudo de uma vez e a lista inteira
+// fica visível rolando a página, um condomínio embaixo do outro.
+const PAGE_SIZE = 2000;
 
 const STATUS_LABELS = {
   active: "Ativo",

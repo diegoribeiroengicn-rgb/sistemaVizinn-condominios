@@ -16,7 +16,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const termo = (searchParams.get("q") || "").trim().slice(0, 100);
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
-  const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
+  const pageSize = Math.min(2000, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -63,5 +63,8 @@ export async function GET(request) {
     c.pro_plus_multicondominios = proPlusPorDono.has(c.owner_id);
   }
 
-  return NextResponse.json({ itens: condominios || [], total: count ?? 0, page, pageSize });
+  return NextResponse.json(
+    { itens: condominios || [], total: count ?? 0, page, pageSize },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+  );
 }
