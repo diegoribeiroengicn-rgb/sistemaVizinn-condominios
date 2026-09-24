@@ -27,6 +27,8 @@ export default function AdminFornecedoresContent() {
   const [pagina, setPagina] = useState(1);
   const [selecionadoId, setSelecionadoId] = useState(null);
   const [criando, setCriando] = useState(false);
+  const [vinculando, setVinculando] = useState(false);
+  const [resultadoVinculo, setResultadoVinculo] = useState("");
 
   const load = useCallback(async (termo, page) => {
     setLoading(true);
@@ -58,6 +60,23 @@ export default function AdminFornecedoresContent() {
 
   const totalPaginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  async function handleVincular() {
+    setVinculando(true);
+    setResultadoVinculo("");
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/fornecedores-globais/backfill", { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao vincular fornecedores.");
+      setResultadoVinculo(`${json.vinculados} fornecedor(es) vinculado(s) à base geral.`);
+      load(buscaAplicada, pagina);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setVinculando(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -75,7 +94,7 @@ export default function AdminFornecedoresContent() {
         </Link>
       </div>
 
-      <form onSubmit={handleBuscar} className="flex gap-3">
+      <form onSubmit={handleBuscar} className="flex flex-wrap gap-3">
         <input
           className="input-field flex-1"
           value={q}
@@ -88,8 +107,18 @@ export default function AdminFornecedoresContent() {
         <button type="button" onClick={() => setCriando(true)} className="btn-primary whitespace-nowrap">
           + Novo fornecedor
         </button>
+        <button
+          type="button"
+          onClick={handleVincular}
+          disabled={vinculando}
+          className="btn-ghost whitespace-nowrap text-sm disabled:opacity-50"
+          title="Vincula fornecedores locais dos condomínios (com CNPJ válido) que ainda não estão na base geral"
+        >
+          {vinculando ? "Vinculando..." : "Vincular fornecedores locais"}
+        </button>
       </form>
 
+      {resultadoVinculo && <p className="text-sm font-medium text-emerald-700">{resultadoVinculo}</p>}
       {error && <p className="text-sm text-coral-700">{error}</p>}
 
       {loading ? (

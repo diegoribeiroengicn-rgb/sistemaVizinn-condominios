@@ -273,9 +273,23 @@ export default function FornecedoresPage() {
     setImportando(true);
     setError("");
 
-    const payload = preview.linhas.map((l) => {
+    // Mesma regra do cadastro manual (handleSubmit): CNPJ válido também
+    // entra/reaproveita a base geral (fornecedores_globais) — sem isso o
+    // fornecedor fica só local, e não aparece no Ecossistema de
+    // Fornecedores Vizinn nem no painel admin.
+    const payload = [];
+    for (const l of preview.linhas) {
       const categorias = separarCategorias(l.atividade);
-      return {
+      const digitosCnpj = apenasDigitos(l.cnpj || "");
+      let fornecedorGlobalId = null;
+      if (digitosCnpj.length === 14) {
+        const resultado = await buscarOuCriarFornecedorGlobal(supabase, digitosCnpj, {
+          razaoSocial: l.nome,
+          categorias,
+        });
+        if (!resultado.erro) fornecedorGlobalId = resultado.id;
+      }
+      payload.push({
         condominio_id: condominio.id,
         razao_social: l.nome,
         telefone: l.telefone || null,
@@ -286,8 +300,9 @@ export default function FornecedoresPage() {
         categoria: categorias[0] || null,
         tipo: "empresa",
         status: "ativo",
-      };
-    });
+        fornecedor_global_id: fornecedorGlobalId,
+      });
+    }
 
     const { error: importError } = await supabase.from("fornecedores").insert(payload);
     setImportando(false);
