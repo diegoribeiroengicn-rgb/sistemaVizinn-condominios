@@ -1853,9 +1853,6 @@ create table if not exists public.base_conhecimento (
   created_at timestamptz not null default now()
 );
 
-create index if not exists base_conhecimento_busca_idx on public.base_conhecimento
-  using gin (to_tsvector('portuguese', titulo || ' ' || resposta_curta || ' ' || array_to_string(palavras_chave, ' ')));
-
 alter table public.base_conhecimento enable row level security;
 
 -- Leitura: qualquer pessoa autenticada vê tudo que não é restrito por
