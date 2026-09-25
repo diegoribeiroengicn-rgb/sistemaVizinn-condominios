@@ -19,6 +19,7 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   const [emancipando, setEmancipando] = useState(false);
   const [criandoAcesso, setCriandoAcesso] = useState(false);
   const [acessoMsg, setAcessoMsg] = useState("");
+  const [linkAcesso, setLinkAcesso] = useState(null);
   const [excluindo, setExcluindo] = useState(false);
   const [alternandoAtivo, setAlternandoAtivo] = useState(false);
 
@@ -44,12 +45,17 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   async function criarAcesso() {
     setCriandoAcesso(true);
     setAcessoMsg("");
+    setLinkAcesso(null);
     setError("");
     try {
       const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/criar-acesso`, { method: "POST" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao criar acesso.");
       setAcessoMsg("Acesso criado! Mandamos um e-mail pro vendedor definir a senha.");
+      // Guarda o link também — se o e-mail não chegar (spam, atraso),
+      // dá pra copiar e mandar na mão em vez do vendedor ficar sem
+      // nenhum jeito de entrar.
+      if (json.actionLink) setLinkAcesso(json.actionLink);
       await load();
       onChanged?.();
     } catch (err) {
@@ -198,6 +204,20 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
                 <p className="mt-1 text-xs text-coral-700">Cadastre um e-mail pra esse vendedor antes de criar o acesso.</p>
               )}
               {acessoMsg && <p className="mt-1 text-xs font-medium text-emerald-700">{acessoMsg}</p>}
+              {linkAcesso && (
+                <p className="mt-1 text-xs text-navy-500">
+                  Se o e-mail não chegar, copie e mande direto pro vendedor:{" "}
+                  <code className="rounded bg-navy-50 px-1.5 py-0.5">{linkAcesso}</code>{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(linkAcesso)}
+                    className="ml-1 font-semibold text-coral hover:underline"
+                  >
+                    Copiar
+                  </button>
+                  <span className="block text-navy-400">(link de uso único — só funciona até ser clicado uma vez)</span>
+                </p>
+              )}
 
               <div className="mt-3 flex flex-wrap gap-4">
                 {detalhe.vendedor.lider_atual_id && (

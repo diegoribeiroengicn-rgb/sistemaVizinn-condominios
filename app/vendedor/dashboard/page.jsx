@@ -24,6 +24,8 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
   const [form, setForm] = useState(emptyCondominio);
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
+  const [linkCriado, setLinkCriado] = useState(null);
+  const [copiadoLink, setCopiadoLink] = useState(false);
 
   async function salvar(e) {
     e.preventDefault();
@@ -38,12 +40,45 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao cadastrar condomínio.");
       onCriado();
-      onClose();
+      // Mostra o link de definir senha do responsável antes de fechar —
+      // se o e-mail dele não chegar (spam, atraso), você já sai daqui
+      // com o link pra mandar direto, em vez de ele ficar sem acesso.
+      if (json.actionLink) setLinkCriado(json.actionLink);
+      else onClose();
     } catch (err) {
       setError(err.message);
     } finally {
       setSalvando(false);
     }
+  }
+
+  if (linkCriado) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">
+        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
+          <h2 className="font-display text-lg font-bold text-navy-900">Condomínio cadastrado!</h2>
+          <p className="mt-2 text-sm text-navy-600">
+            Mandamos um e-mail pro responsável com o link de definir a senha dele. Se não chegar (spam, atraso),
+            copie e mande direto por WhatsApp ou outro canal:
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <code className="flex-1 rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-700">{linkCriado}</code>
+            <button
+              onClick={() => {
+                navigator.clipboard?.writeText(linkCriado);
+                setCopiadoLink(true);
+                setTimeout(() => setCopiadoLink(false), 2000);
+              }}
+              className="btn-primary text-sm"
+            >
+              {copiadoLink ? "Copiado!" : "Copiar"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-navy-400">Esse link é de uso único — só funciona até ser clicado uma vez.</p>
+          <button onClick={onClose} className="btn-secondary mt-6">Fechar</button>
+        </div>
+      </div>
+    );
   }
 
   return (

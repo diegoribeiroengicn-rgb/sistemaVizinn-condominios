@@ -15,6 +15,7 @@ export default function AdminFuncionariosContent() {
   const [criando, setCriando] = useState(false);
   const [acaoId, setAcaoId] = useState(null);
   const [mensagens, setMensagens] = useState({});
+  const [links, setLinks] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +96,7 @@ export default function AdminFuncionariosContent() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao criar acesso.");
       setMensagens((m) => ({ ...m, [funcionario.id]: "Acesso criado! Mandamos um e-mail pra definir a senha." }));
+      if (json.actionLink) setLinks((l) => ({ ...l, [funcionario.id]: json.actionLink }));
       await load();
     } catch (err) {
       setError(err.message);
@@ -206,6 +208,20 @@ export default function AdminFuncionariosContent() {
                 </div>
               </div>
               {mensagens[f.id] && <p className="mt-2 text-xs font-medium text-emerald-700">{mensagens[f.id]}</p>}
+              {links[f.id] && (
+                <p className="mt-1 text-xs text-navy-500">
+                  Se o e-mail não chegar, copie e mande direto:{" "}
+                  <code className="rounded bg-navy-50 px-1.5 py-0.5">{links[f.id]}</code>{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(links[f.id])}
+                    className="ml-1 font-semibold text-coral hover:underline"
+                  >
+                    Copiar
+                  </button>
+                  <span className="block text-navy-400">(link de uso único — só funciona até ser clicado uma vez)</span>
+                </p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
                 {ADMIN_MODULOS.map((m) => (
                   <label key={m.id} className="flex items-center gap-1.5 rounded-full border border-navy-200 px-3 py-1 text-xs">

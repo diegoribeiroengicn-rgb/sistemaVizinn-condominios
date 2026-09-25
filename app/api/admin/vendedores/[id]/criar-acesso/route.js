@@ -91,5 +91,9 @@ export async function POST(request, { params }) {
     dadosNovos: { user_id: userId },
   });
 
-  return NextResponse.json({ success: true, vendedor: atualizado });
+  // Devolve o link também na resposta (não só por e-mail) — se o
+  // Resend falhar, atrasar ou cair em spam, o admin ainda consegue
+  // copiar e mandar manualmente (WhatsApp etc.) em vez de o vendedor
+  // ficar sem nenhum jeito de entrar.
+  return NextResponse.json({ success: true, vendedor: atualizado, actionLink: linkData.properties.action_link });
 }

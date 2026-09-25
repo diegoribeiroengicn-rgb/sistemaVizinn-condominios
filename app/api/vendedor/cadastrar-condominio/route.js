@@ -119,6 +119,11 @@ export async function POST(request) {
       console.error("Erro ao gerar comissões da venda cadastrada pelo vendedor:", erroComissao);
     }
 
+    // O link também volta na resposta (não só por e-mail) — se o
+    // Resend falhar ou o e-mail cair em spam, o vendedor ainda
+    // consegue copiar e mandar direto pro síndico (WhatsApp etc.) em
+    // vez de o cadastro ficar travado esperando um e-mail que não chega.
+    let actionLink = null;
     try {
       const origin = new URL(request.url).origin;
       const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
@@ -126,7 +131,8 @@ export async function POST(request) {
         email: emailNormalizado,
         options: { redirectTo: `${origin}/redefinir-senha` },
       });
-      if (linkData?.properties?.action_link) {
+      actionLink = linkData?.properties?.action_link || null;
+      if (actionLink) {
         await enviarEmail({
           to: emailNormalizado,
           subject: "Bem-vindo ao Vizinn — defina sua senha",
@@ -134,7 +140,7 @@ export async function POST(request) {
           html: `
             <p>Olá, ${responsavelNome.trim()}!</p>
             <p>O condomínio "${condominioNome.trim()}" já está cadastrado no Vizinn. Clique no link abaixo pra definir sua senha e começar a usar:</p>
-            <p><a href="${linkData.properties.action_link}">Definir minha senha e acessar</a></p>
+            <p><a href="${actionLink}">Definir minha senha e acessar</a></p>
           `,
         });
       }
@@ -150,7 +156,7 @@ export async function POST(request) {
       dadosNovos: { nome: condominioNome.trim(), valorAdesao: valor, vendedorId: auth.vendedor.id, vendedorNome: auth.vendedor.nome },
     });
 
-    return NextResponse.json({ success: true, condominioId: condoRow.id });
+    return NextResponse.json({ success: true, condominioId: condoRow.id, actionLink });
   } catch (err) {
     return NextResponse.json({ error: err.message || "Erro ao cadastrar condomínio." }, { status: 500 });
   }

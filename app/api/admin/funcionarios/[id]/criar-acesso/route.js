@@ -81,5 +81,7 @@ export async function POST(request, { params }) {
     dadosNovos: { user_id: userId },
   });
 
-  return NextResponse.json({ success: true, funcionario: atualizado });
+  // Devolve o link também na resposta (não só por e-mail) — se o
+  // e-mail falhar ou atrasar, o dono ainda pode copiar e mandar na mão.
+  return NextResponse.json({ success: true, funcionario: atualizado, actionLink: linkData.properties.action_link });
 }
