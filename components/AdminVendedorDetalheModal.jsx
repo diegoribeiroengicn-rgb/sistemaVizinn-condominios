@@ -117,8 +117,9 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   }
 
   const codigo = detalhe?.vendedor?.codigo_indicacao;
-  const linkConviteVendedor = codigo ? `https://vizinn.com.br/vendedor/convite/${codigo}` : null;
-  const linkVenda = codigo ? `https://vizinn.com.br/?ref=${codigo}` : null;
+  const origem = typeof window !== "undefined" ? window.location.origin : "https://vizinn.com.br";
+  const linkConviteVendedor = codigo ? `${origem}/vendedor/convite/${codigo}` : null;
+  const linkVenda = codigo ? `${origem}/?ref=${codigo}` : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">

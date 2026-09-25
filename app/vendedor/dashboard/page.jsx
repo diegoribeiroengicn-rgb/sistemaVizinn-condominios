@@ -88,9 +88,14 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
             <label className="label-field">Plano</label>
             <select className="input-field" value={form.planoId} onChange={(e) => setForm((f) => ({ ...f, planoId: e.target.value }))}>
               {PLANS.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} — até {p.unitLimit} unidades</option>
+                <option key={p.id} value={p.id}>
+                  {p.name} — {formatBRL(p.price)}/mês — até {p.unitLimit} unidades
+                </option>
               ))}
             </select>
+            <p className="mt-1 text-xs text-navy-400">
+              O valor da mensalidade do plano é fixo, não é negociável — só a adesão abaixo é combinada com o síndico.
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label className="label-field">Valor da adesão combinado (R$)</label>
