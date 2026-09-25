@@ -7,6 +7,113 @@ import { vendedorFetch } from "@/lib/vendedorFetch";
 import { ValoresVisiveisProvider } from "@/hooks/useValoresVisiveis";
 import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 import { TIPO_COMISSAO_LABELS, STATUS_COMISSAO_LABELS, STATUS_COMISSAO_STYLES } from "@/lib/comissoes";
+import { PLANS } from "@/lib/plans";
+
+const emptyCondominio = {
+  condominioNome: "",
+  cnpj: "",
+  endereco: "",
+  responsavelNome: "",
+  responsavelEmail: "",
+  responsavelTelefone: "",
+  planoId: PLANS[1]?.id || "growth",
+  valorAdesao: "",
+};
+
+function CadastrarCondominioModal({ onClose, onCriado }) {
+  const [form, setForm] = useState(emptyCondominio);
+  const [salvando, setSalvando] = useState(false);
+  const [error, setError] = useState("");
+
+  async function salvar(e) {
+    e.preventDefault();
+    setSalvando(true);
+    setError("");
+    try {
+      const res = await vendedorFetch("/api/vendedor/cadastrar-condominio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao cadastrar condomínio.");
+      onCriado();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-display text-lg font-bold text-navy-900">Cadastrar condomínio</h2>
+          <button onClick={onClose} className="text-navy-400 hover:text-navy-700" aria-label="Fechar">✕</button>
+        </div>
+        <p className="mt-1 text-xs text-navy-500">
+          Pra uma venda que você já fechou por fora do site — o condomínio já entra atribuído a você, e sua
+          comissão é gerada automaticamente a partir do valor da adesão que você definir aqui.
+        </p>
+
+        <form onSubmit={salvar} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {error && <p className="text-sm text-coral-700 sm:col-span-2">{error}</p>}
+          <div className="sm:col-span-2">
+            <label className="label-field">Nome do condomínio</label>
+            <input className="input-field" required value={form.condominioNome} onChange={(e) => setForm((f) => ({ ...f, condominioNome: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">CNPJ (opcional)</label>
+            <input className="input-field" value={form.cnpj} onChange={(e) => setForm((f) => ({ ...f, cnpj: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">Endereço (opcional)</label>
+            <input className="input-field" value={form.endereco} onChange={(e) => setForm((f) => ({ ...f, endereco: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">Nome do responsável (síndico)</label>
+            <input className="input-field" required value={form.responsavelNome} onChange={(e) => setForm((f) => ({ ...f, responsavelNome: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">E-mail do responsável</label>
+            <input type="email" className="input-field" required value={form.responsavelEmail} onChange={(e) => setForm((f) => ({ ...f, responsavelEmail: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">Telefone do responsável (opcional)</label>
+            <input className="input-field" value={form.responsavelTelefone} onChange={(e) => setForm((f) => ({ ...f, responsavelTelefone: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label-field">Plano</label>
+            <select className="input-field" value={form.planoId} onChange={(e) => setForm((f) => ({ ...f, planoId: e.target.value }))}>
+              {PLANS.map((p) => (
+                <option key={p.id} value={p.id}>{p.name} — até {p.unitLimit} unidades</option>
+              ))}
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label-field">Valor da adesão combinado (R$)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input-field"
+              required
+              value={form.valorAdesao}
+              onChange={(e) => setForm((f) => ({ ...f, valorAdesao: e.target.value }))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" disabled={salvando} className="btn-primary text-sm">
+              {salvando ? "Cadastrando..." : "Cadastrar condomínio"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 function formatBRL(v) {
   return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -18,6 +125,7 @@ function PainelVendedor() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [cadastrando, setCadastrando] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,6 +187,10 @@ function PainelVendedor() {
             <button onClick={sair} className="text-sm font-semibold text-navy-600 hover:underline">Sair</button>
           </div>
         </div>
+
+        <button onClick={() => setCadastrando(true)} className="btn-primary w-full sm:w-auto">
+          + Cadastrar condomínio (venda fechada por fora)
+        </button>
 
         <div className="card space-y-4">
           <div>
@@ -162,12 +274,17 @@ function PainelVendedor() {
               {detalhe.equipe.comMeta} com meta batida · {detalhe.equipe.com1ou2} com 1-2 vendas · {detalhe.equipe.semVenda} sem venda
             </p>
             <ul className="mt-2 space-y-1">
-              {detalhe.equipe.diretos.map((d) => (
-                <li key={d.id} className="flex items-center justify-between text-sm text-navy-600">
-                  <span>{d.nome}</span>
-                  <span className="text-xs font-semibold text-navy-500">{d.vendas_mes} venda(s) no mês</span>
-                </li>
-              ))}
+              {detalhe.equipe.diretos.map((d) => {
+                const bateuMeta = d.vendas_mes >= detalhe.equipe.metaEquipe;
+                return (
+                  <li key={d.id} className="flex items-center justify-between text-sm text-navy-600">
+                    <span>{d.nome} {!d.ativo && <span className="text-xs text-navy-400">(inativo)</span>}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${bateuMeta ? "bg-emerald-100 text-emerald-700" : "bg-navy-100 text-navy-500"}`}>
+                      {Math.min(d.vendas_mes, detalhe.equipe.metaEquipe)}/{detalhe.equipe.metaEquipe}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
@@ -194,6 +311,10 @@ function PainelVendedor() {
           </div>
         </div>
       </div>
+
+      {cadastrando && (
+        <CadastrarCondominioModal onClose={() => setCadastrando(false)} onCriado={load} />
+      )}
     </div>
   );
 }

@@ -181,7 +181,12 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
 
               <div className="mt-3 flex items-center gap-3">
                 {detalhe.vendedor.user_id ? (
-                  <span className="text-xs font-medium text-emerald-700">✓ Acesso de vendedor liberado</span>
+                  <>
+                    <span className="text-xs font-medium text-emerald-700">✓ Acesso de vendedor liberado</span>
+                    <button onClick={criarAcesso} disabled={criandoAcesso} className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50">
+                      {criandoAcesso ? "Enviando..." : "Reenviar e-mail de definir senha"}
+                    </button>
+                  </>
                 ) : (
                   <button onClick={criarAcesso} disabled={criandoAcesso || !detalhe.vendedor.email} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
                     {criandoAcesso ? "Criando..." : "Criar acesso de vendedor (envia e-mail)"}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 import { registrarAuditoriaAdmin } from "@/lib/adminAuditoria";
@@ -24,7 +25,7 @@ export async function POST(request, { params }) {
   let userId = vendedor.user_id;
 
   if (!userId) {
-    const senhaTemporaria = crypto.randomUUID();
+    const senhaTemporaria = randomUUID();
     const { data: userData, error: erroCriarUser } = await supabaseAdmin.auth.admin.createUser({
       email: vendedor.email,
       password: senhaTemporaria,
@@ -40,14 +41,10 @@ export async function POST(request, { params }) {
     userId = userData.user.id;
   }
 
-  const origin = new URL(request.url).origin;
-  const { data: linkData, error: erroLink } = await supabaseAdmin.auth.admin.generateLink({
-    type: "recovery",
-    email: vendedor.email,
-    options: { redirectTo: `${origin}/redefinir-senha` },
-  });
-  if (erroLink) return NextResponse.json({ error: erroLink.message }, { status: 500 });
-
+  // Salva o vínculo já aqui, antes de qualquer etapa que possa falhar
+  // (link, e-mail) — se algo adiante der erro, o usuário já criado não
+  // fica "órfão" e uma nova tentativa reaproveita o mesmo user_id em
+  // vez de tentar criar outro e falhar com "já existe".
   const { data: atualizado, error: erroUpdate } = await supabaseAdmin
     .from("vendedores")
     .update({ user_id: userId, ativo: true, status_cadastro: "ativo" })
@@ -55,6 +52,19 @@ export async function POST(request, { params }) {
     .select()
     .single();
   if (erroUpdate) return NextResponse.json({ error: erroUpdate.message }, { status: 500 });
+
+  const origin = new URL(request.url).origin;
+  const { data: linkData, error: erroLink } = await supabaseAdmin.auth.admin.generateLink({
+    type: "recovery",
+    email: vendedor.email,
+    options: { redirectTo: `${origin}/redefinir-senha` },
+  });
+  if (erroLink) {
+    return NextResponse.json(
+      { error: `Acesso criado, mas não consegui gerar o link de senha: ${erroLink.message}. Tente "Reenviar" de novo.` },
+      { status: 500 }
+    );
+  }
 
   try {
     await enviarEmail({
