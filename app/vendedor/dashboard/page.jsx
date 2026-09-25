@@ -58,8 +58,8 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
         <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
           <h2 className="font-display text-lg font-bold text-navy-900">Condomínio cadastrado!</h2>
           <p className="mt-2 text-sm text-navy-600">
-            Mandamos um e-mail pro responsável com o link de definir a senha dele. Se não chegar (spam, atraso),
-            copie e mande direto por WhatsApp ou outro canal:
+            A gente não manda e-mail nenhum pro responsável — copie esse link e mande você mesmo, do jeito que
+            preferir (WhatsApp etc.):
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <code className="flex-1 rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-700">{linkCriado}</code>
@@ -177,12 +177,18 @@ function PainelVendedor() {
         return;
       }
       const res = await vendedorFetch("/api/vendedor/me");
-      if (res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         await supabase.auth.signOut();
         router.replace("/vendedor/login");
         return;
       }
       const json = await res.json();
+      if (res.status === 403) {
+        // Autenticado de verdade (senha certa), só que ainda não
+        // aprovado (status pendente) ou desativado — não é a mesma
+        // coisa que "sessão inválida", então não desloga sem explicar.
+        throw new Error(json.error || "Seu acesso ainda não foi liberado.");
+      }
       if (!res.ok) throw new Error(json.error || "Erro ao carregar seu painel.");
       setDetalhe(json);
     } catch (err) {
@@ -208,7 +214,14 @@ function PainelVendedor() {
   }
 
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-navy-500">Carregando...</p></div>;
-  if (error) return <div className="flex min-h-screen items-center justify-center"><p className="text-coral-700">{error}</p></div>;
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="text-coral-700">{error}</p>
+        <button onClick={sair} className="btn-secondary">Sair</button>
+      </div>
+    );
+  }
   if (!detalhe) return null;
 
   const linkVenda = `${window.location.origin}/?ref=${detalhe.vendedor.codigo_indicacao}`;

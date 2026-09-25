@@ -10,7 +10,7 @@ export default function ConviteVendedorPage() {
   const [indicadorNome, setIndicadorNome] = useState(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [form, setForm] = useState({ nome: "", email: "", telefone: "" });
+  const [form, setForm] = useState({ nome: "", email: "", telefone: "", senha: "", confirmarSenha: "" });
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
@@ -27,8 +27,16 @@ export default function ConviteVendedorPage() {
 
   async function enviar(e) {
     e.preventDefault();
-    setEnviando(true);
     setErro("");
+    if (form.senha.length < 6) {
+      setErro("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (form.senha !== form.confirmarSenha) {
+      setErro("As senhas não são iguais.");
+      return;
+    }
+    setEnviando(true);
     try {
       const res = await fetch(`/api/vendedor/convite/${codigo}`, {
         method: "POST",
@@ -56,7 +64,11 @@ export default function ConviteVendedorPage() {
           <p className="mt-4 text-coral-700">{erro}</p>
         ) : enviado ? (
           <div className="mt-4 rounded-lg bg-emerald-50 p-4 text-emerald-700">
-            Cadastro enviado! Nossa equipe vai analisar e ativar seu acesso em breve.
+            Cadastro enviado! Nossa equipe vai analisar e ativar seu acesso em breve. Quando for aprovado, entre em{" "}
+            <a href="/vendedor/login" className="font-semibold underline">
+              /vendedor/login
+            </a>{" "}
+            com o e-mail e a senha que você acabou de escolher — não precisa de mais nenhum passo.
           </div>
         ) : (
           <>
@@ -92,6 +104,34 @@ export default function ConviteVendedorPage() {
                   onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
                 />
               </div>
+              <div>
+                <label className="label-field">Escolha uma senha</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  className="input-field"
+                  value={form.senha}
+                  onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
+                  placeholder="••••••••"
+                />
+              </div>
+              <div>
+                <label className="label-field">Confirmar senha</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  className="input-field"
+                  value={form.confirmarSenha}
+                  onChange={(e) => setForm((f) => ({ ...f, confirmarSenha: e.target.value }))}
+                  placeholder="••••••••"
+                />
+              </div>
+              <p className="text-xs text-navy-400">
+                Você já cria sua conta com essa senha — sem precisar de nenhum e-mail. Só falta a aprovação do
+                administrador Vizinn pra você começar a vender.
+              </p>
               <button type="submit" disabled={enviando} className="btn-primary w-full">
                 {enviando ? "Enviando..." : "Quero ser vendedor"}
               </button>
