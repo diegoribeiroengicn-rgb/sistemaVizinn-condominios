@@ -2066,7 +2066,11 @@ as $$
   ) rep on true
   left join public.fornecedores_destaque_comercial d on d.fornecedor_global_id = f.id
   where f.status = 'ativo'
-    and (p.categoria is null or f.categorias @> array[p.categoria] or f.categoria = p.categoria)
+    and (
+      p.categoria is null
+      or f.categoria ilike '%' || p.categoria || '%'
+      or exists (select 1 from unnest(f.categorias) cat where cat ilike '%' || p.categoria || '%')
+    )
     and (
       p.termo is null
       or f.razao_social ilike '%' || p.termo || '%'
