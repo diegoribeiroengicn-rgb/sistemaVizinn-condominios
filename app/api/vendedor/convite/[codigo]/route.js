@@ -22,9 +22,12 @@ export async function GET(request, { params }) {
 }
 
 export async function POST(request, { params }) {
-  const { nome, email, telefone } = await request.json();
+  const { nome, email, telefone, senha } = await request.json();
   if (!nome?.trim() || !email?.trim()) {
     return NextResponse.json({ error: "Nome e e-mail são obrigatórios." }, { status: 400 });
+  }
+  if (!senha || senha.length < 6) {
+    return NextResponse.json({ error: "Escolha uma senha de pelo menos 6 caracteres." }, { status: 400 });
   }
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -56,10 +59,27 @@ export async function POST(request, { params }) {
   const { data: padrao } = await supabaseAdmin
     .from("modelos_comissionamento").select("id").eq("padrao", true).maybeSingle();
 
+  // Ele já define a própria senha aqui (autonomia total, sem e-mail
+  // nenhum envolvido) — a aprovação do admin depois só liga `ativo`,
+  // não precisa de mais nenhum passo pra ele conseguir entrar.
+  const { data: userData, error: erroCriarUser } = await supabaseAdmin.auth.admin.createUser({
+    email: emailNormalizado,
+    password: senha,
+    email_confirm: true,
+    user_metadata: { tipo: "vendedor", nome: nome.trim() },
+  });
+  if (erroCriarUser) {
+    if (erroCriarUser.message?.toLowerCase().includes("already")) {
+      return NextResponse.json({ error: "Já existe uma conta com este e-mail no Vizinn." }, { status: 409 });
+    }
+    return NextResponse.json({ error: erroCriarUser.message }, { status: 500 });
+  }
+
   const { error: erroCriar } = await supabaseAdmin.from("vendedores").insert({
     nome: nome.trim(),
     email: emailNormalizado,
     telefone: telefone?.trim() || null,
+    user_id: userData.user.id,
     ativo: false, // só passa a vender depois que o admin aprovar
     status_cadastro: "pendente",
     indicador_original_id: indicador.id,

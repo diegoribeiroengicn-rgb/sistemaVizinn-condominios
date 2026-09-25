@@ -9,6 +9,15 @@ function formatBRL(v) {
   return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Senha legível pra passar por voz/WhatsApp sem confundir (sem
+// O/0/I/1, mesmo alfabeto do código de indicação).
+function gerarSenhaLegivel() {
+  const alfabeto = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let senha = "";
+  for (let i = 0; i < 8; i++) senha += alfabeto[Math.floor(Math.random() * alfabeto.length)];
+  return senha;
+}
+
 // Detalhamento do vendedor (seção 22/23 do projeto): dados, vendas,
 // comissões por tipo, equipe direta e o painel de progresso de
 // liderança do mês atual.
@@ -19,7 +28,9 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   const [emancipando, setEmancipando] = useState(false);
   const [criandoAcesso, setCriandoAcesso] = useState(false);
   const [acessoMsg, setAcessoMsg] = useState("");
-  const [linkAcesso, setLinkAcesso] = useState(null);
+  const [mostrarFormSenha, setMostrarFormSenha] = useState(false);
+  const [senha, setSenha] = useState("");
+  const [senhaAplicada, setSenhaAplicada] = useState(null);
   const [excluindo, setExcluindo] = useState(false);
   const [alternandoAtivo, setAlternandoAtivo] = useState(false);
 
@@ -42,20 +53,31 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
     load();
   }, [load]);
 
-  async function criarAcesso() {
+  function gerarSenha() {
+    setSenha(gerarSenhaLegivel());
+  }
+
+  async function criarAcesso(e) {
+    e.preventDefault();
+    if (senha.length < 6) {
+      setError("Informe uma senha de pelo menos 6 caracteres.");
+      return;
+    }
     setCriandoAcesso(true);
     setAcessoMsg("");
-    setLinkAcesso(null);
     setError("");
     try {
-      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/criar-acesso`, { method: "POST" });
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/criar-acesso`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senha }),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao criar acesso.");
-      setAcessoMsg("Acesso criado! Mandamos um e-mail pro vendedor definir a senha.");
-      // Guarda o link também — se o e-mail não chegar (spam, atraso),
-      // dá pra copiar e mandar na mão em vez do vendedor ficar sem
-      // nenhum jeito de entrar.
-      if (json.actionLink) setLinkAcesso(json.actionLink);
+      setAcessoMsg(`Acesso liberado! Passe pro vendedor: e-mail ${detalhe.vendedor.email}, senha ${senha}`);
+      setSenhaAplicada(senha);
+      setMostrarFormSenha(false);
+      setSenha("");
       await load();
       onChanged?.();
     } catch (err) {
@@ -190,32 +212,55 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
                 {detalhe.vendedor.user_id ? (
                   <>
                     <span className="text-xs font-medium text-emerald-700">✓ Acesso de vendedor liberado</span>
-                    <button onClick={criarAcesso} disabled={criandoAcesso} className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50">
-                      {criandoAcesso ? "Enviando..." : "Reenviar e-mail de definir senha"}
+                    <button
+                      onClick={() => { setMostrarFormSenha((v) => !v); setSenha(""); setAcessoMsg(""); }}
+                      className="text-xs font-semibold text-navy-500 hover:underline"
+                    >
+                      Redefinir senha
                     </button>
                   </>
                 ) : (
-                  <button onClick={criarAcesso} disabled={criandoAcesso || !detalhe.vendedor.email} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
-                    {criandoAcesso ? "Criando..." : "Criar acesso de vendedor (envia e-mail)"}
+                  <button
+                    onClick={() => { setMostrarFormSenha((v) => !v); setSenha(gerarSenhaLegivel()); setAcessoMsg(""); }}
+                    disabled={!detalhe.vendedor.email}
+                    className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                  >
+                    Criar acesso de vendedor
                   </button>
                 )}
               </div>
               {!detalhe.vendedor.email && !detalhe.vendedor.user_id && (
                 <p className="mt-1 text-xs text-coral-700">Cadastre um e-mail pra esse vendedor antes de criar o acesso.</p>
               )}
-              {acessoMsg && <p className="mt-1 text-xs font-medium text-emerald-700">{acessoMsg}</p>}
-              {linkAcesso && (
-                <p className="mt-1 text-xs text-navy-500">
-                  Se o e-mail não chegar, copie e mande direto pro vendedor:{" "}
-                  <code className="rounded bg-navy-50 px-1.5 py-0.5">{linkAcesso}</code>{" "}
+              {mostrarFormSenha && (
+                <form onSubmit={criarAcesso} className="mt-2 flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    className="input-field w-48 text-sm"
+                    placeholder="Senha (mín. 6 caracteres)"
+                    value={senha}
+                    onChange={(e) => setSenha(e.target.value)}
+                    minLength={6}
+                    required
+                  />
+                  <button type="button" onClick={gerarSenha} className="text-xs font-semibold text-navy-500 hover:underline">
+                    Gerar
+                  </button>
+                  <button type="submit" disabled={criandoAcesso} className="btn-primary text-xs disabled:opacity-50">
+                    {criandoAcesso ? "Salvando..." : "Confirmar"}
+                  </button>
+                </form>
+              )}
+              {acessoMsg && (
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium text-emerald-700">
+                  {acessoMsg}
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard?.writeText(linkAcesso)}
-                    className="ml-1 font-semibold text-coral hover:underline"
+                    onClick={() => navigator.clipboard?.writeText(`${detalhe.vendedor.email} / ${senhaAplicada}`)}
+                    className="font-semibold text-coral hover:underline"
                   >
-                    Copiar
+                    Copiar e-mail e senha
                   </button>
-                  <span className="block text-navy-400">(link de uso único — só funciona até ser clicado uma vez)</span>
                 </p>
               )}
 
