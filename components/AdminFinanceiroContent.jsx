@@ -11,6 +11,7 @@ import {
   formatarMoeda,
 } from "@/lib/vizinnFinanceiro";
 import { calcularStatusVencimento, VENCIMENTO_BADGE_STYLES } from "@/lib/financeiro";
+import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 
 const ABAS = [
   { id: "pagar", label: "Contas a pagar" },
@@ -144,14 +145,18 @@ export default function AdminFinanceiroContent() {
         ))}
       </div>
 
+      <div className="flex justify-end">
+        <BotaoAlternarValores />
+      </div>
+
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-2">
         <div className="card">
           <p className="text-xs text-navy-400">Pendente ({aba === "pagar" ? "a pagar" : "a receber"})</p>
-          <p className="font-display text-2xl font-bold text-navy-900">{formatarMoeda(totalPendente)}</p>
+          <p className="font-display text-2xl font-bold text-navy-900"><ValorPrivado valor={formatarMoeda(totalPendente)} /></p>
         </div>
         <div className="card">
           <p className="text-xs text-navy-400">{aba === "pagar" ? "Pago" : "Recebido"} este mês</p>
-          <p className="font-display text-2xl font-bold text-navy-900">{formatarMoeda(totalPagoEsteMes)}</p>
+          <p className="font-display text-2xl font-bold text-navy-900"><ValorPrivado valor={formatarMoeda(totalPagoEsteMes)} /></p>
         </div>
       </section>
 
@@ -266,7 +271,7 @@ export default function AdminFinanceiroContent() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="font-display text-lg font-bold text-navy-900">{formatarMoeda(l.valor)}</span>
+                  <span className="font-display text-lg font-bold text-navy-900"><ValorPrivado valor={formatarMoeda(l.valor)} /></span>
                   {l.status === "pendente" && (
                     <>
                       <button onClick={() => marcarStatus(l, "pago")} className="text-xs font-semibold text-emerald-700 hover:underline">

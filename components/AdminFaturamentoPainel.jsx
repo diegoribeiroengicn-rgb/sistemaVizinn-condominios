@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { authedFetch } from "@/lib/adminFetch";
+import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 
 function formatBRL(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value || 0);
@@ -44,16 +45,19 @@ export default function AdminFaturamentoPainel() {
 
   return (
     <div className="card">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-navy-400">Faturamento (Stripe)</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Faturamento (Stripe)</h2>
+        <BotaoAlternarValores />
+      </div>
 
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div>
           <p className="text-xs text-navy-400">Este mês</p>
-          <p className="font-display text-2xl font-bold text-navy-900">{formatBRL(dados.faturamentoMesAtual)}</p>
+          <p className="font-display text-2xl font-bold text-navy-900"><ValorPrivado valor={formatBRL(dados.faturamentoMesAtual)} /></p>
         </div>
         <div>
           <p className="text-xs text-navy-400">Acumulado no ano ({dados.anoAtual})</p>
-          <p className="font-display text-2xl font-bold text-navy-900">{formatBRL(dados.faturamentoYTD)}</p>
+          <p className="font-display text-2xl font-bold text-navy-900"><ValorPrivado valor={formatBRL(dados.faturamentoYTD)} /></p>
         </div>
       </div>
 

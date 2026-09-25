@@ -1,0 +1,200 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { authedFetch } from "@/lib/adminFetch";
+import ValorPrivado from "@/components/ValorPrivado";
+import { TIPO_COMISSAO_LABELS, STATUS_COMISSAO_LABELS, STATUS_COMISSAO_STYLES } from "@/lib/comissoes";
+
+function formatBRL(v) {
+  return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+// Detalhamento do vendedor (seção 22/23 do projeto): dados, vendas,
+// comissões por tipo, equipe direta e o painel de progresso de
+// liderança do mês atual.
+export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChanged }) {
+  const [detalhe, setDetalhe] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [emancipando, setEmancipando] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/detalhe`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao carregar vendedor.");
+      setDetalhe(json);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [vendedorId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function emancipar() {
+    if (!confirm(`Emancipar "${detalhe.vendedor.nome}"? Ele deixa de ser vendedor direto do líder atual e vira líder independente. O histórico não é apagado.`)) {
+      return;
+    }
+    setEmancipando(true);
+    try {
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/emancipar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao emancipar.");
+      await load();
+      onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEmancipando(false);
+    }
+  }
+
+  const link = detalhe?.vendedor?.codigo_indicacao
+    ? `https://vizinn.com.br/vendedor/convite/${detalhe.vendedor.codigo_indicacao}`
+    : null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="font-display text-lg font-bold text-navy-900">Detalhes do vendedor</h2>
+          <button onClick={onClose} className="text-navy-400 hover:text-navy-700" aria-label="Fechar">✕</button>
+        </div>
+
+        {error && <p className="mt-3 text-sm text-coral-700">{error}</p>}
+
+        {loading ? (
+          <p className="mt-4 text-navy-500">Carregando...</p>
+        ) : !detalhe ? null : (
+          <div className="mt-4 space-y-6">
+            <div className="card">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-semibold text-navy-900">{detalhe.vendedor.nome}</h3>
+                {!detalhe.vendedor.ativo && <span className="rounded-full bg-navy-100 px-2 py-0.5 text-xs text-navy-400">Inativo</span>}
+                {detalhe.vendedor.status_cadastro === "pendente" && (
+                  <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Cadastro pendente</span>
+                )}
+                {detalhe.vendedor.data_emancipacao && (
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Líder independente</span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-navy-400">
+                {[detalhe.vendedor.email, detalhe.vendedor.telefone].filter(Boolean).join(" · ")}
+              </p>
+              <p className="mt-2 text-xs text-navy-500">
+                Indicador original: <strong>{detalhe.vendedor.indicador_nome || "—"}</strong> · Líder atual:{" "}
+                <strong>{detalhe.vendedor.lider_nome || "Independente"}</strong>
+              </p>
+              {link && (
+                <p className="mt-2 text-xs text-navy-500">
+                  Link de convite: <code className="rounded bg-navy-50 px-1.5 py-0.5">{link}</code>{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(link)}
+                    className="ml-1 font-semibold text-coral hover:underline"
+                  >
+                    Copiar
+                  </button>
+                </p>
+              )}
+              {detalhe.vendedor.lider_atual_id && (
+                <button onClick={emancipar} disabled={emancipando} className="mt-3 text-xs font-semibold text-coral hover:underline disabled:opacity-50">
+                  {emancipando ? "Emancipando..." : "Emancipar (tornar líder independente)"}
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="card p-3">
+                <p className="text-xs text-navy-400">Vendas</p>
+                <p className="text-lg font-bold text-navy-900">{detalhe.vendas.quantidade}</p>
+                <p className="text-xs text-navy-500">{detalhe.vendas.vendasDoMes} no mês atual</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-navy-400">Comissão total</p>
+                <p className="text-lg font-bold text-navy-900"><ValorPrivado valor={formatBRL(detalhe.comissoes.total)} /></p>
+                <p className="text-xs text-emerald-700">Pago: <ValorPrivado valor={formatBRL(detalhe.comissoes.pago)} /></p>
+                <p className="text-xs text-amber-700">Pendente: <ValorPrivado valor={formatBRL(detalhe.comissoes.pendente)} /></p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-navy-400">Por tipo</p>
+                <p className="text-xs text-navy-600">Venda própria: <ValorPrivado valor={formatBRL(detalhe.comissoes.vendaPropria)} /></p>
+                <p className="text-xs text-navy-600">Indicação: <ValorPrivado valor={formatBRL(detalhe.comissoes.indicacao)} /></p>
+                <p className="text-xs text-navy-600">Liderança: <ValorPrivado valor={formatBRL(detalhe.comissoes.lideranca)} /></p>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3 className="text-sm font-semibold text-navy-800">
+                Painel de progresso — liderança ({detalhe.painelProgresso.competencia})
+              </h3>
+              <p className="mt-1 text-sm text-navy-600">
+                Minhas vendas no mês: <strong>{detalhe.painelProgresso.minhasVendas}</strong> / {detalhe.painelProgresso.metaLider}
+              </p>
+              {detalhe.painelProgresso.totalDiretos > 0 ? (
+                <>
+                  <p className="text-sm text-navy-600">Equipe: <strong>{detalhe.painelProgresso.totalDiretos}</strong> vendedor(es)</p>
+                  <p className="text-sm text-navy-600">Necessários com meta batida: <strong>{detalhe.painelProgresso.necessariosComMeta}</strong></p>
+                  <p className="text-sm text-navy-600">Atualmente: <strong>{detalhe.painelProgresso.atualmenteComMeta}</strong></p>
+                  <p className="text-sm text-navy-600">Restantes: <strong>{detalhe.painelProgresso.restantes}</strong></p>
+                </>
+              ) : (
+                <p className="text-sm text-navy-400">Ainda não tem vendedores diretos.</p>
+              )}
+              <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                detalhe.painelProgresso.situacao?.qualificado ? "bg-emerald-100 text-emerald-700" : "bg-navy-100 text-navy-500"
+              }`}>
+                {detalhe.painelProgresso.situacao?.qualificado ? "QUALIFICADO" : "NÃO QUALIFICADO"}
+              </p>
+              {detalhe.painelProgresso.situacao?.motivo && (
+                <p className="mt-1 text-xs text-navy-400">{detalhe.painelProgresso.situacao.motivo}</p>
+              )}
+            </div>
+
+            <div className="card">
+              <h3 className="text-sm font-semibold text-navy-800">Equipe direta ({detalhe.equipe.totalDiretos})</h3>
+              <p className="mt-1 text-xs text-navy-500">
+                {detalhe.equipe.comMeta} com meta batida · {detalhe.equipe.com1ou2} com 1-2 vendas · {detalhe.equipe.semVenda} sem venda
+              </p>
+              <ul className="mt-2 space-y-1">
+                {detalhe.equipe.diretos.map((d) => (
+                  <li key={d.id} className="flex items-center justify-between text-sm text-navy-600">
+                    <span>{d.nome} {!d.ativo && <span className="text-xs text-navy-400">(inativo)</span>}</span>
+                    <span className="text-xs font-semibold text-navy-500">{d.vendas_mes} venda(s) no mês</span>
+                  </li>
+                ))}
+                {detalhe.equipe.diretos.length === 0 && <li className="text-sm text-navy-400">Nenhum vendedor direto.</li>}
+              </ul>
+            </div>
+
+            <div className="card">
+              <h3 className="text-sm font-semibold text-navy-800">Histórico de comissões</h3>
+              <div className="mt-2 space-y-1">
+                {detalhe.comissoes.historico.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between border-b border-navy-50 py-1.5 text-sm last:border-0">
+                    <span className="text-navy-600">
+                      {TIPO_COMISSAO_LABELS[c.tipo]} · {c.competencia} · {c.percentual}%
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <ValorPrivado valor={formatBRL(c.valor)} className="font-semibold text-navy-900" />
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COMISSAO_STYLES[c.status]}`}>
+                        {STATUS_COMISSAO_LABELS[c.status]}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+                {detalhe.comissoes.historico.length === 0 && <p className="text-sm text-navy-400">Nenhuma comissão ainda.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

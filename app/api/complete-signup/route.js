@@ -3,6 +3,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlan, getStripePriceId, TRIAL_PERIOD_DAYS } from "@/lib/plans";
 import { cupomEstaValido } from "@/lib/cupons";
+import { gerarComissoesParaVenda } from "@/lib/comissoes";
 
 // Finalizes signup after the adesão payment succeeded (or after a
 // 100%-off "isenção" coupon skipped payment entirely):
@@ -140,22 +141,27 @@ export async function POST(request) {
       }
     }
 
-    const { error: condoError } = await supabaseAdmin.from("condominios").insert({
-      owner_id: ownerId,
-      owner_email: email,
-      nome: condominioNome,
-      cnpj: cnpj || null,
-      endereco: endereco || null,
-      responsavel_nome: fullName,
-      responsavel_telefone: phone || null,
-      plano: plan.id,
-      unidades_limite: plan.unitLimit,
-      stripe_customer_id: customer.id,
-      stripe_subscription_id: subscription?.id || null,
-      status: subscription ? subscription.status : "trialing",
-      cupom_id: cupomAplicado?.id || null,
-      taxa_adesao_paga: taxaAdesaoPaga,
-    });
+    const { data: condoRow, error: condoError } = await supabaseAdmin
+      .from("condominios")
+      .insert({
+        owner_id: ownerId,
+        owner_email: email,
+        nome: condominioNome,
+        cnpj: cnpj || null,
+        endereco: endereco || null,
+        responsavel_nome: fullName,
+        responsavel_telefone: phone || null,
+        plano: plan.id,
+        unidades_limite: plan.unitLimit,
+        stripe_customer_id: customer.id,
+        stripe_subscription_id: subscription?.id || null,
+        status: subscription ? subscription.status : "trialing",
+        cupom_id: cupomAplicado?.id || null,
+        vendedor_id: cupomAplicado?.vendedor_id || null,
+        taxa_adesao_paga: taxaAdesaoPaga,
+      })
+      .select("id")
+      .single();
 
     if (condoError) {
       console.error("Erro ao criar condomínio:", condoError);
@@ -163,6 +169,15 @@ export async function POST(request) {
         { error: "Conta criada, mas houve um erro ao salvar os dados do condomínio." },
         { status: 500 }
       );
+    }
+
+    // Comissões (venda própria / indicação / liderança) — nunca deve
+    // impedir o cadastro de concluir; erro aqui fica só registrado no
+    // log pro admin investigar, o condomínio já foi criado com sucesso.
+    try {
+      await gerarComissoesParaVenda(supabaseAdmin, condoRow.id);
+    } catch (comissaoErr) {
+      console.error("Erro ao gerar comissões da venda:", comissaoErr);
     }
 
     return NextResponse.json({ success: true, userId: ownerId });

@@ -12,6 +12,8 @@ import {
   IconFinanceiro,
   IconRelatorios,
   IconAvisos,
+  IconColaboradores,
+  IconConfiguracoes,
   IconSair,
   IconMenu,
   IconX,
@@ -28,7 +30,9 @@ const ADMIN_NAV = [
   { href: "/admin/fornecedores", label: "Fornecedores", Icon: IconFornecedores },
   { href: "/admin/academia", label: "Academia", Icon: IconAcademia },
   { href: "/admin/financeiro", label: "Financeiro", Icon: IconFinanceiro },
-  { href: "/admin/pagamentos", label: "Pagamentos", Icon: IconRelatorios },
+  { href: "/admin/pagamentos", label: "Vendedores", Icon: IconColaboradores },
+  { href: "/admin/comissoes", label: "Comissões", Icon: IconRelatorios },
+  { href: "/admin/configuracoes/comissionamento", label: "Comissionamento", Icon: IconConfiguracoes },
   { href: "/admin/chatbot", label: "Chatbot", Icon: IconAvisos },
 ];
 

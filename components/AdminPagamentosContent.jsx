@@ -5,6 +5,8 @@ import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
 import { PLANS } from "@/lib/plans";
 import { TIPO_CUPOM_LABELS } from "@/lib/cupons";
+import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
+import AdminVendedorDetalheModal from "@/components/AdminVendedorDetalheModal";
 
 const ABAS = [
   { id: "taxas", label: "Taxas de adesão" },
@@ -92,13 +94,14 @@ function PainelTaxas() {
   );
 }
 
-const emptyVendedor = { nome: "", email: "", telefone: "", comissaoPercentual: "" };
+const emptyVendedor = { nome: "", email: "", telefone: "", comissaoPercentual: "", indicadorOriginalId: "" };
 
 function PainelVendedores() {
   const [vendedores, setVendedores] = useState([]);
   const [form, setForm] = useState(emptyVendedor);
   const [criando, setCriando] = useState(false);
   const [error, setError] = useState("");
+  const [selecionadoId, setSelecionadoId] = useState(null);
 
   const load = useCallback(async () => {
     const res = await authedFetch("/api/admin/vendedores");
@@ -120,7 +123,7 @@ function PainelVendedores() {
       const res = await authedFetch("/api/admin/vendedores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, indicadorOriginalId: form.indicadorOriginalId || null }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -144,6 +147,10 @@ function PainelVendedores() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <BotaoAlternarValores />
+      </div>
+
       <div className="card">
         <h2 className="font-display text-base font-bold text-navy-900">Novo vendedor</h2>
         <form onSubmit={criar} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -166,17 +173,27 @@ function PainelVendedores() {
             value={form.telefone}
             onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
           />
+          <select
+            className="input-field sm:col-span-2"
+            value={form.indicadorOriginalId}
+            onChange={(e) => setForm((f) => ({ ...f, indicadorOriginalId: e.target.value }))}
+          >
+            <option value="">Sem indicador (vendedor raiz / líder independente)</option>
+            {vendedores.map((v) => (
+              <option key={v.id} value={v.id}>Indicado por: {v.nome}</option>
+            ))}
+          </select>
           <input
             type="number"
             step="0.01"
             min="0"
             max="100"
             className="input-field"
-            placeholder="Comissão % (opcional)"
+            placeholder="Comissão % legado (opcional)"
             value={form.comissaoPercentual}
             onChange={(e) => setForm((f) => ({ ...f, comissaoPercentual: e.target.value }))}
           />
-          <button type="submit" disabled={criando} className="btn-primary sm:col-span-3">
+          <button type="submit" disabled={criando} className="btn-primary">
             {criando ? "Criando..." : "Adicionar vendedor"}
           </button>
         </form>
@@ -187,26 +204,30 @@ function PainelVendedores() {
       <div className="space-y-2">
         {vendedores.map((v) => (
           <div key={v.id} className="card flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-navy-900">
+            <button onClick={() => setSelecionadoId(v.id)} className="text-left">
+              <p className="font-semibold text-navy-900 hover:underline">
                 {v.nome}
                 {!v.ativo && (
                   <span className="ml-2 rounded-full bg-navy-100 px-2 py-0.5 text-xs text-navy-400">Inativo</span>
                 )}
+                {v.status_cadastro === "pendente" && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pendente</span>
+                )}
+                {v.emancipado && (
+                  <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Líder independente</span>
+                )}
               </p>
               <p className="text-xs text-navy-400">
-                {[v.email, v.telefone, v.comissao_percentual ? `${v.comissao_percentual}% de comissão` : null]
+                {[v.email, v.telefone, v.modelo_nome ? `modelo: ${v.modelo_nome}` : null, v.codigo_indicacao ? `código: ${v.codigo_indicacao}` : null]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
-            </div>
+            </button>
             <div className="flex items-center gap-4 text-right">
               <div>
                 <p className="text-xs text-navy-400">{v.vendas} venda(s)</p>
-                <p className="text-sm font-semibold text-navy-900">{formatBRL(v.total_adesao_gerado)}</p>
-                {v.comissao_a_receber != null && (
-                  <p className="text-xs font-semibold text-emerald-700">{formatBRL(v.comissao_a_receber)} a receber</p>
-                )}
+                <p className="text-sm font-semibold text-navy-900"><ValorPrivado valor={formatBRL(v.comissao_total)} /></p>
+                <p className="text-xs font-semibold text-amber-700"><ValorPrivado valor={formatBRL(v.comissao_pendente)} /> pendente</p>
               </div>
               <button onClick={() => alternarAtivo(v)} className="text-xs font-semibold text-navy-500 hover:underline">
                 {v.ativo ? "Desativar" : "Reativar"}
@@ -216,6 +237,14 @@ function PainelVendedores() {
         ))}
         {vendedores.length === 0 && <div className="card text-center text-navy-400">Nenhum vendedor cadastrado ainda.</div>}
       </div>
+
+      {selecionadoId && (
+        <AdminVendedorDetalheModal
+          vendedorId={selecionadoId}
+          onClose={() => setSelecionadoId(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }
@@ -376,9 +405,11 @@ export default function AdminPagamentosContent() {
             Taxa de adesão por plano, vendedores e cupons de desconto.
           </p>
         </div>
-        <Link href="/admin" className="text-sm font-semibold text-navy-600 hover:underline">
-          ← Painel administrativo
-        </Link>
+        <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
+          <Link href="/admin/comissoes" className="text-navy-600 hover:underline">Comissões →</Link>
+          <Link href="/admin/configuracoes/comissionamento" className="text-navy-600 hover:underline">Comissionamento →</Link>
+          <Link href="/admin" className="text-navy-600 hover:underline">← Painel administrativo</Link>
+        </div>
       </div>
 
       <div className="flex gap-2 border-b border-navy-100">

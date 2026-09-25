@@ -2149,3 +2149,151 @@ create policy "Owners can delete manutencoes"
   on public.manutencoes for delete
   using (public.membro_tem_permissao(condominio_id, 'manutencao', 'excluir'));
 grant delete on public.manutencoes to authenticated;
+
+-- ---------------------------------------------------------------------
+-- Motor de Comissões: vendedores com hierarquia (indicação/liderança/
+-- emancipação), modelos de comissionamento (padrão Vizinn + parceiros
+-- personalizados, versionados) e comissões geradas por venda. Tudo
+-- platform-level (não por condomínio) — só service_role acessa, igual
+-- vendedores/cupons/taxas_adesao já funcionam hoje; todo acesso passa
+-- pelas rotas /api/admin/* com requireAdmin().
+--
+-- Decisões de modelagem (pra não duplicar o que já existe):
+--  - Não criamos uma tabela "vendas" separada: cada linha de
+--    `condominios` JÁ É a venda (uma adesão = uma venda), então
+--    `comissoes.condominio_id` referencia `condominios.id` direto.
+--  - Não criamos uma tabela "indicacoes" separada: o vínculo de quem
+--    indicou quem já fica em `vendedores.indicador_original_id` (nunca
+--    muda) — criar uma segunda tabela só pra guardar a mesma relação
+--    seria duplicar dado.
+--  - Histórico de comissão nunca recalcula: cada linha de `comissoes`
+--    grava o percentual/valor/regra já aplicados (snapshot), mais o id
+--    e a versão do modelo usados — se o modelo mudar depois, isso não
+--    altera comissões já geradas (ver `modelo_versao`).
+
+create table if not exists public.modelos_comissionamento (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  descricao text,
+  percentual_venda_propria numeric(5,2) not null default 80,
+  percentual_indicacao numeric(5,2) not null default 5,
+  percentual_lideranca numeric(5,2) not null default 3,
+  permite_indicacao boolean not null default true,
+  permite_lideranca boolean not null default true,
+  meta_minima_lider integer not null default 3,
+  meta_minima_equipe integer not null default 3,
+  limite_equipe_pequena integer not null default 8,
+  percentual_equipe_grande numeric(5,2) not null default 80,
+  meta_minima_secundaria integer not null default 1,
+  permite_emancipacao boolean not null default true,
+  padrao boolean not null default false,
+  versao integer not null default 1,
+  status text not null default 'ativo' check (status in ('ativo', 'inativo')),
+  vigencia_inicio date,
+  vigencia_fim date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Só pode existir um modelo marcado como padrão por vez.
+create unique index if not exists modelos_comissionamento_padrao_unico
+  on public.modelos_comissionamento (padrao) where padrao = true;
+
+alter table public.modelos_comissionamento enable row level security;
+grant all on public.modelos_comissionamento to service_role;
+
+insert into public.modelos_comissionamento (nome, descricao, padrao)
+select
+  'Modelo Padrão Vizinn',
+  'Regras padrão da plataforma: 80% venda própria, 5% pro indicador direto na primeira venda do indicado, 3% de liderança mensal mediante requisitos de equipe. Sem segundo nível.',
+  true
+where not exists (select 1 from public.modelos_comissionamento where padrao = true);
+
+-- Hierarquia de vendedores + vínculo ao modelo de comissionamento.
+-- `codigo_indicacao` é gerado pela aplicação (não por default do
+-- banco) na hora de criar o vendedor.
+alter table public.vendedores add column if not exists codigo_indicacao text unique;
+alter table public.vendedores add column if not exists indicador_original_id uuid references public.vendedores (id) on delete set null;
+alter table public.vendedores add column if not exists lider_atual_id uuid references public.vendedores (id) on delete set null;
+alter table public.vendedores add column if not exists data_emancipacao timestamptz;
+alter table public.vendedores add column if not exists modelo_comissionamento_id uuid references public.modelos_comissionamento (id) on delete set null;
+alter table public.vendedores add column if not exists status_cadastro text not null default 'ativo' check (status_cadastro in ('pendente', 'ativo', 'inativo'));
+
+create index if not exists vendedores_indicador_original_idx on public.vendedores (indicador_original_id);
+create index if not exists vendedores_lider_atual_idx on public.vendedores (lider_atual_id);
+
+-- Preenche o modelo padrão pra quem já existir sem modelo definido, e
+-- garante código de indicação pra quem ainda não tem (gerado aqui só
+-- pra não deixar null em dado já existente — novos vendedores recebem
+-- o código já na criação, pela API).
+update public.vendedores
+  set modelo_comissionamento_id = (select id from public.modelos_comissionamento where padrao = true limit 1)
+  where modelo_comissionamento_id is null;
+
+update public.vendedores
+  set codigo_indicacao = upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))
+  where codigo_indicacao is null;
+
+-- Venda = a própria linha de `condominios` (uma adesão). Guardamos o
+-- vendedor direto da venda aqui (resolvido a partir do cupom no
+-- momento da venda, pela mesma lógica que já existe em
+-- complete-signup) pra não depender de sempre juntar com `cupons`.
+alter table public.condominios add column if not exists vendedor_id uuid references public.vendedores (id) on delete set null;
+
+create table if not exists public.comissoes (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  vendedor_beneficiario_id uuid not null references public.vendedores (id) on delete cascade,
+  vendedor_venda_id uuid not null references public.vendedores (id) on delete cascade,
+  tipo text not null check (tipo in ('venda_propria', 'indicacao_primeira_venda', 'lideranca')),
+  modelo_comissionamento_id uuid not null references public.modelos_comissionamento (id),
+  modelo_versao integer not null,
+  percentual numeric(5,2) not null,
+  valor_base numeric(10,2) not null,
+  valor numeric(10,2) not null,
+  competencia text not null,
+  status text not null default 'pendente' check (status in ('pendente', 'gerada', 'aprovada', 'paga', 'cancelada')),
+  regra_aplicada jsonb,
+  observacao text,
+  pago_por uuid references auth.users (id) on delete set null,
+  pago_em timestamptz,
+  referencia_pagamento text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- No máximo uma comissão de cada tipo por venda — idempotência: se o
+-- motor rodar duas vezes pra mesma venda (ex: retry de webhook), não
+-- duplica.
+create unique index if not exists comissoes_dedupe_idx
+  on public.comissoes (condominio_id, vendedor_beneficiario_id, tipo);
+
+create index if not exists comissoes_vendedor_beneficiario_idx on public.comissoes (vendedor_beneficiario_id);
+create index if not exists comissoes_competencia_idx on public.comissoes (competencia);
+create index if not exists comissoes_status_idx on public.comissoes (status);
+
+alter table public.comissoes enable row level security;
+grant all on public.comissoes to service_role;
+
+-- Auditoria administrativa (platform-level, sem condominio_id — por
+-- isso não usa o trigger genérico de auditoria por condomínio, que
+-- exige condominio_id). Toda alteração feita pelas rotas
+-- /api/admin/vendedores, /api/admin/modelos-comissionamento e
+-- /api/admin/comissoes grava aqui manualmente, com o admin logado.
+create table if not exists public.auditoria_admin (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid references auth.users (id) on delete set null,
+  admin_email text,
+  acao text not null,
+  entidade text not null,
+  entidade_id uuid,
+  dados_anteriores jsonb,
+  dados_novos jsonb,
+  motivo text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists auditoria_admin_entidade_idx on public.auditoria_admin (entidade, entidade_id, created_at desc);
+
+alter table public.auditoria_admin enable row level security;
+grant all on public.auditoria_admin to service_role;
