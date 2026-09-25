@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "chatbot");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -16,7 +16,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "chatbot");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { titulo, modulo, papelAlvo, publico, respostaCurta, passoAPasso, palavrasChave } = await request.json();

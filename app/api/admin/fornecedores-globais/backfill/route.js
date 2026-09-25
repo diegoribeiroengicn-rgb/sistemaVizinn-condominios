@@ -9,7 +9,7 @@ import { apenasDigitos } from "@/lib/validacaoDocumentos";
 // fornecedor_global_id — caso de quem cadastrou/importou antes da
 // importação por planilha passar a vincular à base geral automaticamente.
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

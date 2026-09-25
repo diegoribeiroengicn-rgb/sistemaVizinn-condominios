@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // policy pra ninguém além do service_role — acesso gated só por
 // requireAdmin().
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { searchParams } = new URL(request.url);
@@ -23,7 +23,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json().catch(() => null);

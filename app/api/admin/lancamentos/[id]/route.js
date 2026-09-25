@@ -14,7 +14,7 @@ const CAMPOS_PERMITIDOS = [
 ];
 
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json().catch(() => null);
@@ -41,7 +41,7 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

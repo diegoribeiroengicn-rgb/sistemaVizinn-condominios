@@ -2327,3 +2327,27 @@ alter table public.comissoes add constraint comissoes_vendedor_beneficiario_id_f
 alter table public.comissoes drop constraint if exists comissoes_vendedor_venda_id_fkey;
 alter table public.comissoes add constraint comissoes_vendedor_venda_id_fkey
   foreign key (vendedor_venda_id) references public.vendedores (id);
+
+-- ---------------------------------------------------------------------
+-- Funcionários do painel admin (equipe do Vizinn, não vendedor nem
+-- síndico) — login próprio (auth.users), com acesso restrito só aos
+-- módulos marcados em modulos_permitidos (ver lib/adminModulos.js — a
+-- mesma lista de nomes usada pela checagem no servidor e pela sidebar).
+-- Plataform-level, sem condominio_id, mesmo padrão de vendedores/
+-- comissoes: só service_role acessa a tabela direto, tudo passa pelas
+-- rotas /api/admin/* com requireAdmin(request, modulo).
+create table if not exists public.admin_funcionarios (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  email text not null unique,
+  user_id uuid references auth.users (id) on delete set null,
+  ativo boolean not null default true,
+  modulos_permitidos text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists admin_funcionarios_user_id_idx on public.admin_funcionarios (user_id) where user_id is not null;
+
+alter table public.admin_funcionarios enable row level security;
+grant all on public.admin_funcionarios to service_role;

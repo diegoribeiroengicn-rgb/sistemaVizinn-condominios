@@ -6,7 +6,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // Platform-owner-only: cancels a tenant's Stripe subscription and marks
 // their condominio as canceled.
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

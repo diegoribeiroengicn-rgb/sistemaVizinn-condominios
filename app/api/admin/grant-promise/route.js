@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // e.g. while sorting out billing offline. Doesn't touch Stripe; the admin
 // is expected to follow up and collect payment or cancel later.
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

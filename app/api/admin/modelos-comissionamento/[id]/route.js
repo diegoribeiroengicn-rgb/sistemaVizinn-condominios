@@ -22,7 +22,7 @@ const CAMPOS_DE_REGRA = [
 ];
 
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "comissionamento");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();

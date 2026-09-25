@@ -7,7 +7,7 @@ import { getPlan } from "@/lib/plans";
 // Reads via the service role client, so it bypasses RLS by design —
 // access is gated entirely by requireAdmin() below.
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "geral");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

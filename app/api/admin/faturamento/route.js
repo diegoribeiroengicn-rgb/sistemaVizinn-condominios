@@ -12,7 +12,7 @@ function chaveMes(timestampSegundos) {
 }
 
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   let stripe;

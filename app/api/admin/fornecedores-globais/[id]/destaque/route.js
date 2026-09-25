@@ -13,7 +13,7 @@ const NIVEIS_VALIDOS = [0, 1, 2, 3];
 const SITUACOES_VALIDAS = ["pendente", "pago", "vencido", "cancelado"];
 
 export async function GET(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -37,7 +37,7 @@ export async function GET(request, { params }) {
 }
 
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();

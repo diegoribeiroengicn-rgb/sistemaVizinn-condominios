@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // happens while suspended, but the subscription itself isn't canceled and
 // can be resumed later via /api/admin/reactivate-subscription).
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

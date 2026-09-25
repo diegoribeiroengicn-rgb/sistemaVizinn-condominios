@@ -9,7 +9,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // É assim que "upload direto pelo Dashboard" funciona sem precisar de
 // uma policy de escrita aberta nos buckets (ver supabase/schema.sql).
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "academia");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();

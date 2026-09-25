@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // recebidas em cada um (nome do condomínio incluso — só o owner da
 // plataforma vê isso, nunca outro condomínio).
 export async function GET(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = params;

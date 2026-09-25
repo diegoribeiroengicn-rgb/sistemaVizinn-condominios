@@ -36,7 +36,7 @@ function itemUso({ label, usado, limite, detalheTexto, estimativa = false, servi
 }
 
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "financeiro");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

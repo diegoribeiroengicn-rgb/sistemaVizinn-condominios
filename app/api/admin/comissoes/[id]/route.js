@@ -9,7 +9,7 @@ const STATUS_VALIDOS = ["pendente", "gerada", "aprovada", "paga", "cancelada"];
 // Só usuário admin autorizado — sempre gera log de auditoria (seção
 // 28/29/30 do projeto).
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "comissoes");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();

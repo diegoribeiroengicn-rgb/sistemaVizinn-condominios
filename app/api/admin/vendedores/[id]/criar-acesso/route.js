@@ -12,7 +12,7 @@ import { enviarEmail } from "@/lib/notificacoes";
 // cadastro (ativo=true, status_cadastro=ativo) — conceder acesso É a
 // aprovação, pra quem se cadastrou pelo link de convite.
 export async function POST(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

@@ -7,7 +7,7 @@ import { registrarAuditoriaAdmin } from "@/lib/adminAuditoria";
 // personalizados por parceiro. Uma única engine de cálculo (ver
 // lib/comissoes.js) lê os percentuais/regras daqui — nunca hardcoded.
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "comissionamento");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -35,7 +35,7 @@ const CAMPOS_MODELO = [
 ];
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "comissionamento");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();

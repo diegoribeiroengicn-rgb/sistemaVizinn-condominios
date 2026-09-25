@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // tabela pela RLS normal (ver supabase/schema.sql); é essa rota que
 // faz isso, com auditoria pelo lado do owner.
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -65,7 +65,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
@@ -102,7 +102,7 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
@@ -122,7 +122,7 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "fornecedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { searchParams } = new URL(request.url);

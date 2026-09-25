@@ -9,7 +9,7 @@ import { emanciparVendedor } from "@/lib/comissoes";
 // indicador_original_id (histórico permanece) nem comissões já
 // geradas — só fecha o vínculo de liderança atual e registra a data.
 export async function POST(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 const CAMPOS_PERMITIDOS = ["ativo", "usos_maximo", "valor", "vendedor_id"];
 
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
@@ -22,7 +22,7 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

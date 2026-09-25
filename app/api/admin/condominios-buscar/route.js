@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // pontuação (via a coluna gerada `cnpj_digits`, também indexada). Ver
 // supabase/schema.sql.
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { searchParams } = new URL(request.url);

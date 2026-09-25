@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // collection if they have a subscription (status then follows whatever
 // Stripe reports); otherwise just flips the local status back to active.
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

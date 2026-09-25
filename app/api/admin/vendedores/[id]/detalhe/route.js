@@ -7,7 +7,7 @@ import { montarDetalheVendedor } from "@/lib/comissoes";
 // lógica que o próprio vendedor vê de si mesmo em /api/vendedor/me,
 // compartilhada via lib/comissoes.js (montarDetalheVendedor).
 export async function GET(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();

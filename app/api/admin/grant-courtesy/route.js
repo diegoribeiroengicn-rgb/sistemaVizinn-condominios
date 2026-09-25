@@ -8,7 +8,7 @@ import { getPlan } from "@/lib/plans";
 // while status is "cortesia". `until` (optional) is an ISO date after
 // which the admin should follow up (not auto-enforced).
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

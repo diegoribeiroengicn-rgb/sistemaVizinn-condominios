@@ -7,7 +7,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // o Pro+ é por dono, não por condomínio individual, mas a gente só
 // tem o condominioId disponível no painel pra apontar qual dono).
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "condominios");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { condominioId, ativo } = await request.json();

@@ -8,7 +8,7 @@ import { gerarCodigoIndicacao } from "@/lib/comissoes";
 // mais um cálculo em runtime só sobre taxa_adesao_paga × percentual
 // único) — cobre venda própria, indicação e liderança separadamente.
 export async function GET(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
@@ -66,7 +66,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { nome, email, telefone, comissaoPercentual, indicadorOriginalId, liderAtualId, modeloComissionamentoId } =

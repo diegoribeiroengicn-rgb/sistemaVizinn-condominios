@@ -15,6 +15,7 @@ const AuthContext = createContext({
   temPermissao: () => false,
   loading: true,
   isAdmin: false,
+  accessError: false,
   logout: async () => {},
   refreshCondominio: async () => {},
 });
@@ -29,6 +30,7 @@ export function AuthProvider({ children }) {
   const [condominio, setCondominio] = useState(null);
   const [member, setMember] = useState(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [accessError, setAccessError] = useState(false);
 
   // Resolves the signed-in user to either:
   // - a síndico/administradora (owns a row in condominios), or
@@ -39,8 +41,16 @@ export function AuthProvider({ children }) {
   // queries run in parallel (most users only ever match one of them), and
   // the membro query embeds its condominio in the same round trip instead
   // of a separate follow-up query.
+  //
+  // `erro: true` no retorno é diferente de "não achou nada": significa
+  // que a consulta em si falhou (rede, timeout, erro transitório do
+  // Supabase) — nesse caso NÃO dá pra concluir que a conta não tem
+  // condomínio/acesso, só que não deu pra checar agora. Achar isso e
+  // tratar como "conta órfã" era a causa da tela de "não encontramos
+  // seu condomínio" aparecendo pra contas normais em qualquer soluço de
+  // rede — ver AccessGate.jsx.
   const fetchAccess = useCallback(async (userId) => {
-    if (!supabase || !userId) return { condominio: null, member: null };
+    if (!supabase || !userId) return { condominio: null, member: null, erro: false };
 
     const [ownedResult, membroResult] = await Promise.all([
       // .limit(1) é defensivo pro "Pro+ Multicondomínios" (futuro): um
@@ -53,14 +63,20 @@ export function AuthProvider({ children }) {
     ]);
 
     if (ownedResult.error) console.error("Erro ao buscar condomínio:", ownedResult.error.message);
-    if (ownedResult.data) return { condominio: ownedResult.data, member: null };
+    if (ownedResult.data) return { condominio: ownedResult.data, member: null, erro: false };
 
     if (membroResult.error) console.error("Erro ao buscar acesso:", membroResult.error.message);
+    // As duas consultas falharam de verdade (não só "não achou nada") —
+    // não conclui que a conta é órfã, avisa que precisa tentar de novo.
+    if (ownedResult.error && membroResult.error) {
+      return { condominio: null, member: null, erro: true };
+    }
+
     const membro = membroResult.data;
-    if (!membro) return { condominio: null, member: null };
+    if (!membro) return { condominio: null, member: null, erro: false };
 
     const { condominios: condo, ...member } = membro;
-    return { condominio: condo || null, member };
+    return { condominio: condo || null, member, erro: false };
   }, []);
 
   useEffect(() => {
@@ -75,10 +91,11 @@ export function AuthProvider({ children }) {
       if (!active) return;
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { condominio: c, member: m } = await fetchAccess(session.user.id);
+        const { condominio: c, member: m, erro } = await fetchAccess(session.user.id);
         if (active) {
           setCondominio(c);
           setMember(m);
+          setAccessError(erro);
         }
       }
       setLoading(false);
@@ -87,9 +104,10 @@ export function AuthProvider({ children }) {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { condominio: c, member: m } = await fetchAccess(session.user.id);
+        const { condominio: c, member: m, erro } = await fetchAccess(session.user.id);
         setCondominio(c);
         setMember(m);
+        setAccessError(erro);
         if (event === "SIGNED_IN" && c) {
           const usuarioNome = m?.nome || session.user.user_metadata?.full_name || session.user.email;
           const papel = m?.papel || "sindico";
@@ -127,6 +145,7 @@ export function AuthProvider({ children }) {
       } else {
         setCondominio(null);
         setMember(null);
+        setAccessError(false);
       }
     });
 
@@ -146,9 +165,10 @@ export function AuthProvider({ children }) {
 
   const refreshCondominio = useCallback(async () => {
     if (!user) return;
-    const { condominio: c, member: m } = await fetchAccess(user.id);
+    const { condominio: c, member: m, erro } = await fetchAccess(user.id);
     setCondominio(c);
     setMember(m);
+    setAccessError(erro);
   }, [user, fetchAccess]);
 
   const isAdmin = useMemo(
@@ -196,6 +216,7 @@ export function AuthProvider({ children }) {
       temPermissao,
       loading,
       isAdmin,
+      accessError,
       logout,
       refreshCondominio,
     }),
@@ -209,6 +230,7 @@ export function AuthProvider({ children }) {
       temPermissao,
       loading,
       isAdmin,
+      accessError,
       logout,
       refreshCondominio,
     ]

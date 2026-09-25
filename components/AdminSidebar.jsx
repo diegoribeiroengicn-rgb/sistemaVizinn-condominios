@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminAcesso } from "@/hooks/useAdminAcesso";
 import {
   IconVisaoGeral,
   IconMoradores,
@@ -21,28 +22,31 @@ import {
   IconChevronRight,
 } from "@/components/icons";
 
-// Painel admin (dono da plataforma) — menu lateral esquerda, igual ao
-// dashboard de condomínio, em vez da barra horizontal de cima que
-// existia antes.
+// Painel admin (dono da plataforma OU funcionário com acesso limitado
+// — ver useAdminAcesso) — menu lateral esquerda, igual ao dashboard de
+// condomínio. `modulo` liga cada item à lista em lib/adminModulos.js,
+// pra filtrar o que um funcionário não pode ver (o dono sempre vê tudo).
 const ADMIN_NAV = [
-  { href: "/admin", label: "Visão geral", Icon: IconVisaoGeral },
-  { href: "/admin/condominios", label: "Condomínios", Icon: IconMoradores },
-  { href: "/admin/fornecedores", label: "Fornecedores", Icon: IconFornecedores },
-  { href: "/admin/academia", label: "Academia", Icon: IconAcademia },
-  { href: "/admin/financeiro", label: "Financeiro", Icon: IconFinanceiro },
-  { href: "/admin/pagamentos", label: "Vendedores", Icon: IconColaboradores },
-  { href: "/admin/comissoes", label: "Comissões", Icon: IconRelatorios },
-  { href: "/admin/configuracoes/comissionamento", label: "Comissionamento", Icon: IconConfiguracoes },
-  { href: "/admin/chatbot", label: "Chatbot", Icon: IconAvisos },
+  { href: "/admin", label: "Visão geral", Icon: IconVisaoGeral, modulo: "geral" },
+  { href: "/admin/condominios", label: "Condomínios", Icon: IconMoradores, modulo: "condominios" },
+  { href: "/admin/fornecedores", label: "Fornecedores", Icon: IconFornecedores, modulo: "fornecedores" },
+  { href: "/admin/academia", label: "Academia", Icon: IconAcademia, modulo: "academia" },
+  { href: "/admin/financeiro", label: "Financeiro", Icon: IconFinanceiro, modulo: "financeiro" },
+  { href: "/admin/pagamentos", label: "Vendedores", Icon: IconColaboradores, modulo: "vendedores" },
+  { href: "/admin/comissoes", label: "Comissões", Icon: IconRelatorios, modulo: "comissoes" },
+  { href: "/admin/configuracoes/comissionamento", label: "Comissionamento", Icon: IconConfiguracoes, modulo: "comissionamento" },
+  { href: "/admin/chatbot", label: "Chatbot", Icon: IconAvisos, modulo: "chatbot" },
 ];
 
 const SIDEBAR_COLLAPSE_KEY = "vizinn-admin-sidebar-collapsed";
 
 export default function AdminSidebar() {
   const { user, logout } = useAuth();
+  const { isOwner, podeVer, nomeFuncionario } = useAdminAcesso();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navVisivel = ADMIN_NAV.filter((item) => podeVer(item.modulo));
 
   useEffect(() => {
     try {
@@ -89,7 +93,7 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-2">
-        {ADMIN_NAV.map((item) => {
+        {navVisivel.map((item) => {
           const active = pathname === item.href;
           return (
             <Link
@@ -105,6 +109,18 @@ export default function AdminSidebar() {
             </Link>
           );
         })}
+        {isOwner && (
+          <Link
+            href="/admin/funcionarios"
+            title={collapsed ? "Funcionários" : undefined}
+            className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+              pathname === "/admin/funcionarios" ? "bg-coral text-white" : "text-white/70 hover:bg-white/10 hover:text-white"
+            }`}
+          >
+            <IconColaboradores className="h-5 w-5 flex-none" />
+            {!collapsed && <span className="truncate">Funcionários</span>}
+          </Link>
+        )}
         <Link
           href="/dashboard"
           title={collapsed ? "Meu condomínio" : undefined}

@@ -18,7 +18,7 @@ const CAMPOS_PERMITIDOS = {
 // vendedor no sistema hoje (ver relatório de arquitetura), então não
 // há risco de o próprio vendedor mexer no seu percentual/regra.
 export async function PATCH(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await request.json();
@@ -54,7 +54,7 @@ export async function PATCH(request, { params }) {
 // real — nesses casos a resposta pede pra desativar em vez de excluir
 // (ver PATCH { ativo: false } acima).
 export async function DELETE(request, { params }) {
-  const auth = await requireAdmin(request);
+  const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
