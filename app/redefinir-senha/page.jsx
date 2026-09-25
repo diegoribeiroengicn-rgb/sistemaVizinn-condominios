@@ -62,7 +62,12 @@ export default function RedefinirSenhaPage() {
       return;
     }
     setSucesso(true);
-    setTimeout(() => router.push("/dashboard"), 2000);
+    // Vendedor tem um painel separado do síndico/morador — manda pro
+    // lugar certo conforme o metadata gravado na criação do usuário
+    // (ver /api/admin/vendedores/[id]/criar-acesso).
+    const { data } = await supabase.auth.getUser();
+    const destino = data?.user?.user_metadata?.tipo === "vendedor" ? "/vendedor/dashboard" : "/dashboard";
+    setTimeout(() => router.push(destino), 2000);
   }
 
   return (

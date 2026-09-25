@@ -19,6 +19,7 @@ export async function POST(request) {
     paymentIntentId,
     isento,
     cupomCodigo,
+    vendedorCodigo,
     email,
     password,
     fullName,
@@ -141,6 +142,21 @@ export async function POST(request) {
       }
     }
 
+    // Identificação automática do vendedor: prioridade pro cupom (que
+    // também dá desconto ao cliente), mas se não teve cupom e a venda
+    // veio de um link de indicação (?ref=CODIGO na URL do cadastro),
+    // atribui direto pelo código do vendedor — sem precisar de cupom
+    // pra isso, e sem depender de ninguém digitar nada manualmente.
+    let vendedorId = cupomAplicado?.vendedor_id || null;
+    if (!vendedorId && vendedorCodigo?.trim()) {
+      const { data: vendedorRef } = await supabaseAdmin
+        .from("vendedores")
+        .select("id, ativo")
+        .eq("codigo_indicacao", vendedorCodigo.trim().toUpperCase())
+        .maybeSingle();
+      if (vendedorRef?.ativo) vendedorId = vendedorRef.id;
+    }
+
     const { data: condoRow, error: condoError } = await supabaseAdmin
       .from("condominios")
       .insert({
@@ -157,7 +173,7 @@ export async function POST(request) {
         stripe_subscription_id: subscription?.id || null,
         status: subscription ? subscription.status : "trialing",
         cupom_id: cupomAplicado?.id || null,
-        vendedor_id: cupomAplicado?.vendedor_id || null,
+        vendedor_id: vendedorId,
         taxa_adesao_paga: taxaAdesaoPaga,
       })
       .select("id")

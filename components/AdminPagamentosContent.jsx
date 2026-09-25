@@ -94,20 +94,26 @@ function PainelTaxas() {
   );
 }
 
-const emptyVendedor = { nome: "", email: "", telefone: "", comissaoPercentual: "", indicadorOriginalId: "" };
+const emptyVendedor = { nome: "", email: "", telefone: "", indicadorOriginalId: "", modeloComissionamentoId: "" };
 
 function PainelVendedores() {
   const [vendedores, setVendedores] = useState([]);
+  const [modelos, setModelos] = useState([]);
   const [form, setForm] = useState(emptyVendedor);
   const [criando, setCriando] = useState(false);
   const [error, setError] = useState("");
   const [selecionadoId, setSelecionadoId] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await authedFetch("/api/admin/vendedores");
-    const json = await res.json();
-    if (!res.ok) return setError(json.error);
+    const [resVend, resModelos] = await Promise.all([
+      authedFetch("/api/admin/vendedores"),
+      authedFetch("/api/admin/modelos-comissionamento"),
+    ]);
+    const json = await resVend.json();
+    const jsonModelos = await resModelos.json();
+    if (!resVend.ok) return setError(json.error);
     setVendedores(json.vendedores);
+    if (resModelos.ok) setModelos(jsonModelos.modelos.filter((m) => m.status === "ativo"));
   }, []);
 
   useEffect(() => {
@@ -123,7 +129,11 @@ function PainelVendedores() {
       const res = await authedFetch("/api/admin/vendedores", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, indicadorOriginalId: form.indicadorOriginalId || null }),
+        body: JSON.stringify({
+          ...form,
+          indicadorOriginalId: form.indicadorOriginalId || null,
+          modeloComissionamentoId: form.modeloComissionamentoId || null,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -134,6 +144,15 @@ function PainelVendedores() {
     } finally {
       setCriando(false);
     }
+  }
+
+  async function mudarModelo(vendedor, modeloComissionamentoId) {
+    await authedFetch(`/api/admin/vendedores/${vendedor.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modeloComissionamentoId: modeloComissionamentoId || null }),
+    });
+    await load();
   }
 
   async function alternarAtivo(vendedor) {
@@ -183,20 +202,27 @@ function PainelVendedores() {
               <option key={v.id} value={v.id}>Indicado por: {v.nome}</option>
             ))}
           </select>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="100"
-            className="input-field"
-            placeholder="Comissão % legado (opcional)"
-            value={form.comissaoPercentual}
-            onChange={(e) => setForm((f) => ({ ...f, comissaoPercentual: e.target.value }))}
-          />
-          <button type="submit" disabled={criando} className="btn-primary">
+          <select
+            className="input-field sm:col-span-2"
+            value={form.modeloComissionamentoId}
+            onChange={(e) => setForm((f) => ({ ...f, modeloComissionamentoId: e.target.value }))}
+          >
+            <option value="">Modelo padrão Vizinn</option>
+            {modelos.filter((m) => !m.padrao).map((m) => (
+              <option key={m.id} value={m.id}>{m.nome}</option>
+            ))}
+          </select>
+          <button type="submit" disabled={criando} className="btn-primary sm:col-span-2">
             {criando ? "Criando..." : "Adicionar vendedor"}
           </button>
         </form>
+        <p className="mt-2 text-xs text-navy-400">
+          Vendedores autônomos com acordo diferente do padrão (80/5/3%) — crie o modelo dele em{" "}
+          <Link href="/admin/configuracoes/comissionamento" className="font-semibold text-navy-600 hover:underline">
+            Configurações → Comissionamento
+          </Link>{" "}
+          e selecione aqui.
+        </p>
       </div>
 
       {error && <p className="text-sm text-coral-700">{error}</p>}
@@ -218,12 +244,24 @@ function PainelVendedores() {
                 )}
               </p>
               <p className="text-xs text-navy-400">
-                {[v.email, v.telefone, v.modelo_nome ? `modelo: ${v.modelo_nome}` : null, v.codigo_indicacao ? `código: ${v.codigo_indicacao}` : null]
+                {[v.email, v.telefone, v.codigo_indicacao ? `código: ${v.codigo_indicacao}` : null]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
             </button>
             <div className="flex items-center gap-4 text-right">
+              <select
+                className="input-field w-auto text-xs"
+                value={v.modelo_comissionamento_id || ""}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => mudarModelo(v, e.target.value)}
+                title="Modelo de comissionamento"
+              >
+                <option value="">Padrão Vizinn</option>
+                {modelos.filter((m) => !m.padrao).map((m) => (
+                  <option key={m.id} value={m.id}>{m.nome}</option>
+                ))}
+              </select>
               <div>
                 <p className="text-xs text-navy-400">{v.vendas} venda(s)</p>
                 <p className="text-sm font-semibold text-navy-900"><ValorPrivado valor={formatBRL(v.comissao_total)} /></p>

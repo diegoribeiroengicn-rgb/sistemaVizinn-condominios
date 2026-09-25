@@ -17,6 +17,8 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [emancipando, setEmancipando] = useState(false);
+  const [criandoAcesso, setCriandoAcesso] = useState(false);
+  const [acessoMsg, setAcessoMsg] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,6 +39,24 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
     load();
   }, [load]);
 
+  async function criarAcesso() {
+    setCriandoAcesso(true);
+    setAcessoMsg("");
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}/criar-acesso`, { method: "POST" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao criar acesso.");
+      setAcessoMsg("Acesso criado! Mandamos um e-mail pro vendedor definir a senha.");
+      await load();
+      onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCriandoAcesso(false);
+    }
+  }
+
   async function emancipar() {
     if (!confirm(`Emancipar "${detalhe.vendedor.nome}"? Ele deixa de ser vendedor direto do líder atual e vira líder independente. O histórico não é apagado.`)) {
       return;
@@ -55,9 +75,9 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
     }
   }
 
-  const link = detalhe?.vendedor?.codigo_indicacao
-    ? `https://vizinn.com.br/vendedor/convite/${detalhe.vendedor.codigo_indicacao}`
-    : null;
+  const codigo = detalhe?.vendedor?.codigo_indicacao;
+  const linkConviteVendedor = codigo ? `https://vizinn.com.br/vendedor/convite/${codigo}` : null;
+  const linkVenda = codigo ? `https://vizinn.com.br/?ref=${codigo}` : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">
@@ -91,18 +111,47 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
                 Indicador original: <strong>{detalhe.vendedor.indicador_nome || "—"}</strong> · Líder atual:{" "}
                 <strong>{detalhe.vendedor.lider_nome || "Independente"}</strong>
               </p>
-              {link && (
+              {linkVenda && (
                 <p className="mt-2 text-xs text-navy-500">
-                  Link de convite: <code className="rounded bg-navy-50 px-1.5 py-0.5">{link}</code>{" "}
+                  Link de venda (vende condomínio, atribui venda própria a ele):{" "}
+                  <code className="rounded bg-navy-50 px-1.5 py-0.5">{linkVenda}</code>{" "}
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard?.writeText(link)}
+                    onClick={() => navigator.clipboard?.writeText(linkVenda)}
                     className="ml-1 font-semibold text-coral hover:underline"
                   >
                     Copiar
                   </button>
                 </p>
               )}
+              {linkConviteVendedor && (
+                <p className="mt-1 text-xs text-navy-500">
+                  Link de convite de vendedor (indica novo vendedor, gera 5% na 1ª venda dele):{" "}
+                  <code className="rounded bg-navy-50 px-1.5 py-0.5">{linkConviteVendedor}</code>{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(linkConviteVendedor)}
+                    className="ml-1 font-semibold text-coral hover:underline"
+                  >
+                    Copiar
+                  </button>
+                </p>
+              )}
+
+              <div className="mt-3 flex items-center gap-3">
+                {detalhe.vendedor.user_id ? (
+                  <span className="text-xs font-medium text-emerald-700">✓ Acesso de vendedor liberado</span>
+                ) : (
+                  <button onClick={criarAcesso} disabled={criandoAcesso || !detalhe.vendedor.email} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
+                    {criandoAcesso ? "Criando..." : "Criar acesso de vendedor (envia e-mail)"}
+                  </button>
+                )}
+              </div>
+              {!detalhe.vendedor.email && !detalhe.vendedor.user_id && (
+                <p className="mt-1 text-xs text-coral-700">Cadastre um e-mail pra esse vendedor antes de criar o acesso.</p>
+              )}
+              {acessoMsg && <p className="mt-1 text-xs font-medium text-emerald-700">{acessoMsg}</p>}
+
               {detalhe.vendedor.lider_atual_id && (
                 <button onClick={emancipar} disabled={emancipando} className="mt-3 text-xs font-semibold text-coral hover:underline disabled:opacity-50">
                   {emancipando ? "Emancipando..." : "Emancipar (tornar líder independente)"}

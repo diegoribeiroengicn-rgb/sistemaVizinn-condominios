@@ -2297,3 +2297,12 @@ create index if not exists auditoria_admin_entidade_idx on public.auditoria_admi
 
 alter table public.auditoria_admin enable row level security;
 grant all on public.auditoria_admin to service_role;
+
+-- Acesso de vendedor (login próprio, separado do login de
+-- síndico/morador): o admin gera o acesso (rota
+-- /api/admin/vendedores/[id]/criar-acesso), que cria o auth.users e
+-- vincula aqui. Sem policy de RLS pro vendedor ler vendedores/comissoes
+-- direto — tudo passa pelas rotas /api/vendedor/* com requireVendedor()
+-- (lib/vendedorAuth.js), igual o admin já funciona com requireAdmin().
+alter table public.vendedores add column if not exists user_id uuid references auth.users (id) on delete set null;
+create unique index if not exists vendedores_user_id_idx on public.vendedores (user_id) where user_id is not null;

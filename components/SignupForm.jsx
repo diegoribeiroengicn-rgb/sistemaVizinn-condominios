@@ -43,10 +43,23 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
   const [cupomAplicado, setCupomAplicado] = useState(null); // { codigo, tipo, valor }
   const [validandoCupom, setValidandoCupom] = useState(false);
   const [erroCupom, setErroCupom] = useState("");
+  // Atribuição automática de venda por link de indicação (?ref=CODIGO
+  // na URL) — identifica o vendedor sozinho, sem precisar digitar
+  // cupom. Independente do fluxo de cupom/desconto.
+  const [vendedorRefCodigo, setVendedorRefCodigo] = useState("");
 
   useEffect(() => {
     setPlanId(initialPlan);
   }, [initialPlan]);
+
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get("ref");
+      if (ref) setVendedorRefCodigo(ref.trim().toUpperCase());
+    } catch {
+      // sem window (SSR) — ignora, o efeito só roda no client mesmo
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/public/taxas-adesao")
@@ -133,6 +146,7 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
           paymentIntentId,
           isento: isento || false,
           cupomCodigo: cupomAplicado?.codigo || "",
+          vendedorCodigo: vendedorRefCodigo || "",
         }),
       });
       const data = await res.json();
