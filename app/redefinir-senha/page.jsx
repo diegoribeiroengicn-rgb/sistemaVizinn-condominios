@@ -62,11 +62,28 @@ export default function RedefinirSenhaPage() {
       return;
     }
     setSucesso(true);
-    // Vendedor tem um painel separado do síndico/morador — manda pro
-    // lugar certo conforme o metadata gravado na criação do usuário
-    // (ver /api/admin/vendedores/[id]/criar-acesso).
-    const { data } = await supabase.auth.getUser();
-    const destino = data?.user?.user_metadata?.tipo === "vendedor" ? "/vendedor/dashboard" : "/dashboard";
+
+    // Vendedor tem um painel separado do síndico/morador. Checar só o
+    // user_metadata do JWT (tipo: "vendedor") é frágil — depende de o
+    // token já estar atualizado no momento certo. Em vez disso,
+    // pergunta pro banco de verdade: existe um vendedor vinculado a
+    // esse usuário? (/api/vendedor/me só responde 200 pra quem tem
+    // vendedores.user_id = este usuário — ver lib/vendedorAuth.js).
+    let destino = "/dashboard";
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/vendedor/me", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (res.ok) destino = "/vendedor/dashboard";
+      }
+    } catch {
+      // Se a checagem falhar por qualquer motivo, cai no padrão
+      // (/dashboard) — nunca trava o redirecionamento por causa disso.
+    }
     setTimeout(() => router.push(destino), 2000);
   }
 
