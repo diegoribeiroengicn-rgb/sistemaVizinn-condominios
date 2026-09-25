@@ -19,6 +19,8 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   const [emancipando, setEmancipando] = useState(false);
   const [criandoAcesso, setCriandoAcesso] = useState(false);
   const [acessoMsg, setAcessoMsg] = useState("");
+  const [excluindo, setExcluindo] = useState(false);
+  const [alternandoAtivo, setAlternandoAtivo] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,6 +56,45 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
       setError(err.message);
     } finally {
       setCriandoAcesso(false);
+    }
+  }
+
+  async function alternarAtivo() {
+    setAlternandoAtivo(true);
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: !detalhe.vendedor.ativo }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao atualizar.");
+      await load();
+      onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAlternandoAtivo(false);
+    }
+  }
+
+  async function excluir() {
+    if (!confirm(`Excluir "${detalhe.vendedor.nome}" de verdade? Isso só funciona se ele não tiver nenhuma venda ou comissão registrada. Não dá pra desfazer.`)) {
+      return;
+    }
+    setExcluindo(true);
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/vendedores/${vendedorId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao excluir.");
+      onChanged?.();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -152,11 +193,19 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
               )}
               {acessoMsg && <p className="mt-1 text-xs font-medium text-emerald-700">{acessoMsg}</p>}
 
-              {detalhe.vendedor.lider_atual_id && (
-                <button onClick={emancipar} disabled={emancipando} className="mt-3 text-xs font-semibold text-coral hover:underline disabled:opacity-50">
-                  {emancipando ? "Emancipando..." : "Emancipar (tornar líder independente)"}
+              <div className="mt-3 flex flex-wrap gap-4">
+                {detalhe.vendedor.lider_atual_id && (
+                  <button onClick={emancipar} disabled={emancipando} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
+                    {emancipando ? "Emancipando..." : "Emancipar (tornar líder independente)"}
+                  </button>
+                )}
+                <button onClick={alternarAtivo} disabled={alternandoAtivo} className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50">
+                  {alternandoAtivo ? "Salvando..." : detalhe.vendedor.ativo ? "Desativar" : "Reativar"}
                 </button>
-              )}
+                <button onClick={excluir} disabled={excluindo} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
+                  {excluindo ? "Excluindo..." : "Excluir vendedor"}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

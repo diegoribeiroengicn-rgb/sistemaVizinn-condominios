@@ -2243,8 +2243,15 @@ alter table public.condominios add column if not exists vendedor_id uuid referen
 create table if not exists public.comissoes (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
-  vendedor_beneficiario_id uuid not null references public.vendedores (id) on delete cascade,
-  vendedor_venda_id uuid not null references public.vendedores (id) on delete cascade,
+  -- Sem "on delete cascade" aqui de propósito: apagar o vendedor A não
+  -- pode sumir com uma comissão em que A é só o vendedor_venda_id de
+  -- uma comissão de OUTRO vendedor (ex: a indicação/liderança que B
+  -- ganhou em cima de uma venda de A) — isso apagaria dinheiro
+  -- ganho por B só porque A foi excluído. A rota de exclusão
+  -- (DELETE /api/admin/vendedores/[id]) bloqueia excluir vendedor com
+  -- qualquer comissão vinculada, com a mensagem certa pro admin.
+  vendedor_beneficiario_id uuid not null references public.vendedores (id),
+  vendedor_venda_id uuid not null references public.vendedores (id),
   tipo text not null check (tipo in ('venda_propria', 'indicacao_primeira_venda', 'lideranca')),
   modelo_comissionamento_id uuid not null references public.modelos_comissionamento (id),
   modelo_versao integer not null,
@@ -2306,3 +2313,17 @@ grant all on public.auditoria_admin to service_role;
 -- (lib/vendedorAuth.js), igual o admin já funciona com requireAdmin().
 alter table public.vendedores add column if not exists user_id uuid references auth.users (id) on delete set null;
 create unique index if not exists vendedores_user_id_idx on public.vendedores (user_id) where user_id is not null;
+
+-- Corrige o "on delete cascade" das FKs de comissoes.vendedor_* (não
+-- existe mais em quem instalar do zero, ver create table acima) —
+-- migração pra quem já rodou a versão anterior do schema: apagar um
+-- vendedor sem venda nenhuma podia sumir com a comissão de OUTRO
+-- vendedor (ex: quem o indicou), porque a comissão de indicação/
+-- liderança referencia os dois lados. Agora bloqueia a exclusão em vez
+-- de apagar em cascata — ver DELETE /api/admin/vendedores/[id].
+alter table public.comissoes drop constraint if exists comissoes_vendedor_beneficiario_id_fkey;
+alter table public.comissoes add constraint comissoes_vendedor_beneficiario_id_fkey
+  foreign key (vendedor_beneficiario_id) references public.vendedores (id);
+alter table public.comissoes drop constraint if exists comissoes_vendedor_venda_id_fkey;
+alter table public.comissoes add constraint comissoes_vendedor_venda_id_fkey
+  foreign key (vendedor_venda_id) references public.vendedores (id);
