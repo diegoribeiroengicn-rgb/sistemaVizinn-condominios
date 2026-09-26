@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 import ChatbotWidget from "@/components/ChatbotWidget";
+import RegisterServiceWorker from "@/components/RegisterServiceWorker";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -17,10 +18,58 @@ const display = Libre_Baskerville({
   display: "swap",
 });
 
+const SITE_URL = "https://www.vizinn.com.br";
+const DESCRICAO =
+  "Vizinn é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
+
 export const metadata = {
-  title: "Vizinn | Condomínio Inteligente",
-  description:
-    "Vizinn simplifica a administração condominial: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Vizinn | Condomínio Inteligente",
+    template: "%s | Vizinn",
+  },
+  description: DESCRICAO,
+  keywords: [
+    "Vizinn",
+    "condomínio inteligente",
+    "sistema de gestão condominial",
+    "software para condomínio",
+    "gestão de condomínio",
+    "portal do condômino",
+  ],
+  applicationName: "Vizinn",
+  authors: [{ name: "Vizinn" }],
+  robots: { index: true, follow: true },
+  alternates: { canonical: "/" },
+  icons: {
+    icon: "/icon.png",
+    apple: "/icons/apple-touch-icon.png",
+  },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Vizinn",
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: SITE_URL,
+    siteName: "Vizinn",
+    title: "Vizinn | Condomínio Inteligente",
+    description: DESCRICAO,
+    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "Vizinn" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Vizinn | Condomínio Inteligente",
+    description: DESCRICAO,
+    images: ["/brand/vizinn-logo-horizontal.png"],
+  },
+};
+
+export const viewport = {
+  themeColor: "#0a1f3f",
 };
 
 export default function RootLayout({ children }) {
@@ -34,6 +83,7 @@ export default function RootLayout({ children }) {
           {children}
           <ChatbotWidget />
         </AuthProvider>
+        <RegisterServiceWorker />
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
 import LandingHero from "@/components/LandingHero";
 import Features from "@/components/Features";
+import InstalarApp from "@/components/InstalarApp";
 import AcademiaDestaque from "@/components/AcademiaDestaque";
 import EcossistemaFornecedores from "@/components/EcossistemaFornecedores";
 import Pricing from "@/components/Pricing";
@@ -42,9 +43,32 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-cream-50">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "Vizinn",
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            description:
+              "Vizinn é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word.",
+            url: "https://www.vizinn.com.br",
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "BRL",
+              lowPrice: "49",
+              highPrice: "199",
+              offerCount: "3",
+            },
+          }),
+        }}
+      />
       <Header onStart={() => openSignup("growth")} onLogin={() => setAuthView("login")} />
       <LandingHero onStart={() => openSignup("growth")} />
       <Features />
+      <InstalarApp />
       <AcademiaDestaque onStart={() => openSignup("growth")} />
       <EcossistemaFornecedores onStart={() => openSignup("growth")} />
       <Pricing onSelectPlan={openSignup} />

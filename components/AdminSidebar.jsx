@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -76,13 +77,9 @@ export default function AdminSidebar() {
     <>
       <div className="flex items-center gap-2.5 px-4 py-6">
         <Link href="/admin" className="flex items-center gap-2.5">
-          <svg width="40" height="40" viewBox="0 0 1920 1920" fill="none" aria-hidden="true" className="flex-none">
-            <path
-              d="M804 402c40-40 108-12 108 44v378c0 30 12 59 34 80l7 6 7-6c22-21 34-50 34-80V446c0-56 68-84 108-44l236 236c78 78 122 184 122 294v378c0 92-75 167-167 167h-134V1231a153 153 0 0 0-306 0v270H610c-92 0-167-75-167-167V976c0-110 44-216 122-294l239-236z"
-              fill="#e45d4e"
-            />
-            <circle cx="960" cy="807" r="112" fill="#e45d4e" />
-          </svg>
+          <span className="flex-none rounded-lg bg-cream-50 p-1">
+            <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={32} height={32} />
+          </span>
           {!collapsed && (
             <span className="flex items-center gap-2">
               <span className="font-display text-2xl font-bold tracking-tight text-white">Vizinn</span>
@@ -160,13 +157,9 @@ export default function AdminSidebar() {
     <>
       <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
         <Link href="/admin" className="flex items-center gap-2">
-          <svg width="32" height="32" viewBox="0 0 1920 1920" fill="none" aria-hidden="true">
-            <path
-              d="M804 402c40-40 108-12 108 44v378c0 30 12 59 34 80l7 6 7-6c22-21 34-50 34-80V446c0-56 68-84 108-44l236 236c78 78 122 184 122 294v378c0 92-75 167-167 167h-134V1231a153 153 0 0 0-306 0v270H610c-92 0-167-75-167-167V976c0-110 44-216 122-294l239-236z"
-              fill="#e45d4e"
-            />
-            <circle cx="960" cy="807" r="112" fill="#e45d4e" />
-          </svg>
+          <span className="flex-none rounded-lg bg-cream-50 p-1">
+            <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={24} height={24} />
+          </span>
           <span className="font-display text-xl font-bold tracking-tight text-white">Vizinn Admin</span>
         </Link>
         <button
