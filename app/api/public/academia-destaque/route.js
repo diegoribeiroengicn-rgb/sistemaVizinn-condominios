@@ -3,8 +3,15 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // Sem parâmetro de request, o Next tentaria pré-renderizar essa rota
 // como estática em build time (e falharia, sem as env vars do
-// Supabase disponíveis nesse momento). Força sempre dinâmica.
+// Supabase disponíveis nesse momento). Força sempre dinâmica — e,
+// como já aconteceu com condominios-buscar (GET fica cacheado em
+// algum ponto da cadeia até por proxy/CDN, mesmo com "force-dynamic"),
+// desliga cache explicitamente em todas as camadas: sem isso, a
+// primeira resposta vazia (antes de existir vídeo público) podia
+// ficar "grudada" e nunca refletir vídeos publicados depois.
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 // Pública (sem login) — mostra a Academia Vizinn como diferencial na
 // página inicial. Só devolve vídeos que o admin marcou explicitamente
@@ -50,5 +57,8 @@ export async function GET() {
     .eq("status", "publicado")
     .eq("ativo", true);
 
-  return NextResponse.json({ videos, totalPublicado: totalPublicado || 0 });
+  return NextResponse.json(
+    { videos, totalPublicado: totalPublicado || 0 },
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, private" } }
+  );
 }
