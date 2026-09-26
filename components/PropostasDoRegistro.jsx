@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { STATUS_LABELS, STATUS_STYLES, STATUS_DECISAO } from "@/lib/propostas";
 import { formatarMoeda } from "@/lib/financeiro";
+import { nomeArquivoSeguro } from "@/lib/storage";
 
 const emptyForm = {
   titulo: "",
@@ -144,7 +145,7 @@ export default function PropostasDoRegistro({ tipo, registroId, condominioId }) 
     if (proposta.anexo_url) {
       await supabase.storage.from("propostas-anexos").remove([proposta.anexo_url]);
     }
-    const caminho = `${condominioId}/${proposta.id}/${Date.now()}-${file.name}`;
+    const caminho = `${condominioId}/${proposta.id}/${Date.now()}-${nomeArquivoSeguro(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("propostas-anexos").upload(caminho, file);
     if (uploadError) {
       setEnviandoAnexoId(null);

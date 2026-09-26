@@ -29,6 +29,7 @@ import {
   parseContasReceberCsv,
 } from "@/lib/financeiro";
 import { baixarBlob } from "@/lib/xlsx";
+import { nomeArquivoSeguro } from "@/lib/storage";
 
 const ABAS = [
   { id: "visao", label: "Visão financeira" },
@@ -201,7 +202,7 @@ export default function FinanceiroPage() {
     let documentoUrl = null;
     if (arquivoPagar) {
       setEnviandoArquivo(true);
-      const caminho = `${condominio.id}/${Date.now()}-${arquivoPagar.name}`;
+      const caminho = `${condominio.id}/${Date.now()}-${nomeArquivoSeguro(arquivoPagar.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("financeiro-documentos")
         .upload(caminho, arquivoPagar);

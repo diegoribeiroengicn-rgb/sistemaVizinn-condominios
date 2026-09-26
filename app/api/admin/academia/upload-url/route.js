@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
+import { nomeArquivoSeguro } from "@/lib/storage";
 
 // Emite uma URL de upload assinada (curta duração, uso único) pro
 // admin subir o arquivo de vídeo/thumbnail DIRETO do navegador pro
@@ -19,7 +20,7 @@ export async function POST(request) {
   }
 
   const bucket = tipo === "video" ? "academia-videos" : "academia-thumbnails";
-  const caminho = `${videoId}/${Date.now()}-${fileName}`;
+  const caminho = `${videoId}/${Date.now()}-${nomeArquivoSeguro(fileName)}`;
 
   const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUploadUrl(caminho);
