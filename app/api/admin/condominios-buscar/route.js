@@ -3,33 +3,35 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 // Painel admin — listagem/busca escalável de Condomínios. Busca sempre
 // paginada no banco (nunca carrega a base inteira pra filtrar no
 // navegador), por nome (trecho, via índice trigram) ou CNPJ com/sem
 // pontuação (via a coluna gerada `cnpj_digits`, também indexada). Ver
 // supabase/schema.sql.
-export async function GET(request) {
+//
+// É POST (não GET) de propósito: depois de ver essa lista mostrar
+// registro já apagado / faltando o mais recente mesmo com
+// Cache-Control: no-store e URL sempre diferente, a suspeita é algum
+// cache no meio do caminho (CDN/proxy) ignorando esses headers pra
+// GET. POST não é cacheado por nada no caminho por padrão — elimina
+// essa categoria inteira de causa, sem depender de nenhum header ser
+// respeitado corretamente em toda a cadeia.
+export async function POST(request) {
   const auth = await requireAdmin(request, "condominios");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { searchParams } = new URL(request.url);
-  const termo = (searchParams.get("q") || "").trim().slice(0, 100);
-  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
-  const pageSize = Math.min(2000, Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20));
+  const body = await request.json().catch(() => ({}));
+  const termo = String(body.q || "").trim().slice(0, 100);
+  const page = Math.max(1, parseInt(body.page, 10) || 1);
+  const pageSize = Math.min(2000, Math.max(1, parseInt(body.pageSize, 10) || 20));
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
   const supabaseAdmin = getSupabaseAdmin();
 
-  // Monta o filtro (nome/CNPJ) uma vez e aplica igual nas duas
-  // consultas abaixo (dados + contagem) — antes era uma query só com
-  // `{ count: "exact" }` + `.range()`, mas trocamos pra duas
-  // consultas separadas (uma com `.limit()` pros dados, outra com
-  // `head: true` só pra contar) depois de ver a contagem combinada
-  // divergir da real em produção (registro mais recente sumindo só
-  // dessa rota). Assim cada uma é uma requisição HTTP própria e mais
-  // simples, sem depender desse combo específico do PostgREST.
   function aplicarFiltro(q) {
     if (!termo) return q;
     const termoSeguro = termo.replace(/[,()]/g, " ").trim();
@@ -68,6 +70,6 @@ export async function GET(request) {
 
   return NextResponse.json(
     { itens: condominios || [], total: count ?? 0, page, pageSize },
-    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
+    { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0, private" } }
   );
 }

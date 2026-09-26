@@ -53,13 +53,14 @@ export default function AdminCondominiosContent() {
     setCarregandoLista(true);
     setErroLista("");
     try {
-      // `_t` só pra garantir uma URL sempre diferente a cada chamada —
-      // nunca deixa nenhum cache no meio do caminho (CDN, navegador)
-      // servir uma resposta antiga pra essa mesma URL de novo, mesmo
-      // que o header Cache-Control seja ignorado em algum ponto.
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), _t: String(Date.now()) });
-      if (termo) params.set("q", termo);
-      const res = await authedFetch(`/api/admin/condominios-buscar?${params.toString()}`);
+      // POST em vez de GET de propósito — nenhum cache no meio do
+      // caminho (CDN, proxy) guarda resposta de POST por padrão,
+      // mesmo que ignore o header Cache-Control pra GET.
+      const res = await authedFetch(`/api/admin/condominios-buscar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page, pageSize: PAGE_SIZE, q: termo || undefined }),
+      });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao buscar condomínios.");
       setListaCondominios(json.itens);
