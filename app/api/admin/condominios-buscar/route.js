@@ -21,33 +21,36 @@ export async function GET(request) {
   const to = from + pageSize - 1;
 
   const supabaseAdmin = getSupabaseAdmin();
-  let query = supabaseAdmin
-    .from("condominios")
-    .select(
-      "id, owner_id, owner_email, nome, cnpj, responsavel_nome, plano, unidades_limite, unidades_ativas, status, stripe_subscription_id, access_note, courtesy_until, created_at",
-      { count: "exact" }
-    );
 
-  if (termo) {
-    // Vírgulas e parênteses têm significado especial na sintaxe de
-    // filtro do PostgREST (.or) — tira do termo pra não quebrar a
-    // consulta com um valor digitado livremente pelo admin.
+  // Monta o filtro (nome/CNPJ) uma vez e aplica igual nas duas
+  // consultas abaixo (dados + contagem) — antes era uma query só com
+  // `{ count: "exact" }` + `.range()`, mas trocamos pra duas
+  // consultas separadas (uma com `.limit()` pros dados, outra com
+  // `head: true` só pra contar) depois de ver a contagem combinada
+  // divergir da real em produção (registro mais recente sumindo só
+  // dessa rota). Assim cada uma é uma requisição HTTP própria e mais
+  // simples, sem depender desse combo específico do PostgREST.
+  function aplicarFiltro(q) {
+    if (!termo) return q;
     const termoSeguro = termo.replace(/[,()]/g, " ").trim();
     const digitos = termo.replace(/\D/g, "");
-    if (termoSeguro) {
-      query =
-        digitos.length >= 3
-          ? query.or(`nome.ilike.%${termoSeguro}%,cnpj_digits.ilike.%${digitos}%`)
-          : query.ilike("nome", `%${termoSeguro}%`);
-    }
+    if (!termoSeguro) return q;
+    return digitos.length >= 3
+      ? q.or(`nome.ilike.%${termoSeguro}%,cnpj_digits.ilike.%${digitos}%`)
+      : q.ilike("nome", `%${termoSeguro}%`);
   }
 
-  const {
-    data: condominios,
-    error,
-    count,
-  } = await query.order("created_at", { ascending: false }).range(from, to);
+  const colunas =
+    "id, owner_id, owner_email, nome, cnpj, responsavel_nome, plano, unidades_limite, unidades_ativas, status, stripe_subscription_id, access_note, courtesy_until, created_at";
+
+  const [{ data: condominios, error }, { count, error: erroCount }] = await Promise.all([
+    aplicarFiltro(supabaseAdmin.from("condominios").select(colunas))
+      .order("created_at", { ascending: false })
+      .range(from, to),
+    aplicarFiltro(supabaseAdmin.from("condominios").select("id", { count: "exact", head: true })),
+  ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (erroCount) return NextResponse.json({ error: erroCount.message }, { status: 500 });
 
   const ownerIds = [...new Set((condominios || []).map((c) => c.owner_id))];
   const { data: contasSindico } = ownerIds.length

@@ -53,7 +53,11 @@ export default function AdminCondominiosContent() {
     setCarregandoLista(true);
     setErroLista("");
     try {
-      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+      // `_t` só pra garantir uma URL sempre diferente a cada chamada —
+      // nunca deixa nenhum cache no meio do caminho (CDN, navegador)
+      // servir uma resposta antiga pra essa mesma URL de novo, mesmo
+      // que o header Cache-Control seja ignorado em algum ponto.
+      const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE), _t: String(Date.now()) });
       if (termo) params.set("q", termo);
       const res = await authedFetch(`/api/admin/condominios-buscar?${params.toString()}`);
       const json = await res.json();
