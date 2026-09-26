@@ -65,6 +65,34 @@ export default function AdminManageModal({ condominio, onClose, onChanged }) {
     run("cancel", "/api/admin/cancel-subscription");
   }
 
+  async function handleExcluir() {
+    if (
+      !confirm(
+        `Excluir "${condominio.nome}" PERMANENTEMENTE? Isso apaga o condomínio inteiro — moradores, chamados, financeiro, tudo — e não pode ser desfeito. Use só pra cadastros de teste ou lixo, nunca pra um cliente de verdade.`
+      )
+    ) {
+      return;
+    }
+    const digitado = prompt(`Pra confirmar, digite o nome exato do condomínio: "${condominio.nome}"`);
+    if (digitado !== condominio.nome) {
+      if (digitado !== null) alert("Nome não bateu — exclusão cancelada.");
+      return;
+    }
+    setBusyAction("excluir");
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/condominios/${condominio.id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao excluir.");
+      onChanged();
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm"
@@ -172,6 +200,14 @@ export default function AdminManageModal({ condominio, onClose, onChanged }) {
               {busyAction === "cancel" ? "Cancelando..." : "Cancelar assinatura"}
             </button>
           )}
+
+          <button
+            onClick={handleExcluir}
+            disabled={busyAction !== null}
+            className="w-full rounded-full bg-coral-50 px-6 py-3 text-sm font-semibold text-coral-700 transition hover:bg-coral hover:text-white disabled:opacity-50"
+          >
+            {busyAction === "excluir" ? "Excluindo..." : "Excluir condomínio (apaga tudo, sem volta)"}
+          </button>
         </div>
       </div>
     </div>
