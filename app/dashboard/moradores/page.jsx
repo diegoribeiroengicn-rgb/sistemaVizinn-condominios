@@ -187,7 +187,7 @@ export default function MoradoresPage() {
   async function handleExportarPdf() {
     setExportando("pdf");
     try {
-      gerarPdf(montarConfigRelatorio());
+      await gerarPdf(montarConfigRelatorio());
     } finally {
       setExportando(null);
     }

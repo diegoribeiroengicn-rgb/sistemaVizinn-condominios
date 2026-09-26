@@ -351,7 +351,7 @@ export default function FornecedoresPage() {
   async function handleExportarPdf() {
     setExportando("pdf");
     try {
-      gerarPdf(montarConfigRelatorio());
+      await gerarPdf(montarConfigRelatorio());
     } finally {
       setExportando(null);
     }

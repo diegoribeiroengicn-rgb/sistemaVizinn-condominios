@@ -281,7 +281,7 @@ export default function ColaboradoresPage() {
   async function handleExportarPdf() {
     setExportando("pdf");
     try {
-      gerarPdf(montarConfigRelatorio());
+      await gerarPdf(montarConfigRelatorio());
     } finally {
       setExportando(null);
     }

@@ -446,7 +446,7 @@ export default function RelatoriosPage() {
     if (!relatorioAtual) return;
     setExportando("pdf");
     try {
-      gerarPdf(montarConfigExport());
+      await gerarPdf(montarConfigExport());
     } finally {
       setExportando(null);
     }
