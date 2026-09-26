@@ -26,6 +26,36 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
   const [error, setError] = useState("");
   const [linkCriado, setLinkCriado] = useState(null);
   const [copiadoLink, setCopiadoLink] = useState(false);
+  const [gerandoLinkPagamento, setGerandoLinkPagamento] = useState(false);
+  const [linkPagamento, setLinkPagamento] = useState(null);
+  const [erroLinkPagamento, setErroLinkPagamento] = useState("");
+  const [copiadoLinkPagamento, setCopiadoLinkPagamento] = useState(false);
+
+  async function gerarLinkPagamento() {
+    setErroLinkPagamento("");
+    if (!Number(form.valorAdesao) || Number(form.valorAdesao) <= 0) {
+      setErroLinkPagamento("Preencha o valor da adesão antes de gerar o link.");
+      return;
+    }
+    setGerandoLinkPagamento(true);
+    try {
+      const res = await vendedorFetch("/api/vendedor/link-pagamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          descricao: `Adesão Vizinn - ${form.condominioNome || "condomínio"}`,
+          valor: form.valorAdesao,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao gerar link de pagamento.");
+      setLinkPagamento(json.url);
+    } catch (err) {
+      setErroLinkPagamento(err.message);
+    } finally {
+      setGerandoLinkPagamento(false);
+    }
+  }
 
   async function salvar(e) {
     e.preventDefault();
@@ -143,6 +173,36 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
               value={form.valorAdesao}
               onChange={(e) => setForm((f) => ({ ...f, valorAdesao: e.target.value }))}
             />
+            <p className="mt-1 text-xs text-navy-400">
+              Se o síndico ainda não pagou, gere um link de pagamento (cartão, e Pix/boleto se estiverem habilitados
+              na conta) em vez de preencher esse valor de cabeça — depois é só confirmar aqui o que ele realmente
+              pagou.
+            </p>
+            <button
+              type="button"
+              onClick={gerarLinkPagamento}
+              disabled={gerandoLinkPagamento}
+              className="mt-2 text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+            >
+              {gerandoLinkPagamento ? "Gerando..." : "Gerar link de pagamento"}
+            </button>
+            {erroLinkPagamento && <p className="mt-1 text-xs text-coral-700">{erroLinkPagamento}</p>}
+            {linkPagamento && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="flex-1 rounded-lg bg-navy-50 px-3 py-2 text-xs text-navy-700">{linkPagamento}</code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(linkPagamento);
+                    setCopiadoLinkPagamento(true);
+                    setTimeout(() => setCopiadoLinkPagamento(false), 2000);
+                  }}
+                  className="btn-primary text-xs"
+                >
+                  {copiadoLinkPagamento ? "Copiado!" : "Copiar"}
+                </button>
+              </div>
+            )}
           </div>
           <div className="sm:col-span-2">
             <button type="submit" disabled={salvando} className="btn-primary text-sm">
