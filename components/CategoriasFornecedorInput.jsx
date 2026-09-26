@@ -2,72 +2,42 @@
 
 import { CATEGORIAS_SUGERIDAS } from "@/lib/fornecedores";
 
-// Entrada de categorias em formato de "chips" — um fornecedor pode
-// atuar em mais de uma categoria (ex: Elétrica e Hidráulica). Digite e
-// pressione Enter/vírgula (ou saia do campo) pra adicionar; sugestões
-// vêm de CATEGORIAS_SUGERIDAS mas qualquer texto livre é aceito.
-export default function CategoriasFornecedorInput({ value, onChange, inputId = "categorias-fornecedor" }) {
+// Entrada de categorias — um fornecedor pode atuar em mais de uma
+// (ex: Elétrica e Hidráulica). Só permite escolher da lista fixa
+// (CATEGORIAS_SUGERIDAS), a mesma usada no filtro da Rede Vizinn —
+// antes era texto livre com essa lista só como sugestão de
+// autocompletar, e qualquer variação digitada (plural/singular,
+// maiúscula, espaço a mais) fazia o fornecedor nunca aparecer na
+// busca por categoria de outro condomínio, porque o filtro compara
+// com essa mesma lista.
+export default function CategoriasFornecedorInput({ value, onChange }) {
   const categorias = value || [];
 
-  function adicionar(texto) {
-    const limpo = texto.trim();
-    if (!limpo || categorias.includes(limpo)) return;
-    onChange([...categorias, limpo]);
-  }
-
-  function remover(categoria) {
-    onChange(categorias.filter((c) => c !== categoria));
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      adicionar(e.target.value);
-      e.target.value = "";
-    }
-  }
-
-  function handleBlur(e) {
-    if (e.target.value.trim()) {
-      adicionar(e.target.value);
-      e.target.value = "";
-    }
+  function alternar(categoria, marcado) {
+    onChange(marcado ? [...categorias, categoria] : categorias.filter((c) => c !== categoria));
   }
 
   return (
-    <div>
-      {categorias.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {categorias.map((c) => (
-            <span
-              key={c}
-              className="inline-flex items-center gap-1 rounded-full bg-navy-50 px-2.5 py-1 text-xs font-medium text-navy-600"
-            >
-              {c}
-              <button
-                type="button"
-                onClick={() => remover(c)}
-                className="text-navy-400 hover:text-coral"
-                aria-label={`Remover categoria ${c}`}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <input
-        className="input-field"
-        list={inputId}
-        placeholder="Digite uma categoria e pressione Enter (pode adicionar mais de uma)..."
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-      />
-      <datalist id={inputId}>
-        {CATEGORIAS_SUGERIDAS.filter((c) => !categorias.includes(c)).map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
+    <div className="flex flex-wrap gap-2">
+      {CATEGORIAS_SUGERIDAS.map((c) => {
+        const marcado = categorias.includes(c);
+        return (
+          <label
+            key={c}
+            className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${
+              marcado ? "border-coral bg-coral-50 text-coral-700" : "border-navy-200 text-navy-600"
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={marcado}
+              onChange={(e) => alternar(c, e.target.checked)}
+            />
+            {c}
+          </label>
+        );
+      })}
     </div>
   );
 }
