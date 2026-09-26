@@ -48,6 +48,17 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: "Já existe um cadastro de vendedor com este e-mail." }, { status: 409 });
   }
 
+  // Vendedor e funcionário do admin são papéis separados e nunca
+  // podem ser a mesma pessoa (mesmo e-mail).
+  const { data: funcionarioExistente } = await supabaseAdmin
+    .from("admin_funcionarios").select("id").ilike("email", emailNormalizado).maybeSingle();
+  if (funcionarioExistente) {
+    return NextResponse.json(
+      { error: "Esse e-mail já está cadastrado como funcionário do Vizinn — não pode ser vendedor também." },
+      { status: 409 }
+    );
+  }
+
   let codigo = null;
   for (let tentativa = 0; tentativa < 5 && !codigo; tentativa++) {
     const candidato = gerarCodigoIndicacao();

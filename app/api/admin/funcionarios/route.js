@@ -28,11 +28,26 @@ export async function POST(request) {
     return NextResponse.json({ error: "Nome e e-mail são obrigatórios." }, { status: 400 });
   }
   const modulos = (modulosPermitidos || []).filter((m) => ADMIN_MODULO_IDS.includes(m));
+  const emailNormalizado = email.trim().toLowerCase();
 
   const supabaseAdmin = getSupabaseAdmin();
+
+  // Vendedor e funcionário do admin são papéis separados e nunca
+  // podem ser a mesma pessoa (mesmo e-mail) — bloqueia aqui, antes de
+  // criar o registro, em vez de deixar o conflito só aparecer depois
+  // ao tentar liberar o acesso de login.
+  const { data: vendedorExistente } = await supabaseAdmin
+    .from("vendedores").select("id").ilike("email", emailNormalizado).maybeSingle();
+  if (vendedorExistente) {
+    return NextResponse.json(
+      { error: "Esse e-mail já está cadastrado como vendedor — não pode ser funcionário também." },
+      { status: 409 }
+    );
+  }
+
   const { data, error } = await supabaseAdmin
     .from("admin_funcionarios")
-    .insert({ nome: nome.trim(), email: email.trim().toLowerCase(), modulos_permitidos: modulos })
+    .insert({ nome: nome.trim(), email: emailNormalizado, modulos_permitidos: modulos })
     .select()
     .single();
   if (error) {

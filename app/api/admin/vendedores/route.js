@@ -75,6 +75,21 @@ export async function POST(request) {
 
   const supabaseAdmin = getSupabaseAdmin();
 
+  // Vendedor e funcionário do admin são papéis separados e nunca
+  // podem ser a mesma pessoa (mesmo e-mail) — bloqueia aqui, antes de
+  // criar o registro, em vez de deixar o conflito só aparecer depois
+  // ao tentar liberar o acesso de login.
+  if (email?.trim()) {
+    const { data: funcionarioExistente } = await supabaseAdmin
+      .from("admin_funcionarios").select("id").ilike("email", email.trim()).maybeSingle();
+    if (funcionarioExistente) {
+      return NextResponse.json(
+        { error: "Esse e-mail já está cadastrado como funcionário do admin — não pode ser vendedor também." },
+        { status: 409 }
+      );
+    }
+  }
+
   let modeloId = modeloComissionamentoId || null;
   if (!modeloId) {
     const { data: padrao } = await supabaseAdmin
