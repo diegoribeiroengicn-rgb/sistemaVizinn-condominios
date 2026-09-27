@@ -1,0 +1,13 @@
+{
+  "appId": "br.com.vizinn.app",
+  "appName": "Vizinn",
+  "webDir": "capacitor-www",
+  "server": {
+    "url": "https://www.vizinn.com.br",
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "backgroundColor": "#0a1f3f"
+  }
+}
