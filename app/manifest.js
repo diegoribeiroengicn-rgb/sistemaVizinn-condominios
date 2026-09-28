@@ -4,8 +4,8 @@
 // components/InstalarApp.jsx) e dá ícone/nome/tela cheia ao abrir.
 export default function manifest() {
   return {
-    name: "Vizinn — Condomínio Inteligente",
-    short_name: "Vizinn",
+    name: "Habittum — Condomínio Inteligente",
+    short_name: "Habittum",
     description:
       "Gestão condominial completa: chamados, avisos, financeiro, portaria e notificações automáticas por WhatsApp.",
     start_url: "/dashboard",

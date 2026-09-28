@@ -54,7 +54,7 @@ export async function POST(request, { params }) {
     .from("admin_funcionarios").select("id").ilike("email", emailNormalizado).maybeSingle();
   if (funcionarioExistente) {
     return NextResponse.json(
-      { error: "Esse e-mail já está cadastrado como funcionário do Vizinn — não pode ser vendedor também." },
+      { error: "Esse e-mail já está cadastrado como funcionário do Habittum — não pode ser vendedor também." },
       { status: 409 }
     );
   }
@@ -81,7 +81,7 @@ export async function POST(request, { params }) {
   });
   if (erroCriarUser) {
     if (erroCriarUser.message?.toLowerCase().includes("already")) {
-      return NextResponse.json({ error: "Já existe uma conta com este e-mail no Vizinn." }, { status: 409 });
+      return NextResponse.json({ error: "Já existe uma conta com este e-mail no Habittum." }, { status: 409 });
     }
     return NextResponse.json({ error: erroCriarUser.message }, { status: 500 });
   }

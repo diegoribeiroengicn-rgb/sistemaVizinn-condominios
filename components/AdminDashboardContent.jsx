@@ -76,7 +76,7 @@ export default function AdminDashboardContent() {
           Painel do administrador
         </h1>
         <p className="text-navy-500">
-          Visão geral de todos os condomínios cadastrados na Vizinn.
+          Visão geral de todos os condomínios cadastrados na Habittum.
         </p>
       </div>
 

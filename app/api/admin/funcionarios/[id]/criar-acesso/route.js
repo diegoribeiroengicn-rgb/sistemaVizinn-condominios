@@ -30,7 +30,7 @@ export async function POST(request, { params }) {
     });
     if (erroCriarUser) {
       if (erroCriarUser.message?.toLowerCase().includes("already")) {
-        return NextResponse.json({ error: "Já existe uma conta com este e-mail no Vizinn." }, { status: 409 });
+        return NextResponse.json({ error: "Já existe uma conta com este e-mail no Habittum." }, { status: 409 });
       }
       return NextResponse.json({ error: erroCriarUser.message }, { status: 500 });
     }
@@ -61,11 +61,11 @@ export async function POST(request, { params }) {
   try {
     await enviarEmail({
       to: funcionario.email,
-      subject: "Seu acesso ao painel Vizinn",
-      fromName: "Vizinn",
+      subject: "Seu acesso ao painel Habittum",
+      fromName: "Habittum",
       html: `
         <p>Olá, ${funcionario.nome}!</p>
-        <p>Seu acesso ao painel administrativo da Vizinn foi liberado. Clique no link abaixo pra criar sua senha e entrar:</p>
+        <p>Seu acesso ao painel administrativo da Habittum foi liberado. Clique no link abaixo pra criar sua senha e entrar:</p>
         <p><a href="${linkData.properties.action_link}">Criar minha senha e acessar</a></p>
       `,
     });

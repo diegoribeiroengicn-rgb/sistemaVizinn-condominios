@@ -213,7 +213,7 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
   return (
     <div className="card mx-auto w-full max-w-xl">
       <div className="mb-6 flex items-center justify-between">
-        <h2 className="font-display text-2xl font-bold text-navy-900">Criar conta Vizinn</h2>
+        <h2 className="font-display text-2xl font-bold text-navy-900">Criar conta Habittum</h2>
         {onClose && (
           <button onClick={onClose} className="text-navy-400 hover:text-navy-700" aria-label="Fechar">
             ✕

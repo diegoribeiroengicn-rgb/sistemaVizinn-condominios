@@ -3,7 +3,7 @@ import { enviarEmail } from "@/lib/notificacoes";
 import { parseEmailList } from "@/lib/emailList";
 
 // Endpoint público da landing page — alguém interessado em ser
-// representante comercial Vizinn manda os dados de contato e a gente
+// representante comercial Habittum manda os dados de contato e a gente
 // só avisa por e-mail (mesmo padrão simples do "Fale Conosco" em
 // /api/contato — sem cadastro automático de vendedor: quem decide
 // aprovar e criar o acesso é o admin, em /admin/pagamentos).
@@ -35,7 +35,7 @@ export async function POST(request) {
       to: destinatario,
       subject: `Candidatura a representante comercial — ${nome}`,
       html: `<p><strong>Nome:</strong> ${escapeHtml(nome)}</p><p><strong>E-mail:</strong> ${escapeHtml(email)}</p><p><strong>Telefone/WhatsApp:</strong> ${escapeHtml(telefone)}</p>${mensagem ? `<p><strong>Mensagem:</strong></p><p>${escapeHtml(mensagem).replace(/\n/g, "<br/>")}</p>` : ""}`,
-      fromName: "Vizinn — Candidatura a representante",
+      fromName: "Habittum — Candidatura a representante",
       replyTo: email,
     });
   } catch (err) {

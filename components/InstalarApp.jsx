@@ -46,9 +46,9 @@ export default function InstalarApp() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6" id="app">
       <div className="card mx-auto flex max-w-3xl flex-col items-center gap-5 text-center sm:flex-row sm:text-left">
-        <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={72} height={72} className="flex-none rounded-2xl" />
+        <Image src="/brand/vizinn-mark.png" alt="Habittum" width={72} height={72} className="flex-none rounded-2xl" />
         <div className="flex-1">
-          <h2 className="font-display text-xl font-bold text-navy-900">Leve o Vizinn no bolso</h2>
+          <h2 className="font-display text-xl font-bold text-navy-900">Leve o Habittum no bolso</h2>
           <p className="mt-1 text-sm text-navy-600">
             Instale o app no seu celular — sem loja, sem espaço ocupado, direto do navegador.
             Acesso rápido a chamados, avisos e financeiro de onde você estiver.
@@ -86,7 +86,7 @@ export default function InstalarApp() {
                 Toque no ícone de compartilhar <span className="font-semibold">⬆️</span> na barra do navegador.
               </li>
               <li>Escolha &ldquo;Adicionar à Tela de Início&rdquo;.</li>
-              <li>Pronto — o ícone do Vizinn aparece na sua tela como um app.</li>
+              <li>Pronto — o ícone do Habittum aparece na sua tela como um app.</li>
             </ol>
           ) : (
             <p>

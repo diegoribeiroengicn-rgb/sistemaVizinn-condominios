@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-const CHAVE_SESSAO = "vizinn-valores-financeiros-visiveis";
+const CHAVE_SESSAO = "habittum-valores-financeiros-visiveis";
 
 const ValoresVisiveisContext = createContext(null);
 

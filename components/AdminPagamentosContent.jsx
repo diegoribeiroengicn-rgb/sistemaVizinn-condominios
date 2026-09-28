@@ -348,7 +348,7 @@ function PainelVendedores() {
             value={form.modeloComissionamentoId}
             onChange={(e) => setForm((f) => ({ ...f, modeloComissionamentoId: e.target.value }))}
           >
-            <option value="">Modelo padrão Vizinn</option>
+            <option value="">Modelo padrão Habittum</option>
             {modelos.filter((m) => !m.padrao).map((m) => (
               <option key={m.id} value={m.id}>{m.nome}</option>
             ))}
@@ -398,7 +398,7 @@ function PainelVendedores() {
                 onChange={(e) => mudarModelo(v, e.target.value)}
                 title="Modelo de comissionamento"
               >
-                <option value="">Padrão Vizinn</option>
+                <option value="">Padrão Habittum</option>
                 {modelos.filter((m) => !m.padrao).map((m) => (
                   <option key={m.id} value={m.id}>{m.nome}</option>
                 ))}

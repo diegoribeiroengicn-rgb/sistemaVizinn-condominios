@@ -6,9 +6,9 @@ import { useAuth } from "@/hooks/useAuth";
 
 const Logo = () => (
   <Link href="/" className="flex items-center gap-2">
-    <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={34} height={34} className="rounded-lg" />
+    <Image src="/brand/vizinn-mark.png" alt="Habittum" width={34} height={34} className="rounded-lg" />
     <span className="font-display text-xl font-bold tracking-tight text-navy-900">
-      Vizinn
+      Habittum
     </span>
   </Link>
 );

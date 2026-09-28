@@ -11,7 +11,7 @@ const BLOCKED_STATUSES = new Set(["suspended", "canceled", "unpaid", "incomplete
 const MESSAGES = {
   suspended: {
     title: "Acesso suspenso",
-    text: "O acesso deste condomínio foi suspenso pela administração da Vizinn. Entre em contato com o suporte para regularizar.",
+    text: "O acesso deste condomínio foi suspenso pela administração da Habittum. Entre em contato com o suporte para regularizar.",
   },
   canceled: {
     title: "Assinatura cancelada",
@@ -19,7 +19,7 @@ const MESSAGES = {
   },
   unpaid: {
     title: "Pagamento pendente",
-    text: "Não conseguimos confirmar o pagamento da sua assinatura. Atualize seus dados de cobrança para continuar usando a Vizinn.",
+    text: "Não conseguimos confirmar o pagamento da sua assinatura. Atualize seus dados de cobrança para continuar usando a Habittum.",
   },
   incomplete_expired: {
     title: "Cadastro incompleto",
@@ -66,7 +66,7 @@ export default function AccessGate({ children }) {
     };
   }, [loading, user, role, router]);
 
-  // Mesma lógica pra funcionário do painel admin (equipe do Vizinn,
+  // Mesma lógica pra funcionário do painel admin (equipe do Habittum,
   // não vendedor) — também não tem condominio/membro.
   useEffect(() => {
     if (!loading && user && !role && !checandoFuncionario && isFuncionarioAdmin) {

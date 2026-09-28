@@ -8,7 +8,7 @@ import { ehPerguntaDeContinuacao } from "@/lib/buscaConhecimento";
 const SAUDACAO = {
   id: "saudacao",
   from: "bot",
-  texto: "Oi! Sou o assistente do Vizinn. Pergunta o que quiser, tipo \"como cadastro um visitante\".",
+  texto: "Oi! Sou o assistente do Habittum. Pergunta o que quiser, tipo \"como cadastro um visitante\".",
 };
 
 // Chatbot Nível 1 (FAQ + manual conversacional, sem IA) — busca por
@@ -83,7 +83,7 @@ export default function ChatbotWidget() {
         push({
           from: "bot",
           texto:
-            "Não tenho informação suficiente para responder isso com segurança. Posso ajudar com as funcionalidades e procedimentos disponíveis no Vizinn.",
+            "Não tenho informação suficiente para responder isso com segurança. Posso ajudar com as funcionalidades e procedimentos disponíveis no Habittum.",
         });
       }
     } catch {
@@ -120,7 +120,7 @@ export default function ChatbotWidget() {
         body: JSON.stringify({
           nome,
           email,
-          mensagem: `Mensagem vinda do chatbot do Vizinn (dúvida não resolvida automaticamente).\n\n${resumo}`,
+          mensagem: `Mensagem vinda do chatbot do Habittum (dúvida não resolvida automaticamente).\n\n${resumo}`,
         }),
       });
       if (!res.ok) throw new Error();
@@ -139,7 +139,7 @@ export default function ChatbotWidget() {
       {aberto && (
         <div className="mb-3 flex h-[28rem] w-80 flex-col overflow-hidden rounded-2xl border border-navy-100 bg-white shadow-xl sm:w-96">
           <div className="flex items-center justify-between bg-midnight px-4 py-3">
-            <span className="font-display text-sm font-bold text-white">Assistente Vizinn</span>
+            <span className="font-display text-sm font-bold text-white">Assistente Habittum</span>
             <button onClick={() => setAberto(false)} className="text-cream-100 hover:text-white" aria-label="Fechar">
               ✕
             </button>
