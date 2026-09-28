@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
-import { TIPO_VEICULO_LABELS, COLUNAS_RELATORIO } from "@/lib/veiculos";
+import {
+  TIPO_VEICULO_LABELS,
+  COLUNAS_RELATORIO,
+  gerarModeloVeiculos,
+  parseVeiculosCsv,
+  parseVeiculosXlsx,
+} from "@/lib/veiculos";
+import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 
 const emptyForm = {
@@ -33,6 +40,12 @@ export default function VeiculosPage() {
   const [editingId, setEditingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
   const [busca, setBusca] = useState("");
+
+  const [preview, setPreview] = useState(null); // { linhas, erros }
+  const [importando, setImportando] = useState(false);
+  const [importResumo, setImportResumo] = useState("");
+  const [gerandoModelo, setGerandoModelo] = useState(false);
+  const fileInputRef = useRef(null);
 
   const podeCriar = temPermissao("veiculos", "criar");
   const podeEditar = temPermissao("veiculos", "editar");
@@ -120,6 +133,68 @@ export default function VeiculosPage() {
     else load();
   }
 
+  function handleArquivoSelecionado(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportResumo("");
+    const reader = new FileReader();
+    if (file.name.toLowerCase().endsWith(".csv")) {
+      reader.onload = () => setPreview(parseVeiculosCsv(String(reader.result || "")));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsText(file, "utf-8");
+    } else {
+      reader.onload = async () => setPreview(await parseVeiculosXlsx(reader.result));
+      reader.onerror = () => setError("Não consegui ler o arquivo. Tente novamente.");
+      reader.readAsArrayBuffer(file);
+    }
+  }
+
+  function cancelarImportacao() {
+    setPreview(null);
+    setImportResumo("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function confirmarImportacao() {
+    if (!condominio?.id || !preview?.linhas?.length) return;
+    setImportando(true);
+    setError("");
+
+    const payload = preview.linhas.map((l) => ({
+      condominio_id: condominio.id,
+      unidade: l.unidade,
+      bloco: l.bloco || null,
+      morador_nome: l.morador_nome,
+      placa: String(l.placa || "").toUpperCase(),
+      modelo: l.modelo || null,
+      cor: l.cor || null,
+      tipo: l.tipo || "carro",
+      vaga: l.vaga || null,
+    }));
+
+    const { error: importError } = await supabase.from("veiculos").insert(payload);
+    setImportando(false);
+
+    if (importError) {
+      setError(importError.message);
+      return;
+    }
+    setImportResumo(`${payload.length} veículo(s) importado(s) com sucesso.`);
+    setPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    load();
+  }
+
+  async function baixarModelo() {
+    setGerandoModelo(true);
+    try {
+      const blob = await gerarModeloVeiculos();
+      baixarBlob(blob, "modelo-veiculos.xlsx");
+    } finally {
+      setGerandoModelo(false);
+    }
+  }
+
   function montarConfigRelatorio() {
     return {
       condominioNome: condominio?.nome,
@@ -184,8 +259,101 @@ export default function VeiculosPage() {
 
         {podeCriar && (
           <div className="card">
+            <h2 className="font-display text-lg font-bold text-navy-900">Importar de uma planilha</h2>
+            <p className="mt-1 text-sm text-navy-500">
+              Baixe o modelo em Excel já formatado, preencha apartamento, morador, placa e o resto
+              que quiser, e suba o arquivo de volta aqui.
+            </p>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={baixarModelo}
+                disabled={gerandoModelo}
+                className="btn-primary border-2 border-navy-900/20 px-8 py-4 text-base disabled:opacity-60"
+              >
+                {gerandoModelo ? "Gerando..." : "⬇ Baixar modelo de planilha"}
+              </button>
+            </div>
+            <div className="mt-4 border-t border-navy-100 pt-4">
+              <label className="label-field">Já preencheu? Suba o arquivo aqui (.xlsx ou .csv)</label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={handleArquivoSelecionado}
+                className="text-sm text-navy-600"
+              />
+            </div>
+
+            {importResumo && <p className="mt-3 text-sm font-medium text-emerald-700">{importResumo}</p>}
+
+            {preview && (
+              <div className="mt-4 space-y-3">
+                {preview.erros.length > 0 && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                    {preview.erros.map((e, i) => (
+                      <p key={i}>{e}</p>
+                    ))}
+                  </div>
+                )}
+
+                {preview.linhas.length === 0 ? (
+                  <p className="text-sm text-coral-700">Nenhuma linha válida encontrada no arquivo.</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-navy-600">
+                      Encontrei <strong>{preview.linhas.length}</strong> veículo(s) para importar. Confira antes de
+                      confirmar:
+                    </p>
+                    <div className="max-h-64 overflow-y-auto rounded-lg border border-navy-100">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-navy-50 text-navy-500">
+                          <tr>
+                            <th className="px-3 py-2">Unidade</th>
+                            <th className="px-3 py-2">Morador</th>
+                            <th className="px-3 py-2">Placa</th>
+                            <th className="px-3 py-2">Bloco</th>
+                            <th className="px-3 py-2">Modelo</th>
+                            <th className="px-3 py-2">Tipo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.linhas.map((l, i) => (
+                            <tr key={i} className="border-t border-navy-50">
+                              <td className="px-3 py-1.5">{l.unidade}</td>
+                              <td className="px-3 py-1.5">{l.morador_nome}</td>
+                              <td className="px-3 py-1.5">{l.placa}</td>
+                              <td className="px-3 py-1.5">{l.bloco}</td>
+                              <td className="px-3 py-1.5">{l.modelo}</td>
+                              <td className="px-3 py-1.5">{TIPO_VEICULO_LABELS[l.tipo] || l.tipo}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={confirmarImportacao} disabled={importando} className="btn-primary">
+                        {importando ? "Importando..." : `Confirmar importação (${preview.linhas.length})`}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelarImportacao}
+                        className="text-sm font-semibold text-navy-500 hover:underline"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {podeCriar && (
+          <div className="card">
             <h2 className="font-display text-lg font-bold text-navy-900">
-              {editingId ? "Editar veículo" : "Cadastrar veículo"}
+              {editingId ? "Editar veículo" : "Cadastrar manualmente"}
             </h2>
             <form onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
