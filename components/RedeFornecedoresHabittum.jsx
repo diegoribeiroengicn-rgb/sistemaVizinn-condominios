@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { CATEGORIAS_SUGERIDAS } from "@/lib/fornecedores";
 import { formatarCnpj } from "@/lib/validacaoDocumentos";
@@ -22,16 +22,27 @@ export default function RedeFornecedoresHabittum({ condominioId, meusFornecedore
   const [error, setError] = useState("");
   const [adicionandoId, setAdicionandoId] = useState(null);
 
-  async function handleBuscar(e) {
-    e.preventDefault();
-    setError("");
+  // Sem termo e sem categoria ("Todas as categorias") a função devolve
+  // a rede inteira — então já carrega tudo ao abrir a tela.
+  useEffect(() => {
+    buscar("", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const termo = busca.trim();
-    if (!termo && !categoria) {
-      setResultados(null);
-      setError("Digite o nome/CNPJ ou escolha uma categoria pra buscar.");
-      return;
-    }
+  function handleBuscar(e) {
+    e.preventDefault();
+    buscar(busca, categoria);
+  }
+
+  function handleCategoria(e) {
+    const novaCategoria = e.target.value;
+    setCategoria(novaCategoria);
+    buscar(busca, novaCategoria);
+  }
+
+  async function buscar(textoBusca, categoriaBusca) {
+    setError("");
+    const termo = textoBusca.trim();
 
     setBuscando(true);
     // A ordenação (destaque comercial → nota → rodízio) acontece
@@ -39,7 +50,7 @@ export default function RedeFornecedoresHabittum({ condominioId, meusFornecedore
     // nunca reordenar no cliente.
     const { data, error: buscaError } = await supabase.rpc("buscar_fornecedores_rede", {
       p_termo: termo || null,
-      p_categoria: categoria || null,
+      p_categoria: categoriaBusca || null,
     });
     if (buscaError) {
       setBuscando(false);
@@ -110,7 +121,7 @@ export default function RedeFornecedoresHabittum({ condominioId, meusFornecedore
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Nome, CNPJ ou atividade (ex: piscina)..."
           />
-          <select className="input-field w-auto" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+          <select className="input-field w-auto" value={categoria} onChange={handleCategoria}>
             <option value="">Todas as categorias</option>
             {CATEGORIAS_SUGERIDAS.map((c) => (
               <option key={c} value={c}>
@@ -151,8 +162,8 @@ export default function RedeFornecedoresHabittum({ condominioId, meusFornecedore
                       </p>
                       {f.reputacao?.total_avaliacoes > 0 ? (
                         <p className="mt-1 text-xs text-navy-600">
-                          ⭐ {f.reputacao.nota_media} · {f.reputacao.total_avaliacoes} avaliação
-                          {f.reputacao.total_avaliacoes === 1 ? "" : "ões"} · usado por {f.reputacao.total_condominios}{" "}
+                          ⭐ {f.reputacao.nota_media} · {f.reputacao.total_avaliacoes}{" "}
+                          {f.reputacao.total_avaliacoes === 1 ? "avaliação" : "avaliações"} · usado por {f.reputacao.total_condominios}{" "}
                           condomínio{f.reputacao.total_condominios === 1 ? "" : "s"}
                         </p>
                       ) : (

@@ -77,7 +77,7 @@ export default function EcossistemaFornecedores({ onStart }) {
                   <p className="mt-3 text-sm italic text-navy-600">&ldquo;{f.comentario}&rdquo;</p>
                 ) : f.totalAvaliacoes > 0 ? (
                   <p className="mt-3 text-sm text-navy-600">
-                    ⭐ {f.notaMedia} · {f.totalAvaliacoes} avaliação{f.totalAvaliacoes === 1 ? "" : "ões"}
+                    ⭐ {f.notaMedia} · {f.totalAvaliacoes} {f.totalAvaliacoes === 1 ? "avaliação" : "avaliações"}
                   </p>
                 ) : (
                   <p className="mt-3 text-xs text-navy-400">Ainda sem avaliações</p>
