@@ -2369,3 +2369,41 @@ create unique index if not exists admin_funcionarios_user_id_idx on public.admin
 
 alter table public.admin_funcionarios enable row level security;
 grant all on public.admin_funcionarios to service_role;
+
+-- Teto da taxa de adesão por plano — o valor em taxas_adesao.valor
+-- continua sendo o valor SUGERIDO (o que o formulário público de
+-- autoatendimento cobra); teto é o MÁXIMO que um vendedor pode digitar
+-- ao fechar venda por fora (cadastrar condomínio manual ou gerar link
+-- de pagamento avulso) — ver enforcement em
+-- app/api/vendedor/cadastrar-condominio e app/api/vendedor/link-pagamento.
+-- Backfill: começa igual ao valor atual (ninguém perde a capacidade
+-- que já tinha); dá pra subir depois em /admin/pagamentos.
+alter table public.taxas_adesao add column if not exists teto numeric(10,2);
+update public.taxas_adesao set teto = valor where teto is null;
+
+-- Pedido de aumento de teto — vendedor pede, admin aprova/rejeita em
+-- /admin/pagamentos. Aprovar já sobe taxas_adesao.teto do plano pro
+-- valor pedido (é a própria ação que libera o vendedor a cobrar mais,
+-- não só um registro passivo). Sem policy de leitura pra
+-- "authenticated": só service_role, tudo passa pelas rotas
+-- /api/admin/solicitacoes-teto-adesao (requireAdmin) e
+-- /api/vendedor/solicitar-aumento-teto (requireVendedor), mesmo
+-- padrão de vendedores/comissoes/admin_funcionarios.
+create table if not exists public.solicitacoes_teto_adesao (
+  id uuid primary key default gen_random_uuid(),
+  vendedor_id uuid not null references public.vendedores (id) on delete cascade,
+  plano_id text not null references public.taxas_adesao (plano_id) on delete cascade,
+  teto_atual numeric(10,2) not null,
+  valor_solicitado numeric(10,2) not null,
+  motivo text,
+  status text not null default 'pendente' check (status in ('pendente', 'aprovado', 'rejeitado')),
+  resposta_admin text,
+  resolvido_em timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists solicitacoes_teto_adesao_vendedor_idx on public.solicitacoes_teto_adesao (vendedor_id);
+create index if not exists solicitacoes_teto_adesao_status_idx on public.solicitacoes_teto_adesao (status);
+
+alter table public.solicitacoes_teto_adesao enable row level security;
+grant all on public.solicitacoes_teto_adesao to service_role;
