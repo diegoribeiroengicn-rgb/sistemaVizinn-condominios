@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "@/components/Header";
@@ -76,7 +77,12 @@ export default function HomePage() {
       <RepresentanteComercial />
 
       <footer className="border-t border-navy-100 py-8 text-center text-sm text-navy-400">
-        © {new Date().getFullYear()} Vizinn — Condomínio Inteligente
+        <p>
+          <Link href="/blog" className="font-semibold text-navy-600 hover:underline">
+            Blog
+          </Link>
+        </p>
+        <p className="mt-2">© {new Date().getFullYear()} Vizinn — Condomínio Inteligente</p>
       </footer>
 
       {authView && (

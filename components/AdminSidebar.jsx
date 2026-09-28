@@ -37,6 +37,7 @@ const ADMIN_NAV = [
   { href: "/admin/comissoes", label: "Comissões", Icon: IconRelatorios, modulo: "comissoes" },
   { href: "/admin/configuracoes/comissionamento", label: "Comissionamento", Icon: IconConfiguracoes, modulo: "comissionamento" },
   { href: "/admin/chatbot", label: "Chatbot", Icon: IconAvisos, modulo: "chatbot" },
+  { href: "/admin/blog", label: "Blog", Icon: IconRelatorios, modulo: "blog" },
 ];
 
 const SIDEBAR_COLLAPSE_KEY = "vizinn-admin-sidebar-collapsed";

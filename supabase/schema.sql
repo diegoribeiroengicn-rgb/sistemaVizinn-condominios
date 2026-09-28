@@ -2407,3 +2407,33 @@ create index if not exists solicitacoes_teto_adesao_status_idx on public.solicit
 
 alter table public.solicitacoes_teto_adesao enable row level security;
 grant all on public.solicitacoes_teto_adesao to service_role;
+
+-- ---------------------------------------------------------------------
+-- Blog (SEO/conteúdo) — posts públicos pra ranquear no Google em busca
+-- orgânica (ex.: "como reduzir inadimplência no condomínio"). Sem
+-- policy de select pra "authenticated"/"anon": as páginas públicas
+-- (/blog, /blog/[slug]) são Server Components que leem direto pelo
+-- service_role (ver getSupabaseAdmin em lib/supabaseAdmin.js), mesmo
+-- padrão de admin_funcionarios/vendedores — nunca expõe rascunho pra
+-- ninguém de fora, porque não existe policy nenhuma liberando leitura
+-- fora do service_role.
+create table if not exists public.blog_posts (
+  id uuid primary key default gen_random_uuid(),
+  titulo text not null,
+  slug text not null unique,
+  resumo text not null,
+  conteudo text not null,
+  imagem_capa text,
+  meta_descricao text,
+  status text not null default 'rascunho' check (status in ('rascunho', 'publicado')),
+  autor_nome text not null default 'Equipe Vizinn',
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists blog_posts_slug_idx on public.blog_posts (slug);
+create index if not exists blog_posts_status_published_idx on public.blog_posts (status, published_at desc);
+
+alter table public.blog_posts enable row level security;
+grant all on public.blog_posts to service_role;

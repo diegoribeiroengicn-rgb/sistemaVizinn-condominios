@@ -21,6 +21,9 @@ export default function Header({ onStart, onLogin }) {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Logo />
         <nav className="flex items-center gap-2 sm:gap-3">
+          <Link href="/blog" className="btn-ghost hidden sm:inline-flex">
+            Blog
+          </Link>
           {loading ? null : user ? (
             <>
               <Link href="/dashboard" className="btn-ghost hidden sm:inline-flex">
