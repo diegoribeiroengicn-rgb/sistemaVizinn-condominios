@@ -72,8 +72,8 @@ export default function HomePage() {
       <EcossistemaFornecedores onStart={() => openSignup("growth")} />
       <Pricing onSelectPlan={openSignup} />
       <FinalCta onStart={() => openSignup("growth")} />
-      <RepresentanteComercial />
       <ContactSection />
+      <RepresentanteComercial />
 
       <footer className="border-t border-navy-100 py-8 text-center text-sm text-navy-400">
         © {new Date().getFullYear()} Vizinn — Condomínio Inteligente
