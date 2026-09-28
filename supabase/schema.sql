@@ -2424,6 +2424,7 @@ create table if not exists public.blog_posts (
   resumo text not null,
   conteudo text not null,
   imagem_capa text,
+  video_url text,
   meta_descricao text,
   status text not null default 'rascunho' check (status in ('rascunho', 'publicado')),
   autor_nome text not null default 'Equipe Vizinn',
@@ -2431,6 +2432,9 @@ create table if not exists public.blog_posts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Backfill pra quem já criou a tabela antes do campo de vídeo existir.
+alter table public.blog_posts add column if not exists video_url text;
 
 create index if not exists blog_posts_slug_idx on public.blog_posts (slug);
 create index if not exists blog_posts_status_published_idx on public.blog_posts (status, published_at desc);

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { blocosDoConteudo } from "@/lib/blog";
+import { blocosDoConteudo, partesInline, idYoutube } from "@/lib/blog";
 import BlogHeader from "@/components/BlogHeader";
 
 // Sem ISR: evita depender de credenciais do Supabase em build time
@@ -23,6 +23,12 @@ async function buscarPost(slug) {
 function formatarData(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function TextoComNegrito({ texto }) {
+  return partesInline(texto).map((parte, i) =>
+    parte.negrito ? <strong key={i}>{parte.texto}</strong> : <span key={i}>{parte.texto}</span>
+  );
 }
 
 export async function generateMetadata({ params }) {
@@ -81,9 +87,21 @@ export default async function BlogPostPage({ params }) {
             {post.autor_nome} · {formatarData(post.published_at)}
           </p>
 
-          {post.imagem_capa && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.imagem_capa} alt="" className="mt-6 aspect-video w-full rounded-xl object-cover" />
+          {post.video_url && idYoutube(post.video_url) ? (
+            <div className="mt-6 aspect-video w-full overflow-hidden rounded-xl">
+              <iframe
+                src={`https://www.youtube.com/embed/${idYoutube(post.video_url)}`}
+                title={post.titulo}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full"
+              />
+            </div>
+          ) : (
+            post.imagem_capa && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.imagem_capa} alt="" className="mt-6 aspect-video w-full rounded-xl object-cover" />
+            )
           )}
 
           <div className="prose-vizinn mt-8 space-y-4 text-navy-700">
@@ -99,14 +117,16 @@ export default async function BlogPostPage({ params }) {
                 return (
                   <ul key={i} className="list-disc space-y-1 pl-6">
                     {bloco.itens.map((item, j) => (
-                      <li key={j}>{item}</li>
+                      <li key={j}>
+                        <TextoComNegrito texto={item} />
+                      </li>
                     ))}
                   </ul>
                 );
               }
               return (
                 <p key={i} className="leading-relaxed">
-                  {bloco.texto}
+                  <TextoComNegrito texto={bloco.texto} />
                 </p>
               );
             })}

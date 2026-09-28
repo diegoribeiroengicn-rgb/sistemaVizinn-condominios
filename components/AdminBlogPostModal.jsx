@@ -11,6 +11,7 @@ export default function AdminBlogPostModal({ post, onClose, onChanged }) {
     resumo: post.resumo || "",
     conteudo: post.conteudo || "",
     imagemCapa: post.imagem_capa || "",
+    videoUrl: post.video_url || "",
     metaDescricao: post.meta_descricao || "",
     autorNome: post.autor_nome || "Equipe Vizinn",
   });
@@ -106,7 +107,8 @@ export default function AdminBlogPostModal({ post, onClose, onChanged }) {
             />
             <p className="mt-1 text-xs text-navy-400">
               Separe parágrafos com uma linha em branco. Uma linha começando com &ldquo;## &rdquo; vira título de
-              seção. Linhas começando com &ldquo;- &rdquo; (todas seguidas) viram lista.
+              seção. Linhas começando com &ldquo;- &rdquo; (todas seguidas) viram lista. Texto entre
+              &ldquo;**assim**&rdquo; vira negrito.
             </p>
           </div>
 
@@ -118,6 +120,19 @@ export default function AdminBlogPostModal({ post, onClose, onChanged }) {
               onChange={(e) => setForm((f) => ({ ...f, imagemCapa: e.target.value }))}
               placeholder="https://..."
             />
+          </div>
+
+          <div>
+            <label className="label-field">Vídeo (link do YouTube, opcional)</label>
+            <input
+              className="input-field"
+              value={form.videoUrl}
+              onChange={(e) => setForm((f) => ({ ...f, videoUrl: e.target.value }))}
+              placeholder="https://www.youtube.com/watch?v=..."
+            />
+            <p className="mt-1 text-xs text-navy-400">
+              Cole o link do vídeo no YouTube. Ele aparece embutido no topo do post.
+            </p>
           </div>
 
           <div>

@@ -9,6 +9,7 @@ const CAMPOS_PERMITIDOS = {
   resumo: "resumo",
   conteudo: "conteudo",
   imagemCapa: "imagem_capa",
+  videoUrl: "video_url",
   metaDescricao: "meta_descricao",
   autorNome: "autor_nome",
 };

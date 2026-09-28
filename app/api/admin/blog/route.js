@@ -38,6 +38,7 @@ export async function POST(request) {
       resumo,
       conteudo,
       imagem_capa: body.imagemCapa?.trim() || null,
+      video_url: body.videoUrl?.trim() || null,
       meta_descricao: body.metaDescricao?.trim() || resumo,
       autor_nome: body.autorNome?.trim() || "Equipe Vizinn",
       status,
