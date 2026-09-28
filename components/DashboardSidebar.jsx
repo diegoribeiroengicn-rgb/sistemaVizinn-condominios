@@ -21,6 +21,7 @@ import {
   IconAuditoria,
   IconColaboradores,
   IconMoradores,
+  IconVeiculos,
   IconObras,
   IconAcademia,
   IconRelatorios,
@@ -50,6 +51,7 @@ const SINDICO_NAV = [
   { href: "/dashboard/auditoria", label: "Auditoria", Icon: IconAuditoria },
   { href: "/dashboard/colaboradores", label: "Colaboradores", Icon: IconColaboradores },
   { href: "/dashboard/moradores", label: "Moradores", Icon: IconMoradores },
+  { href: "/dashboard/veiculos", label: "Veículos", Icon: IconVeiculos },
   { href: "/dashboard/obras", label: "Obras e Melhorias", Icon: IconObras },
   { href: "/dashboard/academia", label: "Academia Vizinn", Icon: IconAcademia },
   { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
@@ -75,6 +77,7 @@ const ICON_BY_MODULO = {
   auditoria: IconAuditoria,
   colaboradores: IconColaboradores,
   moradores: IconMoradores,
+  veiculos: IconVeiculos,
   obras: IconObras,
 };
 
