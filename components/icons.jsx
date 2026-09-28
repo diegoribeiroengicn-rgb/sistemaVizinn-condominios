@@ -139,6 +139,17 @@ export function IconMoradores(props) {
   );
 }
 
+export function IconVeiculos(props) {
+  return (
+    <Icon {...props}>
+      <path d="M5 15.5 6.5 10a2 2 0 0 1 1.9-1.4h7.2A2 2 0 0 1 17.5 10L19 15.5" />
+      <path d="M3.5 15.5h17v2.8a1 1 0 0 1-1 1H18a1 1 0 0 1-1-1v-1.3H7v1.3a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1z" />
+      <circle cx="7.2" cy="15.5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="16.8" cy="15.5" r="1.5" fill="currentColor" stroke="none" />
+    </Icon>
+  );
+}
+
 export function IconObras(props) {
   return (
     <Icon {...props}>

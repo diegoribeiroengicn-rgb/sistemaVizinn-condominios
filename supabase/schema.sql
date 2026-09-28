@@ -1217,6 +1217,59 @@ create trigger trg_auditoria_moradores
   after insert or update or delete on public.moradores
   for each row execute function public.registrar_auditoria_generica();
 
+-- Veículos: carros/motos vinculados a uma unidade, cadastrados pelo
+-- síndico/administração (mesmo padrão do cadastro de Moradores acima —
+-- não depende do morador ter login). Ajuda a portaria a conferir se uma
+-- placa pertence a um morador antes de liberar a entrada.
+create table if not exists public.veiculos (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  unidade text not null,
+  bloco text,
+  morador_nome text not null,
+  placa text not null,
+  modelo text,
+  cor text,
+  tipo text not null default 'carro' check (tipo in ('carro', 'moto', 'outro')),
+  vaga text,
+  observacoes text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists veiculos_condominio_id_idx on public.veiculos (condominio_id);
+create index if not exists veiculos_unidade_idx on public.veiculos (condominio_id, unidade);
+create index if not exists veiculos_placa_idx on public.veiculos (condominio_id, placa);
+
+alter table public.veiculos enable row level security;
+
+drop policy if exists "Members can view veiculos" on public.veiculos;
+create policy "Members can view veiculos"
+  on public.veiculos for select
+  using (public.membro_tem_modulo(condominio_id, 'veiculos'));
+
+drop policy if exists "Members can insert veiculos" on public.veiculos;
+create policy "Members can insert veiculos"
+  on public.veiculos for insert
+  with check (public.membro_tem_permissao(condominio_id, 'veiculos', 'criar'));
+
+drop policy if exists "Members can update veiculos" on public.veiculos;
+create policy "Members can update veiculos"
+  on public.veiculos for update
+  using (public.membro_tem_permissao(condominio_id, 'veiculos', 'editar'));
+
+drop policy if exists "Members can delete veiculos" on public.veiculos;
+create policy "Members can delete veiculos"
+  on public.veiculos for delete
+  using (public.membro_tem_permissao(condominio_id, 'veiculos', 'excluir'));
+
+grant select, insert, update, delete on public.veiculos to authenticated;
+grant all on public.veiculos to service_role;
+
+drop trigger if exists trg_auditoria_veiculos on public.veiculos;
+create trigger trg_auditoria_veiculos
+  after insert or update or delete on public.veiculos
+  for each row execute function public.registrar_auditoria_generica();
+
 -- Obras e Melhorias: registro e acompanhamento de obras, reformas e
 -- intervenções no condomínio — separado de Manutenção (que é sobre
 -- manutenção recorrente/corretiva de rotina), com orçamento e prazo
