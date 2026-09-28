@@ -5,6 +5,7 @@ import { getStripe } from "@/lib/stripe";
 import { getPlan, getStripePriceId, TRIAL_PERIOD_DAYS } from "@/lib/plans";
 import { gerarComissoesParaVenda } from "@/lib/comissoes";
 import { registrarAuditoriaAdmin } from "@/lib/adminAuditoria";
+import { tetoEfetivo } from "@/lib/tetoAdesao";
 
 // Vendedor cadastra uma venda fechada diretamente (fora do checkout
 // público de autoatendimento) — ele digita o valor da adesão
@@ -45,6 +46,23 @@ export async function POST(request) {
   const plan = getPlan(planoId);
   const supabaseAdmin = auth.supabaseAdmin;
   const emailNormalizado = responsavelEmail.trim().toLowerCase();
+
+  // Teto de adesão do plano — vendedor não passa disso sem pedido de
+  // aumento aprovado (ver /api/vendedor/solicitar-aumento-teto e o
+  // painel "Taxas de adesão" em /admin/pagamentos).
+  const { data: taxaPlano, error: erroTaxaPlano } = await supabaseAdmin
+    .from("taxas_adesao")
+    .select("*")
+    .eq("plano_id", planoId)
+    .maybeSingle();
+  if (erroTaxaPlano) return NextResponse.json({ error: erroTaxaPlano.message }, { status: 500 });
+  const teto = taxaPlano ? tetoEfetivo(taxaPlano) : null;
+  if (teto != null && valor > teto) {
+    return NextResponse.json(
+      { error: `Valor acima do teto de adesão desse plano (R$ ${teto.toFixed(2)}). Peça aumento no seu painel.` },
+      { status: 400 }
+    );
+  }
 
   try {
     const { data: userData, error: erroCriarUser } = await supabaseAdmin.auth.admin.createUser({

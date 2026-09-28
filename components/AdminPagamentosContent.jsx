@@ -5,6 +5,7 @@ import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
 import { PLANS } from "@/lib/plans";
 import { TIPO_CUPOM_LABELS } from "@/lib/cupons";
+import { STATUS_SOLICITACAO_LABELS, STATUS_SOLICITACAO_STYLES } from "@/lib/tetoAdesao";
 import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 import AdminVendedorDetalheModal from "@/components/AdminVendedorDetalheModal";
 
@@ -20,26 +21,42 @@ function formatBRL(value) {
 
 function PainelTaxas() {
   const [taxas, setTaxas] = useState({});
+  const [tetos, setTetos] = useState({});
   const [valores, setValores] = useState({});
-  const [salvandoPlano, setSalvandoPlano] = useState(null);
+  const [valoresTeto, setValoresTeto] = useState({});
+  const [salvando, setSalvando] = useState(null); // `${planoId}:valor` | `${planoId}:teto`
   const [error, setError] = useState("");
+  const [solicitacoes, setSolicitacoes] = useState([]);
+  const [resolvendoId, setResolvendoId] = useState(null);
 
   const load = useCallback(async () => {
-    const res = await authedFetch("/api/admin/taxas-adesao");
-    const json = await res.json();
-    if (!res.ok) return setError(json.error);
-    const mapa = {};
-    for (const t of json.taxas) mapa[t.plano_id] = Number(t.valor);
-    setTaxas(mapa);
-    setValores(mapa);
+    const [resTaxas, resSolicitacoes] = await Promise.all([
+      authedFetch("/api/admin/taxas-adesao"),
+      authedFetch("/api/admin/solicitacoes-teto-adesao"),
+    ]);
+    const jsonTaxas = await resTaxas.json();
+    if (!resTaxas.ok) return setError(jsonTaxas.error);
+    const mapaValor = {};
+    const mapaTeto = {};
+    for (const t of jsonTaxas.taxas) {
+      mapaValor[t.plano_id] = Number(t.valor);
+      mapaTeto[t.plano_id] = t.teto != null ? Number(t.teto) : Number(t.valor);
+    }
+    setTaxas(mapaValor);
+    setValores(mapaValor);
+    setTetos(mapaTeto);
+    setValoresTeto(mapaTeto);
+
+    const jsonSolicitacoes = await resSolicitacoes.json();
+    if (resSolicitacoes.ok) setSolicitacoes(jsonSolicitacoes.solicitacoes);
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  async function salvar(planoId) {
-    setSalvandoPlano(planoId);
+  async function salvarValor(planoId) {
+    setSalvando(`${planoId}:valor`);
     setError("");
     try {
       const res = await authedFetch("/api/admin/taxas-adesao", {
@@ -53,43 +70,167 @@ function PainelTaxas() {
     } catch (err) {
       setError(err.message);
     } finally {
-      setSalvandoPlano(null);
+      setSalvando(null);
     }
   }
 
+  async function salvarTeto(planoId) {
+    setSalvando(`${planoId}:teto`);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/taxas-adesao", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planoId, teto: Number(valoresTeto[planoId]) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvando(null);
+    }
+  }
+
+  async function resolverSolicitacao(solicitacao, status) {
+    setResolvendoId(solicitacao.id);
+    setError("");
+    try {
+      const res = await authedFetch(`/api/admin/solicitacoes-teto-adesao/${solicitacao.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResolvendoId(null);
+    }
+  }
+
+  const pendentes = solicitacoes.filter((s) => s.status === "pendente");
+  const resolvidas = solicitacoes.filter((s) => s.status !== "pendente").slice(0, 10);
+
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-navy-500">
-        Cobrada uma única vez, na hora que alguém assina direto pelo site. Some com o cupom aplicado
-        (se houver) pra formar o valor final cobrado no cadastro.
-      </p>
-      {error && <p className="text-sm text-coral-700">{error}</p>}
-      {PLANS.map((plan) => (
-        <div key={plan.id} className="card flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold text-navy-900">{plan.name}</p>
-            <p className="text-xs text-navy-400">Mensalidade: {formatBRL(plan.price)}</p>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <p className="text-sm text-navy-500">
+          <strong>Valor</strong> é o que o formulário público de autoatendimento cobra (some com cupom, se
+          houver). <strong>Teto</strong> é o máximo que um vendedor pode digitar ao fechar venda por fora —
+          acima disso, o sistema trava e pede pra ele solicitar aumento aqui embaixo.
+        </p>
+        {error && <p className="text-sm text-coral-700">{error}</p>}
+        {PLANS.map((plan) => (
+          <div key={plan.id} className="card space-y-3">
+            <div>
+              <p className="font-semibold text-navy-900">{plan.name}</p>
+              <p className="text-xs text-navy-400">Mensalidade: {formatBRL(plan.price)}</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-16 text-xs font-medium text-navy-500">Valor</span>
+              <span className="text-navy-500">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field w-28"
+                value={valores[plan.id] ?? ""}
+                onChange={(e) => setValores((v) => ({ ...v, [plan.id]: e.target.value }))}
+              />
+              <button
+                onClick={() => salvarValor(plan.id)}
+                disabled={salvando !== null || Number(valores[plan.id]) === taxas[plan.id]}
+                className="btn-secondary text-sm disabled:opacity-50"
+              >
+                {salvando === `${plan.id}:valor` ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-16 text-xs font-medium text-navy-500">Teto</span>
+              <span className="text-navy-500">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field w-28"
+                value={valoresTeto[plan.id] ?? ""}
+                onChange={(e) => setValoresTeto((v) => ({ ...v, [plan.id]: e.target.value }))}
+              />
+              <button
+                onClick={() => salvarTeto(plan.id)}
+                disabled={salvando !== null || Number(valoresTeto[plan.id]) === tetos[plan.id]}
+                className="btn-secondary text-sm disabled:opacity-50"
+              >
+                {salvando === `${plan.id}:teto` ? "Salvando..." : "Salvar"}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-navy-500">R$</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              className="input-field w-28"
-              value={valores[plan.id] ?? ""}
-              onChange={(e) => setValores((v) => ({ ...v, [plan.id]: e.target.value }))}
-            />
-            <button
-              onClick={() => salvar(plan.id)}
-              disabled={salvandoPlano !== null || Number(valores[plan.id]) === taxas[plan.id]}
-              className="btn-secondary text-sm disabled:opacity-50"
-            >
-              {salvandoPlano === plan.id ? "Salvando..." : "Salvar"}
-            </button>
+        ))}
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="font-display text-base font-bold text-navy-900">
+          Pedidos de aumento de teto {pendentes.length > 0 && `(${pendentes.length} pendente${pendentes.length > 1 ? "s" : ""})`}
+        </h2>
+        {pendentes.length === 0 ? (
+          <div className="card text-center text-navy-400">Nenhum pedido pendente.</div>
+        ) : (
+          <div className="space-y-2">
+            {pendentes.map((s) => (
+              <div key={s.id} className="card flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold text-navy-900">
+                    {s.vendedores?.nome || "Vendedor"} — {PLANS.find((p) => p.id === s.plano_id)?.name || s.plano_id}
+                  </p>
+                  <p className="text-xs text-navy-400">
+                    De {formatBRL(s.teto_atual)} pra {formatBRL(s.valor_solicitado)}
+                    {s.motivo ? ` · "${s.motivo}"` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => resolverSolicitacao(s, "rejeitado")}
+                    disabled={resolvendoId !== null}
+                    className="btn-secondary text-sm disabled:opacity-50"
+                  >
+                    Rejeitar
+                  </button>
+                  <button
+                    onClick={() => resolverSolicitacao(s, "aprovado")}
+                    disabled={resolvendoId !== null}
+                    className="btn-primary text-sm disabled:opacity-50"
+                  >
+                    {resolvendoId === s.id ? "..." : "Aprovar"}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-      ))}
+        )}
+
+        {resolvidas.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium text-navy-600">Pedidos resolvidos recentemente</summary>
+            <div className="mt-2 space-y-1">
+              {resolvidas.map((s) => (
+                <div key={s.id} className="flex items-center justify-between border-b border-navy-50 py-1.5 text-sm last:border-0">
+                  <span className="text-navy-600">
+                    {s.vendedores?.nome || "Vendedor"} — {PLANS.find((p) => p.id === s.plano_id)?.name || s.plano_id} —{" "}
+                    {formatBRL(s.valor_solicitado)}
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_SOLICITACAO_STYLES[s.status]}`}>
+                    {STATUS_SOLICITACAO_LABELS[s.status]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
     </div>
   );
 }

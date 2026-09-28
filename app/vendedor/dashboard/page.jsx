@@ -9,6 +9,7 @@ import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 import { TIPO_COMISSAO_LABELS, STATUS_COMISSAO_LABELS, STATUS_COMISSAO_STYLES } from "@/lib/comissoes";
 import { PLANS } from "@/lib/plans";
 import VendedorAcademia from "@/components/VendedorAcademia";
+import VendedorTetoAdesao from "@/components/VendedorTetoAdesao";
 
 const emptyCondominio = {
   condominioNome: "",
@@ -31,6 +32,23 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
   const [linkPagamento, setLinkPagamento] = useState(null);
   const [erroLinkPagamento, setErroLinkPagamento] = useState("");
   const [copiadoLinkPagamento, setCopiadoLinkPagamento] = useState(false);
+  const [tetos, setTetos] = useState({});
+
+  useEffect(() => {
+    vendedorFetch("/api/vendedor/taxas-adesao")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.taxas) {
+          const mapa = {};
+          for (const t of json.taxas) mapa[t.planoId] = t.teto;
+          setTetos(mapa);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const tetoDoPlano = tetos[form.planoId];
+  const acimaDoTeto = tetoDoPlano != null && Number(form.valorAdesao) > tetoDoPlano;
 
   async function gerarLinkPagamento() {
     setErroLinkPagamento("");
@@ -46,6 +64,7 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
         body: JSON.stringify({
           descricao: `Adesão Vizinn - ${form.condominioNome || "condomínio"}`,
           valor: form.valorAdesao,
+          planoId: form.planoId,
         }),
       });
       const json = await res.json();
@@ -174,6 +193,12 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
               value={form.valorAdesao}
               onChange={(e) => setForm((f) => ({ ...f, valorAdesao: e.target.value }))}
             />
+            {tetoDoPlano != null && (
+              <p className={`mt-1 text-xs ${acimaDoTeto ? "font-semibold text-coral-700" : "text-navy-400"}`}>
+                Teto desse plano: {formatBRL(tetoDoPlano)}
+                {acimaDoTeto && " — acima disso, peça aumento na seção \"Teto de adesão\" do seu painel."}
+              </p>
+            )}
             <p className="mt-1 text-xs text-navy-400">
               Se o síndico ainda não pagou, gere um link de pagamento (cartão, e Pix/boleto se estiverem habilitados
               na conta) em vez de preencher esse valor de cabeça — depois é só confirmar aqui o que ele realmente
@@ -206,7 +231,7 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
             )}
           </div>
           <div className="sm:col-span-2">
-            <button type="submit" disabled={salvando} className="btn-primary text-sm">
+            <button type="submit" disabled={salvando || acimaDoTeto} className="btn-primary text-sm disabled:opacity-50">
               {salvando ? "Cadastrando..." : "Cadastrar condomínio"}
             </button>
           </div>
@@ -334,6 +359,8 @@ function PainelVendedor() {
             </div>
           </div>
         </div>
+
+        <VendedorTetoAdesao />
 
         <VendedorAcademia />
 

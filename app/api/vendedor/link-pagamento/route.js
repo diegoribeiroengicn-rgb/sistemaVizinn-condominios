@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireVendedor } from "@/lib/vendedorAuth";
 import { getStripe } from "@/lib/stripe";
+import { tetoEfetivo } from "@/lib/tetoAdesao";
 
 // Gera um link de pagamento avulso (Stripe Payment Link) pro
 // vendedor cobrar a adesão do síndico antes de fechar a venda —
@@ -14,10 +15,29 @@ export async function POST(request) {
   const auth = await requireVendedor(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { descricao, valor } = await request.json();
+  const { descricao, valor, planoId } = await request.json();
   const valorNumero = Number(valor);
   if (!Number.isFinite(valorNumero) || valorNumero <= 0) {
     return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
+  }
+
+  // Mesmo teto do cadastro de venda manual (ver
+  // /api/vendedor/cadastrar-condominio) — o link de pagamento é só
+  // outra forma de cobrar a mesma adesão, não pode furar o limite.
+  if (planoId) {
+    const { data: taxaPlano, error: erroTaxaPlano } = await auth.supabaseAdmin
+      .from("taxas_adesao")
+      .select("*")
+      .eq("plano_id", planoId)
+      .maybeSingle();
+    if (erroTaxaPlano) return NextResponse.json({ error: erroTaxaPlano.message }, { status: 500 });
+    const teto = taxaPlano ? tetoEfetivo(taxaPlano) : null;
+    if (teto != null && valorNumero > teto) {
+      return NextResponse.json(
+        { error: `Valor acima do teto de adesão desse plano (R$ ${teto.toFixed(2)}). Peça aumento no seu painel.` },
+        { status: 400 }
+      );
+    }
   }
 
   try {
