@@ -1489,12 +1489,17 @@ grant select on public.academia_videos to authenticated;
 grant all on public.academia_videos to service_role;
 
 -- Verifica se quem está logado tem acesso a um nível de vídeo —
--- "público" é sempre livre; os outros dois olham o status de QUALQUER
--- condomínio ao qual a pessoa pertença (dono ou membro), reaproveitando
--- o mesmo campo condominios.status que já controla assinatura/teste em
--- todo o resto do sistema (nenhum sistema de assinatura paralelo).
--- SECURITY DEFINER porque precisa juntar condominios + membros pra
--- decidir, sem abrir policy de leitura cruzada nessas tabelas.
+-- "público" é sempre livre; "teste_14_dias"/"assinante" olham o status
+-- de QUALQUER condomínio ao qual a pessoa pertença (dono ou membro),
+-- reaproveitando o mesmo campo condominios.status que já controla
+-- assinatura/teste em todo o resto do sistema (nenhum sistema de
+-- assinatura paralelo). Vendedor ativo tem acesso a QUALQUER nível,
+-- inclusive "vendedores" — precisa conhecer o sistema inteiro pra
+-- vender e demonstrar — mas só ele: condomínio em teste ou pagante
+-- nunca casa com "vendedores" nos dois exists acima, então esse nível
+-- fica de fato invisível pra eles. SECURITY DEFINER porque precisa
+-- juntar condominios + membros + vendedores pra decidir, sem abrir
+-- policy de leitura cruzada nessas tabelas.
 create or replace function public.usuario_tem_acesso_academia(p_nivel_acesso text)
 returns boolean
 language sql
@@ -1504,6 +1509,10 @@ stable
 as $$
   select
     p_nivel_acesso = 'publico'
+    or exists (
+      select 1 from public.vendedores vd
+      where vd.user_id = auth.uid() and vd.ativo = true
+    )
     or exists (
       select 1 from public.condominios c
       where c.owner_id = auth.uid()
@@ -1522,6 +1531,15 @@ as $$
         )
     );
 $$;
+
+-- Nível de acesso "vendedores": vídeos de treinamento de vendas,
+-- visíveis só pra quem está logado como vendedor (ver função acima) —
+-- nem teste grátis nem assinante têm esse nível listado nos seus
+-- exists, então fica de fora pra eles tanto na vitrine (filtrado no
+-- client, ver app/dashboard/academia/page.jsx) quanto no arquivo real.
+alter table public.academia_videos drop constraint if exists academia_videos_nivel_acesso_check;
+alter table public.academia_videos add constraint academia_videos_nivel_acesso_check
+  check (nivel_acesso in ('publico', 'teste_14_dias', 'assinante', 'vendedores'));
 
 grant execute on function public.usuario_tem_acesso_academia(text) to authenticated;
 

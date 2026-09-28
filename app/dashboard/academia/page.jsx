@@ -22,7 +22,10 @@ export default function AcademiaPage() {
       .select("*")
       .order("ordem", { ascending: true });
     if (fetchError) setError(fetchError.message);
-    else setVideos(data || []);
+    // Nível "vendedores" é conteúdo de treinamento de vendas — nem
+    // aparece aqui pra condomínio (teste ou assinante), só pro
+    // próprio vendedor (ver app/vendedor/dashboard/page.jsx).
+    else setVideos((data || []).filter((v) => v.nivel_acesso !== "vendedores"));
     setLoading(false);
   }, []);
 

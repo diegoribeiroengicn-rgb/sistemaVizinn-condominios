@@ -8,6 +8,7 @@ import { ValoresVisiveisProvider } from "@/hooks/useValoresVisiveis";
 import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 import { TIPO_COMISSAO_LABELS, STATUS_COMISSAO_LABELS, STATUS_COMISSAO_STYLES } from "@/lib/comissoes";
 import { PLANS } from "@/lib/plans";
+import VendedorAcademia from "@/components/VendedorAcademia";
 
 const emptyCondominio = {
   condominioNome: "",
@@ -333,6 +334,8 @@ function PainelVendedor() {
             </div>
           </div>
         </div>
+
+        <VendedorAcademia />
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="card p-3">
