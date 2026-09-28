@@ -56,7 +56,7 @@ export default function ConviteVendedorPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-navy-50 px-4 py-12">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
-        <h1 className="font-display text-2xl font-bold text-navy-900">Seja um vendedor Vizinn</h1>
+        <h1 className="font-display text-2xl font-bold text-navy-900">Seja um vendedor Habittum</h1>
 
         {carregando ? (
           <p className="mt-4 text-navy-500">Carregando convite...</p>
@@ -73,7 +73,7 @@ export default function ConviteVendedorPage() {
         ) : (
           <>
             <p className="mt-2 text-sm text-navy-500">
-              Você foi convidado por <strong>{indicadorNome}</strong> pra fazer parte do time de vendedores Vizinn.
+              Você foi convidado por <strong>{indicadorNome}</strong> pra fazer parte do time de vendedores Habittum.
             </p>
             <form onSubmit={enviar} className="mt-6 space-y-3">
               {erro && <p className="text-sm text-coral-700">{erro}</p>}
@@ -130,7 +130,7 @@ export default function ConviteVendedorPage() {
               </div>
               <p className="text-xs text-navy-400">
                 Você já cria sua conta com essa senha — sem precisar de nenhum e-mail. Só falta a aprovação do
-                administrador Vizinn pra você começar a vender.
+                administrador Habittum pra você começar a vender.
               </p>
               <button type="submit" disabled={enviando} className="btn-primary w-full">
                 {enviando ? "Enviando..." : "Quero ser vendedor"}

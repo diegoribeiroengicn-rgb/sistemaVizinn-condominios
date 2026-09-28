@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
-// Platform-owner-only: contas a pagar/receber do próprio Vizinn (a
+// Platform-owner-only: contas a pagar/receber do próprio Habittum (a
 // empresa, não os condomínios). Tabela vizinn_lancamentos não tem
 // policy pra ninguém além do service_role — acesso gated só por
 // requireAdmin().

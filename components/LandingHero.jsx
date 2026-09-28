@@ -20,7 +20,7 @@ export default function LandingHero({ onStart }) {
             Simplifique a administração do seu condomínio
           </h1>
           <p className="mt-5 max-w-xl text-lg text-cream-100/80">
-            A Vizinn reúne financeiro, comunicação e atendimento em um só lugar,
+            A Habittum reúne financeiro, comunicação e atendimento em um só lugar,
             para síndicos que querem gastar menos tempo com burocracia.
           </p>
 

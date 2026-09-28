@@ -62,7 +62,7 @@ export default function AdminAcademiaContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold text-navy-900">Academia Vizinn</h1>
+          <h1 className="font-display text-xl font-bold text-navy-900">Academia Habittum</h1>
           <p className="mt-1 text-sm text-navy-500">
             Vídeos administrados aqui, consumidos pelos condomínios conforme o nível de acesso de
             cada um.

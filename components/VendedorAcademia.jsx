@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { NIVEL_ACESSO_LABELS, NIVEL_ACESSO_STYLES } from "@/lib/academia";
 
-// Academia Vizinn dentro do painel do vendedor — mesmo catálogo que o
+// Academia Habittum dentro do painel do vendedor — mesmo catálogo que o
 // condomínio vê (público/teste/assinante) MAIS os vídeos de nível
 // "vendedores" (treinamento de vendas, exclusivo daqui). Sem cadeado:
 // vendedor ativo tem acesso a tudo (ver usuario_tem_acesso_academia em
@@ -53,7 +53,7 @@ export default function VendedorAcademia() {
   return (
     <div className="card space-y-4">
       <div>
-        <h2 className="text-sm font-semibold text-navy-800">Academia Vizinn</h2>
+        <h2 className="text-sm font-semibold text-navy-800">Academia Habittum</h2>
         <p className="mt-1 text-xs text-navy-500">
           Vídeos pra você conhecer o sistema por dentro — inclui os vídeos exclusivos de vendedores.
         </p>

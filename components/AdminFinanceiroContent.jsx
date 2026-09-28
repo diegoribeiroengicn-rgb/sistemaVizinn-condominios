@@ -4,12 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
 import {
-  CATEGORIAS_DESPESA_VIZINN,
-  CATEGORIAS_RECEITA_VIZINN,
+  CATEGORIAS_DESPESA_HABITTUM,
+  CATEGORIAS_RECEITA_HABITTUM,
   STATUS_LANCAMENTO_LABELS,
   STATUS_LANCAMENTO_STYLES,
   formatarMoeda,
-} from "@/lib/vizinnFinanceiro";
+} from "@/lib/habittumFinanceiro";
 import { calcularStatusVencimento, VENCIMENTO_BADGE_STYLES } from "@/lib/financeiro";
 import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 
@@ -57,7 +57,7 @@ export default function AdminFinanceiroContent() {
   }, [load]);
 
   const doAba = lancamentos.filter((l) => l.tipo === aba);
-  const categorias = aba === "pagar" ? CATEGORIAS_DESPESA_VIZINN : CATEGORIAS_RECEITA_VIZINN;
+  const categorias = aba === "pagar" ? CATEGORIAS_DESPESA_HABITTUM : CATEGORIAS_RECEITA_HABITTUM;
 
   const totalPendente = doAba.filter((l) => l.status === "pendente").reduce((s, l) => s + Number(l.valor), 0);
   const totalPagoEsteMes = doAba
@@ -120,7 +120,7 @@ export default function AdminFinanceiroContent() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-xl font-bold text-navy-900">Financeiro do Vizinn</h1>
+          <h1 className="font-display text-xl font-bold text-navy-900">Financeiro do Habittum</h1>
           <p className="mt-1 text-sm text-navy-500">
             Contas a pagar e a receber da própria operação (hospedagem, e-mail, WhatsApp, etc), separado
             do financeiro dos condomínios clientes.

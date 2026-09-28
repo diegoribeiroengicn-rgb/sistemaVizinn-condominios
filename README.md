@@ -1,4 +1,4 @@
-# Vizinn — Gestão de Condomínio Inteligente
+# Habittum — Gestão de Condomínio Inteligente
 
 SaaS multi-tenant para administração condominial: landing page, cadastro com
 cobrança via Stripe e dashboard do síndico, tudo em uma única URL.

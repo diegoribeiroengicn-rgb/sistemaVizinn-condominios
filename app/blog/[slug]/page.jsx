@@ -75,7 +75,7 @@ export default async function BlogPostPage({ params }) {
             datePublished: post.published_at,
             dateModified: post.updated_at,
             image: post.imagem_capa || undefined,
-            publisher: { "@type": "Organization", name: "Vizinn" },
+            publisher: { "@type": "Organization", name: "Habittum" },
           }),
         }}
       />
@@ -104,7 +104,7 @@ export default async function BlogPostPage({ params }) {
             )
           )}
 
-          <div className="prose-vizinn mt-8 space-y-4 text-navy-700">
+          <div className="prose-habittum mt-8 space-y-4 text-navy-700">
             {blocos.map((bloco, i) => {
               if (bloco.tipo === "h2") {
                 return (

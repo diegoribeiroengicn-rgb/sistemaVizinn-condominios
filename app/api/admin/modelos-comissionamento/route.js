@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 import { registrarAuditoriaAdmin } from "@/lib/adminAuditoria";
 
-// Configurações → Comissionamento: modelo padrão Vizinn + modelos
+// Configurações → Comissionamento: modelo padrão Habittum + modelos
 // personalizados por parceiro. Uma única engine de cálculo (ver
 // lib/comissoes.js) lê os percentuais/regras daqui — nunca hardcoded.
 export async function GET(request) {

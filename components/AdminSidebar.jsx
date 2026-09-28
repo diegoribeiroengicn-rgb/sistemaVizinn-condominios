@@ -40,7 +40,7 @@ const ADMIN_NAV = [
   { href: "/admin/blog", label: "Blog", Icon: IconRelatorios, modulo: "blog" },
 ];
 
-const SIDEBAR_COLLAPSE_KEY = "vizinn-admin-sidebar-collapsed";
+const SIDEBAR_COLLAPSE_KEY = "habittum-admin-sidebar-collapsed";
 
 export default function AdminSidebar() {
   const { user, logout } = useAuth();
@@ -79,11 +79,11 @@ export default function AdminSidebar() {
       <div className="flex items-center gap-2.5 px-4 py-6">
         <Link href="/admin" className="flex items-center gap-2.5">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={32} height={32} />
+            <Image src="/brand/vizinn-mark.png" alt="Habittum" width={32} height={32} />
           </span>
           {!collapsed && (
             <span className="flex items-center gap-2">
-              <span className="font-display text-2xl font-bold tracking-tight text-white">Vizinn</span>
+              <span className="font-display text-2xl font-bold tracking-tight text-white">Habittum</span>
               <span className="rounded-full bg-coral px-2 py-0.5 text-xs font-semibold text-white">Admin</span>
             </span>
           )}
@@ -159,9 +159,9 @@ export default function AdminSidebar() {
       <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
         <Link href="/admin" className="flex items-center gap-2">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="Vizinn" width={24} height={24} />
+            <Image src="/brand/vizinn-mark.png" alt="Habittum" width={24} height={24} />
           </span>
-          <span className="font-display text-xl font-bold tracking-tight text-white">Vizinn Admin</span>
+          <span className="font-display text-xl font-bold tracking-tight text-white">Habittum Admin</span>
         </Link>
         <button
           onClick={() => setMobileOpen(true)}

@@ -48,7 +48,7 @@ export async function POST(request) {
       currency: "brl",
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
       receipt_email: email || undefined,
-      description: `Vizinn - Taxa de adesão (plano ${plan.name})`,
+      description: `Habittum - Taxa de adesão (plano ${plan.name})`,
       metadata: { planId: plan.id, purpose: "signup_adesao", cupomCodigo: cupom?.codigo || "" },
     });
 

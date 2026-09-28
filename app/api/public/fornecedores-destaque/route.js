@@ -6,13 +6,13 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 // Supabase disponíveis nesse momento). Força sempre dinâmica.
 export const dynamic = "force-dynamic";
 
-// Pública (sem login) — mostra o Ecossistema de Fornecedores Vizinn
+// Pública (sem login) — mostra o Ecossistema de Fornecedores Habittum
 // como diferencial na página inicial. Só dados reais da base
 // (fornecedores_globais), nunca fictícios. O nome do fornecedor volta
 // embaçado no card (vira vantagem de assinar pra revelar); o que
 // aparece limpo é a categoria/serviço e, quando existir, o texto de
 // uma avaliação real — mas só quando quem avaliou marcou
-// `condominio_publico` (o mesmo opt-in usado na Rede Vizinn interna).
+// `condominio_publico` (o mesmo opt-in usado na Rede Habittum interna).
 // Nunca mostra o nome do condomínio que avaliou. Só 3 fornecedores em
 // destaque; os demais ficam representados apenas como contagem por
 // categoria, nunca linha a linha. Restrição de verdade aqui no

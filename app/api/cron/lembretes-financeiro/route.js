@@ -10,7 +10,7 @@ import { parseEmailList } from "@/lib/emailList";
 export const dynamic = "force-dynamic";
 
 // Disparado 1x/dia pelo Vercel Cron (ver vercel.json). Avisa por e-mail
-// quando um lançamento pendente do financeiro do Vizinn (ex: renovação
+// quando um lançamento pendente do financeiro do Habittum (ex: renovação
 // de domínio) está a 30/15/7/1 dias do vencimento, ou vence hoje —
 // comparação por dia exato, então cada aviso sai só uma vez (o cron
 // roda 1x por dia, não precisa marcar "já avisado" em lugar nenhum).
@@ -59,7 +59,7 @@ export async function GET(request) {
           <p>Categoria: ${l.categoria || "-"}<br/>Valor: ${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(l.valor)}</p>
           <p>Acesse /admin/financeiro pra marcar como pago depois de renovar/pagar.</p>
         `,
-        fromName: "Vizinn — Lembretes financeiros",
+        fromName: "Habittum — Lembretes financeiros",
       });
       enviados += 1;
     } catch (err) {

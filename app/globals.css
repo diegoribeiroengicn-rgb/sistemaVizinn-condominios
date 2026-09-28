@@ -6,7 +6,7 @@
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Libre Baskerville", Georgia, serif;
 
-  /* Light theme (default) — matches the original fixed Vizinn palette
+  /* Light theme (default) — matches the original fixed Habittum palette
      exactly, so light mode looks the same as before this existed. */
   --navy-50: 238 241 246;
   --navy-100: 211 218 234;

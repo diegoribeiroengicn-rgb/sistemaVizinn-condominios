@@ -306,7 +306,7 @@ export default function ColaboradoresPage() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Colaboradores</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Quem trabalha no condomínio — com ou sem login no Vizinn. Diferente de Acessos, que é
+            Quem trabalha no condomínio — com ou sem login no Habittum. Diferente de Acessos, que é
             sobre quem entra no sistema.
           </p>
         </div>
@@ -560,7 +560,7 @@ export default function ColaboradoresPage() {
                     checked={form.possuiAcesso}
                     onChange={(e) => setForm((f) => ({ ...f, possuiAcesso: e.target.checked, membroId: "" }))}
                   />
-                  Possui acesso ao Vizinn
+                  Possui acesso ao Habittum
                 </label>
                 {form.possuiAcesso && (
                   <div className="mt-2">

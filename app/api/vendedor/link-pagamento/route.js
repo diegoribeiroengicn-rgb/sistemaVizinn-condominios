@@ -49,7 +49,7 @@ export async function POST(request) {
             currency: "brl",
             unit_amount: Math.round(valorNumero * 100),
             product_data: {
-              name: descricao?.trim() || "Taxa de adesão Vizinn",
+              name: descricao?.trim() || "Taxa de adesão Habittum",
             },
           },
           quantity: 1,

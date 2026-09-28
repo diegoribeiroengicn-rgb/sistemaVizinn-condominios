@@ -130,7 +130,7 @@ export default function AdminModelosComissionamentoContent() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Configurações → Comissionamento</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Modelo padrão Vizinn + modelos personalizados por parceiro. Alterar as regras de um modelo cria uma
+            Modelo padrão Habittum + modelos personalizados por parceiro. Alterar as regras de um modelo cria uma
             nova versão — comissões já geradas nunca são recalculadas.
           </p>
         </div>
@@ -154,7 +154,7 @@ export default function AdminModelosComissionamentoContent() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-navy-900">{m.nome}</h3>
-                    {m.padrao && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Padrão Vizinn</span>}
+                    {m.padrao && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">Padrão Habittum</span>}
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${m.status === "ativo" ? "bg-emerald-100 text-emerald-700" : "bg-navy-100 text-navy-500"}`}>
                       {m.status === "ativo" ? "Ativo" : "Inativo"}
                     </span>

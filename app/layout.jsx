@@ -20,25 +20,25 @@ const display = Libre_Baskerville({
 
 const SITE_URL = "https://www.vizinn.com.br";
 const DESCRICAO =
-  "Vizinn é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
+  "Habittum é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Vizinn | Condomínio Inteligente",
-    template: "%s | Vizinn",
+    default: "Habittum | Condomínio Inteligente",
+    template: "%s | Habittum",
   },
   description: DESCRICAO,
   keywords: [
-    "Vizinn",
+    "Habittum",
     "condomínio inteligente",
     "sistema de gestão condominial",
     "software para condomínio",
     "gestão de condomínio",
     "portal do condômino",
   ],
-  applicationName: "Vizinn",
-  authors: [{ name: "Vizinn" }],
+  applicationName: "Habittum",
+  authors: [{ name: "Habittum" }],
   robots: { index: true, follow: true },
   alternates: { canonical: "/" },
   icons: {
@@ -49,20 +49,20 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Vizinn",
+    title: "Habittum",
   },
   openGraph: {
     type: "website",
     locale: "pt_BR",
     url: SITE_URL,
-    siteName: "Vizinn",
-    title: "Vizinn | Condomínio Inteligente",
+    siteName: "Habittum",
+    title: "Habittum | Condomínio Inteligente",
     description: DESCRICAO,
-    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "Vizinn" }],
+    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "Habittum" }],
   },
   twitter: {
     card: "summary",
-    title: "Vizinn | Condomínio Inteligente",
+    title: "Habittum | Condomínio Inteligente",
     description: DESCRICAO,
     images: ["/brand/vizinn-logo-horizontal.png"],
   },

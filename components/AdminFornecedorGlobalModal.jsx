@@ -11,7 +11,7 @@ import {
   destaqueEstaVigente,
 } from "@/lib/fornecedoresDestaque";
 
-// Ficha completa de um fornecedor da base geral Vizinn, aberta a partir
+// Ficha completa de um fornecedor da base geral Habittum, aberta a partir
 // da lista em /admin/fornecedores — dados cadastrais editáveis, em
 // quais condomínios ele é usado e as avaliações reais recebidas.
 export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onChanged }) {
@@ -159,7 +159,7 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-midnight/60 px-4 py-8 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6">
         <div className="flex items-start justify-between gap-4">
-          <h2 className="font-display text-lg font-bold text-navy-900">Fornecedor da base Vizinn</h2>
+          <h2 className="font-display text-lg font-bold text-navy-900">Fornecedor da base Habittum</h2>
           <button onClick={onClose} className="text-navy-400 hover:text-navy-700" aria-label="Fechar">
             ✕
           </button>
@@ -271,7 +271,7 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
                           {new Date(a.created_at).toLocaleDateString("pt-BR")}
                           {a.condominio_publico && (
                             <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
-                              🌐 Visível na Rede Vizinn
+                              🌐 Visível na Rede Habittum
                             </span>
                           )}
                         </p>
@@ -296,7 +296,7 @@ export default function AdminFornecedorGlobalModal({ fornecedorId, onClose, onCh
               </div>
               <p className="mt-1 text-xs text-navy-400">
                 Informação só do painel admin — nunca aparece pro fornecedor, condomínio ou morador. Só
-                influencia a ordem de exibição na Rede de Fornecedores Vizinn (nunca a nota, que continua
+                influencia a ordem de exibição na Rede de Fornecedores Habittum (nunca a nota, que continua
                 vindo só das avaliações reais).
               </p>
 

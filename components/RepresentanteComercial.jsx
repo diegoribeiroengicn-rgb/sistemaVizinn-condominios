@@ -40,9 +40,9 @@ export default function RepresentanteComercial() {
   return (
     <section className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
       <div className="card text-center">
-        <h2 className="font-display text-2xl font-bold text-navy-900">Quer vender Vizinn na sua região?</h2>
+        <h2 className="font-display text-2xl font-bold text-navy-900">Quer vender Habittum na sua região?</h2>
         <p className="mx-auto mt-2 max-w-lg text-navy-600">
-          Procuramos representantes comerciais pra levar o Vizinn a mais condomínios. Deixa seu contato que a
+          Procuramos representantes comerciais pra levar o Habittum a mais condomínios. Deixa seu contato que a
           gente fala com você.
         </p>
 

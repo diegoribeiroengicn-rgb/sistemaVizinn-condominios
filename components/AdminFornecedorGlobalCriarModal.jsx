@@ -14,7 +14,7 @@ const emptyForm = {
   status: "ativo",
 };
 
-// Cadastro direto de um fornecedor na base geral Vizinn, pelo próprio
+// Cadastro direto de um fornecedor na base geral Habittum, pelo próprio
 // painel admin — sem depender de um condomínio importar/cadastrar
 // primeiro (ver /admin/fornecedores).
 export default function AdminFornecedorGlobalCriarModal({ onClose, onCreated }) {

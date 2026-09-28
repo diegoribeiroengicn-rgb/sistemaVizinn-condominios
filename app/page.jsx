@@ -50,11 +50,11 @@ export default function HomePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "Vizinn",
+            name: "Habittum",
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web",
             description:
-              "Vizinn é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word.",
+              "Habittum é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word.",
             url: "https://www.vizinn.com.br",
             offers: {
               "@type": "AggregateOffer",
@@ -82,7 +82,7 @@ export default function HomePage() {
             Blog
           </Link>
         </p>
-        <p className="mt-2">© {new Date().getFullYear()} Vizinn — Condomínio Inteligente</p>
+        <p className="mt-2">© {new Date().getFullYear()} Habittum — Condomínio Inteligente</p>
       </footer>
 
       {authView && (
