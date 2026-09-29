@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { gerarCodigoIndicacao } from "@/lib/comissoes";
 
 // Rota pública (sem login) por trás do link de indicação
-// (vizinn.com.br/vendedor/convite/ABC123 — seção 25/26/27 do
+// (aquihabitto.com.br/vendedor/convite/ABC123 — seção 25/26/27 do
 // projeto). O vínculo com o indicador é resolvido SÓ pelo código no
 // servidor — nunca aceito do corpo da requisição, então não dá pra
 // manipular a URL pra se vincular a outra pessoa.

@@ -30,7 +30,7 @@ export async function PATCH(request, { params }) {
 
   const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
-    .from("vizinn_lancamentos")
+    .from("aquihabitto_lancamentos")
     .update(updates)
     .eq("id", params.id)
     .select()
@@ -45,7 +45,7 @@ export async function DELETE(request, { params }) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const supabaseAdmin = getSupabaseAdmin();
-  const { error } = await supabaseAdmin.from("vizinn_lancamentos").delete().eq("id", params.id);
+  const { error } = await supabaseAdmin.from("aquihabitto_lancamentos").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }

@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 // admin ou qualquer rota que exija login: essas nunca devem ser
 // indexadas (nem fariam sentido pra um visitante sem conta).
 export default async function sitemap() {
-  const baseUrl = "https://www.vizinn.com.br";
+  const baseUrl = "https://www.aquihabitto.com.br";
   const agora = new Date();
 
   const entradas = [

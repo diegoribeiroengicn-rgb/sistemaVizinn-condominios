@@ -66,7 +66,7 @@ export async function POST(request) {
 
   // O login é sempre baseado em e-mail (sem SMS/telefone configurado), com
   // um placeholder gerado a partir do telefone quando não informado.
-  const loginEmail = email || `tel-${telefone.replace(/\D/g, "")}@membro.vizinn.local`;
+  const loginEmail = email || `tel-${telefone.replace(/\D/g, "")}@membro.aquihabitto.local`;
 
   try {
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({

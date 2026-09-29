@@ -8,6 +8,6 @@ export default function robots() {
       allow: "/",
       disallow: ["/dashboard", "/admin", "/vendedor", "/api"],
     },
-    sitemap: "https://www.vizinn.com.br/sitemap.xml",
+    sitemap: "https://www.aquihabitto.com.br/sitemap.xml",
   };
 }

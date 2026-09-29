@@ -55,7 +55,7 @@ export default function HomePage() {
             operatingSystem: "Web",
             description:
               "AquiHabitto é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word.",
-            url: "https://www.vizinn.com.br",
+            url: "https://www.aquihabitto.com.br",
             offers: {
               "@type": "AggregateOffer",
               priceCurrency: "BRL",

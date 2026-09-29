@@ -1,4 +1,4 @@
-package br.com.vizinn.app;
+package br.com.aquihabitto.app;
 
 import com.getcapacitor.BridgeActivity;
 

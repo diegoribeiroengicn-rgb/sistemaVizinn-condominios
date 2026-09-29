@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
 // Platform-owner-only: contas a pagar/receber do próprio AquiHabitto (a
-// empresa, não os condomínios). Tabela vizinn_lancamentos não tem
+// empresa, não os condomínios). Tabela aquihabitto_lancamentos não tem
 // policy pra ninguém além do service_role — acesso gated só por
 // requireAdmin().
 export async function GET(request) {
@@ -14,7 +14,7 @@ export async function GET(request) {
   const tipo = searchParams.get("tipo");
 
   const supabaseAdmin = getSupabaseAdmin();
-  let query = supabaseAdmin.from("vizinn_lancamentos").select("*").order("data_vencimento", { ascending: true });
+  let query = supabaseAdmin.from("aquihabitto_lancamentos").select("*").order("data_vencimento", { ascending: true });
   if (tipo === "pagar" || tipo === "receber") query = query.eq("tipo", tipo);
 
   const { data, error } = await query;
@@ -38,7 +38,7 @@ export async function POST(request) {
 
   const supabaseAdmin = getSupabaseAdmin();
   const { data, error } = await supabaseAdmin
-    .from("vizinn_lancamentos")
+    .from("aquihabitto_lancamentos")
     .insert({
       tipo,
       descricao: descricao.trim(),

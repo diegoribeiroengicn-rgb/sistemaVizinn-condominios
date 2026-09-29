@@ -79,7 +79,7 @@ export default function AdminSidebar() {
       <div className="flex items-center gap-2.5 px-4 py-6">
         <Link href="/admin" className="flex items-center gap-2.5">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={32} height={32} />
+            <Image src="/brand/aquihabitto-mark.png" alt="AquiHabitto" width={32} height={32} />
           </span>
           {!collapsed && (
             <span className="flex items-center gap-2">
@@ -166,7 +166,7 @@ export default function AdminSidebar() {
       <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
         <Link href="/admin" className="flex items-center gap-2">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={24} height={24} />
+            <Image src="/brand/aquihabitto-mark.png" alt="AquiHabitto" width={24} height={24} />
           </span>
           <span className="font-display text-xl font-bold tracking-tight text-white">AquiHabitto Admin</span>
         </Link>

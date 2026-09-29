@@ -27,7 +27,7 @@ export async function GET(request) {
 
   const supabaseAdmin = getSupabaseAdmin();
   const { data: lancamentos, error } = await supabaseAdmin
-    .from("vizinn_lancamentos")
+    .from("aquihabitto_lancamentos")
     .select("*")
     .eq("tipo", "pagar")
     .eq("status", "pendente")

@@ -1,9 +1,9 @@
 {
-  "appId": "br.com.vizinn.app",
+  "appId": "br.com.aquihabitto.app",
   "appName": "AquiHabitto",
   "webDir": "capacitor-www",
   "server": {
-    "url": "https://www.vizinn.com.br",
+    "url": "https://www.aquihabitto.com.br",
     "androidScheme": "https",
     "cleartext": false
   },

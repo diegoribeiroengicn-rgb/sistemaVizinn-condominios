@@ -10,7 +10,7 @@ export default function BlogHeader() {
     <header className="sticky top-0 z-40 border-b border-navy-100 bg-cream-50/90 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={34} height={34} className="rounded-lg" />
+          <Image src="/brand/aquihabitto-mark.png" alt="AquiHabitto" width={34} height={34} className="rounded-lg" />
           <span className="flex flex-col">
             <span className="font-display text-xl font-bold leading-none tracking-tight text-navy-900">
               Aqui

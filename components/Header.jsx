@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 const Logo = () => (
   <Link href="/" className="flex items-center gap-3">
-    <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={52} height={52} className="rounded-xl" />
+    <Image src="/brand/aquihabitto-mark.png" alt="AquiHabitto" width={52} height={52} className="rounded-xl" />
     <span className="flex flex-col">
       <span className="font-display text-2xl font-bold leading-none tracking-tight text-navy-900">
         Aqui

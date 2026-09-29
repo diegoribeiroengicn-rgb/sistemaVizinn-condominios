@@ -62,7 +62,7 @@ export default function AdminBlogContent() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Blog</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Posts públicos em vizinn.com.br/blog — conteúdo pra ranquear no Google.
+            Posts públicos em aquihabitto.com.br/blog — conteúdo pra ranquear no Google.
           </p>
         </div>
         <Link href="/admin" className="text-sm font-semibold text-navy-600 hover:underline">

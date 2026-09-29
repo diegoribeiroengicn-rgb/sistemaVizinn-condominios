@@ -145,7 +145,7 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   }
 
   const codigo = detalhe?.vendedor?.codigo_indicacao;
-  const origem = typeof window !== "undefined" ? window.location.origin : "https://vizinn.com.br";
+  const origem = typeof window !== "undefined" ? window.location.origin : "https://aquihabitto.com.br";
   const linkConviteVendedor = codigo ? `${origem}/vendedor/convite/${codigo}` : null;
   const linkVenda = codigo ? `${origem}/?ref=${codigo}` : null;
 

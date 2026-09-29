@@ -6,7 +6,7 @@ import { authedFetch } from "@/lib/adminFetch";
 import { formatarMoeda } from "@/lib/aquiHabittoFinanceiro";
 
 // Destaque no topo do painel admin pro vencimento mais próximo de
-// "Domínio" em vizinn_lancamentos (ex: renovação anual do vizinn.com.br
+// "Domínio" em aquihabitto_lancamentos (ex: renovação anual do aquihabitto.com.br
 // no registro.br) — alimentado pelo mesmo lançamento que dispara os
 // e-mails de lembrete (ver /api/cron/lembretes-financeiro). Some
 // sozinho se não houver nenhum lançamento de domínio cadastrado ainda.

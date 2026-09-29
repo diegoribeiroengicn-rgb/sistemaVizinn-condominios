@@ -18,7 +18,7 @@ const display = Libre_Baskerville({
   display: "swap",
 });
 
-const SITE_URL = "https://www.vizinn.com.br";
+const SITE_URL = "https://www.aquihabitto.com.br";
 const DESCRICAO =
   "AquiHabitto é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
 
@@ -58,13 +58,13 @@ export const metadata = {
     siteName: "AquiHabitto",
     title: "AquiHabitto | Condomínio Inteligente",
     description: DESCRICAO,
-    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "AquiHabitto" }],
+    images: [{ url: "/brand/aquihabitto-logo-horizontal.png", width: 300, height: 87, alt: "AquiHabitto" }],
   },
   twitter: {
     card: "summary",
     title: "AquiHabitto | Condomínio Inteligente",
     description: DESCRICAO,
-    images: ["/brand/vizinn-logo-horizontal.png"],
+    images: ["/brand/aquihabitto-logo-horizontal.png"],
   },
 };
 
