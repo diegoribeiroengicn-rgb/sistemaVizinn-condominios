@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -13,6 +15,7 @@ const emptyForm = { unidade: "", bloco: "", nome: "", telefone: "", email: "", o
 
 export default function MoradoresPage() {
   const { condominio, user, member, temPermissao } = useAuth();
+  const searchParams = useSearchParams();
   const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
   const [exportando, setExportando] = useState(null);
   const [moradores, setMoradores] = useState([]);
@@ -34,6 +37,7 @@ export default function MoradoresPage() {
   const podeCriar = temPermissao("moradores", "criar");
   const podeEditar = temPermissao("moradores", "editar");
   const podeExcluir = temPermissao("moradores", "excluir");
+  const podeCriarVeiculo = temPermissao("veiculos", "criar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -52,6 +56,15 @@ export default function MoradoresPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Vem do atalho "+ Cadastrar morador" da tela de Veículos (unidade/bloco
+  // já preenchidos na URL) — pré-preenche o formulário sem precisar
+  // redigitar o que já foi informado lá.
+  useEffect(() => {
+    const unidade = searchParams.get("unidade");
+    if (!unidade) return;
+    setForm((f) => ({ ...f, unidade, bloco: searchParams.get("bloco") || f.bloco }));
+  }, [searchParams]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -450,6 +463,14 @@ export default function MoradoresPage() {
                     <button onClick={() => openEdit(m)} className="text-xs font-semibold text-navy-700 hover:underline">
                       Editar
                     </button>
+                  )}
+                  {podeCriarVeiculo && (
+                    <Link
+                      href={`/dashboard/veiculos?unidade=${encodeURIComponent(m.unidade)}&bloco=${encodeURIComponent(m.bloco || "")}&morador=${encodeURIComponent(m.nome)}`}
+                      className="text-xs font-semibold text-navy-700 hover:underline"
+                    >
+                      + Adicionar veículo
+                    </Link>
                   )}
                   {podeExcluir && (
                     <button
