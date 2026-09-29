@@ -168,7 +168,13 @@ export default function DashboardSidebar() {
           <span className="flex-none rounded-lg bg-cream-50 p-1">
             <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={32} height={32} />
           </span>
-          {!collapsed && <span className="font-display text-2xl font-bold tracking-tight text-white">AquiHabitto</span>}
+          {!collapsed && (
+            <span className="font-display text-2xl font-bold leading-none tracking-tight text-white">
+              Aqui
+              <br />
+              Habitto
+            </span>
+          )}
         </Link>
       </div>
 

@@ -83,7 +83,11 @@ export default function AdminSidebar() {
           </span>
           {!collapsed && (
             <span className="flex items-center gap-2">
-              <span className="font-display text-2xl font-bold tracking-tight text-white">AquiHabitto</span>
+              <span className="font-display text-2xl font-bold leading-none tracking-tight text-white">
+                Aqui
+                <br />
+                Habitto
+              </span>
               <span className="rounded-full bg-coral px-2 py-0.5 text-xs font-semibold text-white">Admin</span>
             </span>
           )}

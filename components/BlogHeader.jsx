@@ -11,7 +11,11 @@ export default function BlogHeader() {
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={34} height={34} className="rounded-lg" />
-          <span className="font-display text-xl font-bold tracking-tight text-navy-900">AquiHabitto</span>
+          <span className="font-display text-xl font-bold leading-none tracking-tight text-navy-900">
+            Aqui
+            <br />
+            Habitto
+          </span>
         </Link>
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link href="/blog" className="btn-ghost">
