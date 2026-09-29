@@ -15,7 +15,7 @@ export default function BlogHeader() {
             <span className="font-display text-xl font-bold leading-none tracking-tight text-navy-900">
               Aqui
               <br />
-              Habitto<span className="ml-1 inline-block h-1 w-1 align-middle bg-coral" />
+              Habitto<span className="ml-1 inline-block h-[2px] w-[2px] translate-y-1 align-middle bg-coral" />
             </span>
             <span className="mt-1 h-0.5 w-8 bg-coral" />
           </span>

@@ -173,7 +173,7 @@ export default function DashboardSidebar() {
               <span className="font-display text-2xl font-bold leading-none tracking-tight text-white">
                 Aqui
                 <br />
-                Habitto<span className="ml-1 inline-block h-1.5 w-1.5 align-middle bg-coral" />
+                Habitto<span className="ml-1 inline-block h-[3px] w-[3px] translate-y-1 align-middle bg-coral" />
               </span>
               <span className="mt-1.5 h-0.5 w-10 bg-coral" />
             </span>
