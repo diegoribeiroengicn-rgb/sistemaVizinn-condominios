@@ -86,7 +86,7 @@ export default function AdminFornecedoresContent() {
           </h1>
           <p className="mt-1 text-sm text-navy-500">
             Identidade única por CNPJ, compartilhada entre condomínios — o Ecossistema de
-            Fornecedores Habittum.
+            Fornecedores AquiHabitto.
           </p>
         </div>
         <Link href="/admin" className="text-sm font-semibold text-navy-600 hover:underline">

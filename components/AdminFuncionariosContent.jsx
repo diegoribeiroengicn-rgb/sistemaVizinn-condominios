@@ -127,7 +127,7 @@ export default function AdminFuncionariosContent() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Funcionários</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Equipe do Habittum com acesso ao painel admin — cada um só vê os módulos marcados abaixo.
+            Equipe do AquiHabitto com acesso ao painel admin — cada um só vê os módulos marcados abaixo.
           </p>
         </div>
         <Link href="/admin" className="text-sm font-semibold text-navy-600 hover:underline">

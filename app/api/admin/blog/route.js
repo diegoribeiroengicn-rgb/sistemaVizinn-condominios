@@ -40,7 +40,7 @@ export async function POST(request) {
       imagem_capa: body.imagemCapa?.trim() || null,
       video_url: body.videoUrl?.trim() || null,
       meta_descricao: body.metaDescricao?.trim() || resumo,
-      autor_nome: body.autorNome?.trim() || "Equipe Habittum",
+      autor_nome: body.autorNome?.trim() || "Equipe AquiHabitto",
       status,
       published_at: status === "publicado" ? new Date().toISOString() : null,
     })

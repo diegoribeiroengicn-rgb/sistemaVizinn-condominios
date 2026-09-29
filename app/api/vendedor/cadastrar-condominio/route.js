@@ -73,7 +73,7 @@ export async function POST(request) {
     });
     if (erroCriarUser) {
       if (erroCriarUser.message?.toLowerCase().includes("already")) {
-        return NextResponse.json({ error: "Já existe uma conta com este e-mail no Habittum." }, { status: 409 });
+        return NextResponse.json({ error: "Já existe uma conta com este e-mail no AquiHabitto." }, { status: 409 });
       }
       return NextResponse.json({ error: erroCriarUser.message }, { status: 500 });
     }

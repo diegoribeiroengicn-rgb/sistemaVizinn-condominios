@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { authedFetch } from "@/lib/adminFetch";
-import { formatarMoeda } from "@/lib/habittumFinanceiro";
+import { formatarMoeda } from "@/lib/aquiHabittoFinanceiro";
 
 // Destaque no topo do painel admin pro vencimento mais próximo de
 // "Domínio" em vizinn_lancamentos (ex: renovação anual do vizinn.com.br

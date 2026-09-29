@@ -13,7 +13,7 @@ export default function AdminBlogPostModal({ post, onClose, onChanged }) {
     imagemCapa: post.imagem_capa || "",
     videoUrl: post.video_url || "",
     metaDescricao: post.meta_descricao || "",
-    autorNome: post.autor_nome || "Equipe Habittum",
+    autorNome: post.autor_nome || "Equipe AquiHabitto",
   });
   const [salvando, setSalvando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);

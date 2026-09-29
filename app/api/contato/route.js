@@ -32,7 +32,7 @@ export async function POST(request) {
       to: destinatario,
       subject: `Fale Conosco — ${nome}`,
       html: `<p><strong>Nome:</strong> ${escapeHtml(nome)}</p><p><strong>E-mail:</strong> ${escapeHtml(email)}</p><p><strong>Mensagem:</strong></p><p>${escapeHtml(mensagem).replace(/\n/g, "<br/>")}</p>`,
-      fromName: "Habittum — Fale Conosco",
+      fromName: "AquiHabitto — Fale Conosco",
       replyTo: email,
     });
   } catch (err) {

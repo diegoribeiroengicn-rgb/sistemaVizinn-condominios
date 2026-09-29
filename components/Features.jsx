@@ -21,13 +21,13 @@ const features = [
   },
   {
     icon: "🎓",
-    title: "Academia Habittum",
+    title: "Academia AquiHabitto",
     text: "Vídeos curtos que ensinam a usar cada parte do sistema — do cadastro de morador à emissão de relatório. Alguns são livres pra qualquer visitante, outros liberam no teste grátis ou pra assinantes.",
   },
   {
     icon: "✅",
     title: "Fornecedores validados",
-    text: "Uma rede compartilhada entre condomínios Habittum, com CNPJ único por fornecedor e reputação real baseada em avaliações de outros síndicos — nada fictício.",
+    text: "Uma rede compartilhada entre condomínios AquiHabitto, com CNPJ único por fornecedor e reputação real baseada em avaliações de outros síndicos — nada fictício.",
   },
   {
     icon: "🔐",

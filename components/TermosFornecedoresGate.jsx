@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 const TEXTO_TERMOS = `
 Ao avaliar um fornecedor no módulo Fornecedores, sua avaliação pode ser
 compartilhada com outros condomínios dentro da Rede de Fornecedores
-Habittum, respeitando sempre estas regras:
+AquiHabitto, respeitando sempre estas regras:
 
 • Nunca é compartilhado o CNPJ, o endereço ou qualquer outro dado do seu
   condomínio — apenas o nome do condomínio, e só se você marcar a opção

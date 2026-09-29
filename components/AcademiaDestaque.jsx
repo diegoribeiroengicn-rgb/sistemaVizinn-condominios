@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-// Vitrine pública da Academia Habittum (sem login) — busca só os vídeos
+// Vitrine pública da Academia AquiHabitto (sem login) — busca só os vídeos
 // que o admin marcou como nível "público" via /api/public/academia-destaque,
 // que já filtra isso no backend (nunca manda vídeo pago escondido com CSS).
 // Sem vídeo público cadastrado ainda, cai num texto genérico — nunca
@@ -33,7 +33,7 @@ export default function AcademiaDestaque({ onStart }) {
       <div className="mx-auto max-w-2xl text-center">
         <span className="text-3xl">🎓</span>
         <h2 className="mt-3 font-display text-3xl font-bold text-navy-900 sm:text-4xl">
-          Academia Habittum
+          Academia AquiHabitto
         </h2>
         <p className="mt-4 text-navy-600">
           Vídeos curtos e diretos pra você dominar o sistema — do cadastro de um morador à emissão

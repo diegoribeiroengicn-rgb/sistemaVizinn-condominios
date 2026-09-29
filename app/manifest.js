@@ -4,8 +4,8 @@
 // components/InstalarApp.jsx) e dá ícone/nome/tela cheia ao abrir.
 export default function manifest() {
   return {
-    name: "Habittum — Condomínio Inteligente",
-    short_name: "Habittum",
+    name: "AquiHabitto — Condomínio Inteligente",
+    short_name: "AquiHabitto",
     description:
       "Gestão condominial completa: chamados, avisos, financeiro, portaria e notificações automáticas por WhatsApp.",
     start_url: "/dashboard",

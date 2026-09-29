@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-// Vitrine pública do Ecossistema de Fornecedores Habittum (sem login) —
+// Vitrine pública do Ecossistema de Fornecedores AquiHabitto (sem login) —
 // busca só uma prévia real via /api/public/fornecedores-destaque, que
 // já limita a 3 fornecedores e nunca manda a base inteira pro
 // navegador. O nome do fornecedor nem sai do backend — o card mostra a
@@ -39,10 +39,10 @@ export default function EcossistemaFornecedores({ onStart }) {
       <div className="mx-auto max-w-2xl text-center">
         <span className="text-3xl">🤝</span>
         <h2 className="mt-3 font-display text-3xl font-bold text-navy-900 sm:text-4xl">
-          Ecossistema de Fornecedores Habittum
+          Ecossistema de Fornecedores AquiHabitto
         </h2>
         <p className="mt-4 text-navy-600">
-          Uma rede compartilhada entre todos os condomínios Habittum: fornecedores de verdade,
+          Uma rede compartilhada entre todos os condomínios AquiHabitto: fornecedores de verdade,
           cadastrados por síndicos de verdade, com reputação real baseada em avaliações — nada
           fictício.
         </p>
@@ -66,7 +66,7 @@ export default function EcossistemaFornecedores({ onStart }) {
           <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
             {destaques.map((f, i) => (
               <div key={i} className="card">
-                <h3 className="font-semibold text-navy-900">{f.categoria || "Fornecedor Habittum"}</h3>
+                <h3 className="font-semibold text-navy-900">{f.categoria || "Fornecedor AquiHabitto"}</h3>
                 <div className="mt-1 flex items-center gap-2">
                   <span className="select-none text-sm text-navy-300 blur-[3px]" aria-hidden="true">
                     Nome do fornecedor

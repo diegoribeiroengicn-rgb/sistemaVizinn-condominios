@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
-// Pública (sem login) — mostra a Academia Habittum como diferencial na
+// Pública (sem login) — mostra a Academia AquiHabitto como diferencial na
 // página inicial. Só devolve vídeos que o admin marcou explicitamente
 // como nível "público" (livre pra qualquer visitante, ver
 // usuario_tem_acesso_academia em supabase/schema.sql), publicados e

@@ -1,6 +1,6 @@
 {
   "appId": "br.com.vizinn.app",
-  "appName": "Habittum",
+  "appName": "AquiHabitto",
   "webDir": "capacitor-www",
   "server": {
     "url": "https://www.vizinn.com.br",

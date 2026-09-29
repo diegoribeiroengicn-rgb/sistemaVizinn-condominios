@@ -20,25 +20,25 @@ const display = Libre_Baskerville({
 
 const SITE_URL = "https://www.vizinn.com.br";
 const DESCRICAO =
-  "Habittum é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
+  "AquiHabitto é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Habittum | Condomínio Inteligente",
-    template: "%s | Habittum",
+    default: "AquiHabitto | Condomínio Inteligente",
+    template: "%s | AquiHabitto",
   },
   description: DESCRICAO,
   keywords: [
-    "Habittum",
+    "AquiHabitto",
     "condomínio inteligente",
     "sistema de gestão condominial",
     "software para condomínio",
     "gestão de condomínio",
     "portal do condômino",
   ],
-  applicationName: "Habittum",
-  authors: [{ name: "Habittum" }],
+  applicationName: "AquiHabitto",
+  authors: [{ name: "AquiHabitto" }],
   robots: { index: true, follow: true },
   alternates: { canonical: "/" },
   icons: {
@@ -49,20 +49,20 @@ export const metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Habittum",
+    title: "AquiHabitto",
   },
   openGraph: {
     type: "website",
     locale: "pt_BR",
     url: SITE_URL,
-    siteName: "Habittum",
-    title: "Habittum | Condomínio Inteligente",
+    siteName: "AquiHabitto",
+    title: "AquiHabitto | Condomínio Inteligente",
     description: DESCRICAO,
-    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "Habittum" }],
+    images: [{ url: "/brand/vizinn-logo-horizontal.png", width: 300, height: 87, alt: "AquiHabitto" }],
   },
   twitter: {
     card: "summary",
-    title: "Habittum | Condomínio Inteligente",
+    title: "AquiHabitto | Condomínio Inteligente",
     description: DESCRICAO,
     images: ["/brand/vizinn-logo-horizontal.png"],
   },

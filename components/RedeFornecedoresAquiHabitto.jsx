@@ -6,7 +6,7 @@ import { CATEGORIAS_SUGERIDAS } from "@/lib/fornecedores";
 import { formatarCnpj } from "@/lib/validacaoDocumentos";
 
 // Busca na base compartilhada de fornecedores de todo o ecossistema
-// Habittum (não só os cadastrados neste condomínio) — ver
+// AquiHabitto (não só os cadastrados neste condomínio) — ver
 // fornecedores_globais em supabase/schema.sql. A ordem dos resultados
 // já vem pronta do banco (buscar_fornecedores_rede: destaque comercial
 // vigente → nota média → rodízio controlado entre empatados) — nunca
@@ -14,7 +14,7 @@ import { formatarCnpj } from "@/lib/validacaoDocumentos";
 // retorno, só a reputação agregada (nota média, quantidade de
 // avaliações, quantidade de condomínios), nunca dado cru de outro
 // condomínio.
-export default function RedeFornecedoresHabittum({ condominioId, meusFornecedoresGlobalIds, onAdicionado }) {
+export default function RedeFornecedoresAquiHabitto({ condominioId, meusFornecedoresGlobalIds, onAdicionado }) {
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState("");
   const [resultados, setResultados] = useState(null);
@@ -97,9 +97,9 @@ export default function RedeFornecedoresHabittum({ condominioId, meusFornecedore
   return (
     <div className="space-y-4">
       <div className="card">
-        <h2 className="font-display text-lg font-bold text-navy-900">Rede de Fornecedores Habittum</h2>
+        <h2 className="font-display text-lg font-bold text-navy-900">Rede de Fornecedores AquiHabitto</h2>
         <p className="mt-1 text-sm text-navy-500">
-          Pesquise fornecedores já usados por outros condomínios do Habittum, com reputação real
+          Pesquise fornecedores já usados por outros condomínios do AquiHabitto, com reputação real
           baseada em avaliações — e adicione direto ao cadastro deste condomínio. Busque por nome,
           CNPJ, categoria, ou os dois juntos.
         </p>

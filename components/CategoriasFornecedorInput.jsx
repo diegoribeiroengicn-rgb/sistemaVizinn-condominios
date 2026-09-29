@@ -4,7 +4,7 @@ import { CATEGORIAS_SUGERIDAS } from "@/lib/fornecedores";
 
 // Entrada de categorias — um fornecedor pode atuar em mais de uma
 // (ex: Elétrica e Hidráulica). Só permite escolher da lista fixa
-// (CATEGORIAS_SUGERIDAS), a mesma usada no filtro da Rede Habittum —
+// (CATEGORIAS_SUGERIDAS), a mesma usada no filtro da Rede AquiHabitto —
 // antes era texto livre com essa lista só como sugestão de
 // autocompletar, e qualquer variação digitada (plural/singular,
 // maiúscula, espaço a mais) fazia o fornecedor nunca aparecer na

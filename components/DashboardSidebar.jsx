@@ -53,7 +53,7 @@ const SINDICO_NAV = [
   { href: "/dashboard/moradores", label: "Moradores", Icon: IconMoradores },
   { href: "/dashboard/veiculos", label: "Veículos", Icon: IconVeiculos },
   { href: "/dashboard/obras", label: "Obras e Melhorias", Icon: IconObras },
-  { href: "/dashboard/academia", label: "Academia Habittum", Icon: IconAcademia },
+  { href: "/dashboard/academia", label: "Academia AquiHabitto", Icon: IconAcademia },
   { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
 ];
@@ -83,7 +83,7 @@ const ICON_BY_MODULO = {
 
 const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
 
-const SIDEBAR_COLLAPSE_KEY = "habittum-sidebar-collapsed";
+const SIDEBAR_COLLAPSE_KEY = "aquihabitto-sidebar-collapsed";
 
 export default function DashboardSidebar() {
   const { user, condominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
@@ -152,7 +152,7 @@ export default function DashboardSidebar() {
           // plataforma, liberado por nível de acesso conforme a
           // assinatura) — por isso aparece pra qualquer pessoa logada,
           // sem depender de permissão concedida em Acessos.
-          { href: "/dashboard/academia", label: "Academia Habittum", Icon: IconAcademia },
+          { href: "/dashboard/academia", label: "Academia AquiHabitto", Icon: IconAcademia },
           ...(MODULOS_COM_RELATORIO.some((m) => temPermissao(m, "visualizar"))
             ? [{ href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios }]
             : []),
@@ -166,9 +166,9 @@ export default function DashboardSidebar() {
       <div className="flex items-center gap-2.5 px-4 py-6">
         <Link href="/dashboard" onClick={confirmarSaida} className="flex items-center gap-2.5">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="Habittum" width={32} height={32} />
+            <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={32} height={32} />
           </span>
-          {!collapsed && <span className="font-display text-2xl font-bold tracking-tight text-white">Habittum</span>}
+          {!collapsed && <span className="font-display text-2xl font-bold tracking-tight text-white">AquiHabitto</span>}
         </Link>
       </div>
 
@@ -250,9 +250,9 @@ export default function DashboardSidebar() {
       <div className="flex items-center justify-between border-b border-white/10 bg-sidebar px-4 py-3 lg:hidden">
         <Link href="/dashboard" onClick={confirmarSaida} className="flex items-center gap-2">
           <span className="flex-none rounded-lg bg-cream-50 p-1">
-            <Image src="/brand/vizinn-mark.png" alt="Habittum" width={24} height={24} />
+            <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={24} height={24} />
           </span>
-          <span className="font-display text-xl font-bold tracking-tight text-white">Habittum</span>
+          <span className="font-display text-xl font-bold tracking-tight text-white">AquiHabitto</span>
         </Link>
         <button
           onClick={() => setMobileOpen(true)}

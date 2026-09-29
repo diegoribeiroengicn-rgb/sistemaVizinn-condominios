@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
-// Platform-owner-only: gestão da base geral de Fornecedores Habittum
+// Platform-owner-only: gestão da base geral de Fornecedores AquiHabitto
 // (fornecedores_globais) — bypassa RLS via service role, acesso gated
 // só por requireAdmin(). Nenhum síndico consegue editar/apagar essa
 // tabela pela RLS normal (ver supabase/schema.sql); é essa rota que

@@ -8,7 +8,7 @@ import { requireAdmin } from "@/lib/adminAuth";
 // em supabase/schema.sql, sem policy nenhuma pra "authenticated"). A
 // nota do fornecedor nunca é tocada aqui — isso só grava o nível, a
 // situação de pagamento e a vigência usados pra ORDENAR a Rede de
-// Fornecedores Habittum (ver função buscar_fornecedores_rede no banco).
+// Fornecedores AquiHabitto (ver função buscar_fornecedores_rede no banco).
 const NIVEIS_VALIDOS = [0, 1, 2, 3];
 const SITUACOES_VALIDAS = ["pendente", "pago", "vencido", "cancelado"];
 

@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import TermosFornecedoresGate from "@/components/TermosFornecedoresGate";
-import RedeFornecedoresHabittum from "@/components/RedeFornecedoresHabittum";
+import RedeFornecedoresAquiHabitto from "@/components/RedeFornecedoresAquiHabitto";
 import CategoriasFornecedorInput from "@/components/CategoriasFornecedorInput";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
@@ -151,7 +151,7 @@ export default function FornecedoresPage() {
     e.preventDefault();
     if (!condominio?.id || !form.razaoSocial.trim()) return;
 
-    // CNPJ é a identidade que liga o fornecedor à base Habittum (ver
+    // CNPJ é a identidade que liga o fornecedor à base AquiHabitto (ver
     // lib/fornecedores.js) — só valida quando parece CNPJ (14 dígitos);
     // CPF de profissional autônomo ou campo em branco não passa por
     // aqui, e não entra na rede compartilhada.
@@ -174,7 +174,7 @@ export default function FornecedoresPage() {
       });
       if (resultado.erro) {
         setSubmitting(false);
-        setError(`Erro ao vincular à base Habittum: ${resultado.erro}`);
+        setError(`Erro ao vincular à base AquiHabitto: ${resultado.erro}`);
         return;
       }
       fornecedorGlobalId = resultado.id;
@@ -276,7 +276,7 @@ export default function FornecedoresPage() {
     // Mesma regra do cadastro manual (handleSubmit): CNPJ válido também
     // entra/reaproveita a base geral (fornecedores_globais) — sem isso o
     // fornecedor fica só local, e não aparece no Ecossistema de
-    // Fornecedores Habittum nem no painel admin.
+    // Fornecedores AquiHabitto nem no painel admin.
     const payload = [];
     for (const l of preview.linhas) {
       const categorias = separarCategorias(l.atividade);
@@ -477,12 +477,12 @@ export default function FornecedoresPage() {
             abaFornecedores === "rede" ? "bg-midnight text-white" : "bg-navy-50 text-navy-600 hover:bg-navy-100"
           }`}
         >
-          🌐 Rede Habittum
+          🌐 Rede AquiHabitto
         </button>
       </div>
 
       {abaFornecedores === "rede" && (
-        <RedeFornecedoresHabittum
+        <RedeFornecedoresAquiHabitto
           condominioId={condominio.id}
           meusFornecedoresGlobalIds={meusFornecedoresGlobalIds}
           onAdicionado={() => {
@@ -806,9 +806,9 @@ export default function FornecedoresPage() {
                       {f.fornecedor_global_id && (
                         <span
                           className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700"
-                          title="Esse CNPJ já está na base compartilhada da Habittum"
+                          title="Esse CNPJ já está na base compartilhada da AquiHabitto"
                         >
-                          🌐 Rede Habittum
+                          🌐 Rede AquiHabitto
                         </span>
                       )}
                     </div>
@@ -916,7 +916,7 @@ export default function FornecedoresPage() {
                         onChange={(e) => setAvaliacaoForm((f2) => ({ ...f2, condominioPublico: e.target.checked }))}
                       />
                       Mostrar o nome do meu condomínio junto dessa avaliação pros outros condomínios
-                      na Rede Habittum (a observação continua sempre privada). Se deixar desmarcado, a
+                      na Rede AquiHabitto (a observação continua sempre privada). Se deixar desmarcado, a
                       avaliação entra na nota igual, mas sem identificar quem avaliou.
                     </label>
                     <div className="flex gap-3">

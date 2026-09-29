@@ -233,7 +233,7 @@ export default function MoradoresPage() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Moradores</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Cadastro de quem mora em cada unidade — não precisa ter login no Habittum. Usado para
+            Cadastro de quem mora em cada unidade — não precisa ter login no AquiHabitto. Usado para
             avisar automaticamente por WhatsApp/e-mail quando chega uma encomenda (Ocorrências).
           </p>
         </div>

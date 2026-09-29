@@ -1,4 +1,4 @@
--- Habittum: full schema, run this in the Supabase SQL editor for your project.
+-- AquiHabitto: full schema, run this in the Supabase SQL editor for your project.
 --
 -- IMPORTANT #1: tables created via the SQL editor (unlike the Table Editor
 -- UI) do NOT automatically get base privileges for Supabase's
@@ -668,7 +668,7 @@ alter table public.propostas add column if not exists fornecedor_nome text;
 
 -- Colaboradores: pessoas que trabalham no condomínio (zelador, porteiro,
 -- equipe de limpeza etc.), separado de `membros` (quem tem login no
--- Habittum). Um colaborador pode não ter login algum — por isso
+-- AquiHabitto). Um colaborador pode não ter login algum — por isso
 -- `membro_id` é opcional e só é preenchido quando `possui_acesso` = true.
 create table if not exists public.colaboradores (
   id uuid primary key default gen_random_uuid(),
@@ -1168,7 +1168,7 @@ grant all on public.notificacoes_log to service_role;
 
 -- Moradores: cadastro simples de quem mora em cada unidade (unidade,
 -- bloco, nome, telefone), separado de `membros` (quem tem login no
--- Habittum) — a maioria dos moradores nunca vai ter login, mas ainda
+-- AquiHabitto) — a maioria dos moradores nunca vai ter login, mas ainda
 -- assim precisa ser encontrada quando a portaria avisa "chegou uma
 -- encomenda". Alimenta as notificações de Ocorrências (ver
 -- /app/api/notificar) além de `membros` com papel=condomino.
@@ -1410,7 +1410,7 @@ create policy "Members can delete anexos de propostas"
     )
   );
 
--- Ecossistema de Fornecedores Habittum: identidade global por CNPJ,
+-- Ecossistema de Fornecedores AquiHabitto: identidade global por CNPJ,
 -- compartilhada entre condomínios — 100% aditivo. `fornecedores.id`
 -- continua sendo exatamente o que já era (o cadastro daquele
 -- condomínio, referenciado por avaliacoes_fornecedor/manutencoes/
@@ -1472,7 +1472,7 @@ grant select, insert on public.fornecedores_globais to authenticated;
 grant all on public.fornecedores_globais to service_role;
 
 -- Reputação agregada de um fornecedor global (usada na busca da Rede
--- de Fornecedores Habittum) — só números agregados, nunca linha crua de
+-- de Fornecedores AquiHabitto) — só números agregados, nunca linha crua de
 -- outro condomínio: não vaza nome de condomínio, comentário ou
 -- avaliação individual de ninguém, só "nota média", "quantas
 -- avaliações" e "quantos condomínios" (contagem, não identidade).
@@ -1502,7 +1502,7 @@ grant execute on function public.reputacao_fornecedor_global(uuid) to authentica
 -- disponível só pro owner da plataforma).
 alter table public.fornecedores_globais add column if not exists status text not null default 'ativo' check (status in ('ativo', 'inativo'));
 
--- Academia Habittum: vídeos administrados pelo painel admin, consumidos
+-- Academia AquiHabitto: vídeos administrados pelo painel admin, consumidos
 -- por qualquer condomínio logado conforme o nível de acesso de cada
 -- vídeo. Implementação inicial simples (sem certificado, prova,
 -- gamificação, trilha ou fórum) — só cadastro e controle de acesso.
@@ -1644,7 +1644,7 @@ alter table public.fornecedores_globais add column if not exists categorias text
 update public.fornecedores_globais set categorias = array[categoria] where categoria is not null and categorias = '{}';
 
 -- Quem avalia escolhe se o nome do próprio condomínio aparece junto da
--- nota pra outros condomínios (na Rede Habittum) — padrão desmarcado
+-- nota pra outros condomínios (na Rede AquiHabitto) — padrão desmarcado
 -- (anônimo), como já era antes. O painel admin sempre viu o nome do
 -- condomínio em toda avaliação (governança interna da plataforma); essa
 -- coluna só controla o que os OUTROS condomínios podem ver.
@@ -1696,7 +1696,7 @@ alter table public.chamados add column if not exists morador_nome text;
 alter table public.chamados add column if not exists notificar_morador boolean not null default true;
 
 -- ---------------------------------------------------------------------
--- Financeiro do Habittum (a própria empresa, não os condomínios clientes)
+-- Financeiro do AquiHabitto (a própria empresa, não os condomínios clientes)
 -- — contas a pagar e a receber da operação (hospedagem, banco de dados,
 -- e-mail, WhatsApp, etc), visível só no painel admin. Tabela única com
 -- "tipo" (pagar/receber) em vez de duas tabelas, já que o volume aqui é
@@ -1843,7 +1843,7 @@ create trigger filtrar_palavroes_avaliacao
 -- Taxa de adesão, vendedores e cupons de desconto. A taxa de adesão
 -- substitui o antigo R$ 1 de validação de cartão no cadastro — agora
 -- cobra o valor real (editável por plano em /admin/pagamentos), com
--- desconto de cupom quando houver. Tudo isso vive só no Habittum (não
+-- desconto de cupom quando houver. Tudo isso vive só no AquiHabitto (não
 -- são cupons nativos do Stripe) — a cobrança em si continua passando
 -- pelo Stripe normalmente, só o valor final já sai calculado.
 create table if not exists public.taxas_adesao (
@@ -2008,12 +2008,12 @@ insert into public.base_conhecimento (titulo, modulo, publico, resposta_curta, p
    null,
    array['nao consigo entrar','erro ao logar','acesso bloqueado','login nao funciona']),
 
-  ('O que é o Habittum', null, true,
-   'O Habittum é um sistema de gestão condominial completo: financeiro, chamados, avisos, portaria, moradores e muito mais, com notificações automáticas por WhatsApp e e-mail.',
+  ('O que é o AquiHabitto', null, true,
+   'O AquiHabitto é um sistema de gestão condominial completo: financeiro, chamados, avisos, portaria, moradores e muito mais, com notificações automáticas por WhatsApp e e-mail.',
    null,
-   array['o que e o habittum','sobre o habittum','o que voces fazem']),
+   array['o que e o aquihabitto','sobre o aquihabitto','o que voces fazem']),
 
-  ('Como contratar o Habittum', null, true,
+  ('Como contratar o AquiHabitto', null, true,
    'É só clicar em "Começar" na página inicial, escolher um plano e preencher o cadastro — você já começa com 14 dias grátis.',
    null,
    array['contratar','assinar','como comecar','planos','preco'])
@@ -2041,7 +2041,7 @@ create index if not exists condominios_cnpj_digits_trgm_idx on public.condominio
 -- Fornecedores — Nível de Destaque Comercial: informação exclusivamente
 -- administrativa/comercial (o "quem pagou pra aparecer primeiro"),
 -- nunca exposta a fornecedor, condomínio ou morador. Só influencia a
--- ORDEM de exibição na Rede de Fornecedores Habittum — nunca a nota, que
+-- ORDEM de exibição na Rede de Fornecedores AquiHabitto — nunca a nota, que
 -- continua vindo só das avaliações reais (ver avaliacoes_fornecedor).
 create table if not exists public.fornecedores_destaque_comercial (
   id uuid primary key default gen_random_uuid(),
@@ -2086,7 +2086,7 @@ create index if not exists fornecedores_destaque_historico_global_idx
 alter table public.fornecedores_destaque_historico enable row level security;
 grant all on public.fornecedores_destaque_historico to service_role;
 
--- Busca ranqueada da Rede de Fornecedores Habittum: nível de destaque
+-- Busca ranqueada da Rede de Fornecedores AquiHabitto: nível de destaque
 -- comercial (só quando pago + ativo + dentro da vigência) → nota média
 -- real → rodízio controlado entre empatados. A chave de desempate usa
 -- a data de hoje (não o horário exato), então a ordem fica estável
@@ -2181,16 +2181,16 @@ set
         palavras_chave || array[
           'funciona', 'como funciona', 'vale a pena', 'e bom',
           'esse sistema e bom', 'recursos', 'beneficios', 'diferenciais',
-          'modulos do habittum'
+          'modulos do aquihabitto'
         ]
       )
     )
   ),
   passo_a_passo = coalesce(
     passo_a_passo,
-    'O Habittum reúne em um só lugar: Chamados (abertura e acompanhamento de solicitações), Avisos (comunicados do síndico), Ocorrências, Portaria (controle de entrada/saída e encomendas), Moradores, Fornecedores (com a Rede Habittum compartilhada entre condomínios) e Financeiro (contas a pagar/receber) — tudo com notificação automática por e-mail e WhatsApp pra quem precisa saber na hora.'
+    'O AquiHabitto reúne em um só lugar: Chamados (abertura e acompanhamento de solicitações), Avisos (comunicados do síndico), Ocorrências, Portaria (controle de entrada/saída e encomendas), Moradores, Fornecedores (com a Rede AquiHabitto compartilhada entre condomínios) e Financeiro (contas a pagar/receber) — tudo com notificação automática por e-mail e WhatsApp pra quem precisa saber na hora.'
   )
-where titulo = 'O que é o Habittum';
+where titulo = 'O que é o AquiHabitto';
 
 -- ---------------------------------------------------------------------
 -- Síndico pode excluir Chamados, Ocorrências e Manutenção (Avisos já
@@ -2223,7 +2223,7 @@ grant delete on public.manutencoes to authenticated;
 
 -- ---------------------------------------------------------------------
 -- Motor de Comissões: vendedores com hierarquia (indicação/liderança/
--- emancipação), modelos de comissionamento (padrão Habittum + parceiros
+-- emancipação), modelos de comissionamento (padrão AquiHabitto + parceiros
 -- personalizados, versionados) e comissões geradas por venda. Tudo
 -- platform-level (não por condomínio) — só service_role acessa, igual
 -- vendedores/cupons/taxas_adesao já funcionam hoje; todo acesso passa
@@ -2275,7 +2275,7 @@ grant all on public.modelos_comissionamento to service_role;
 
 insert into public.modelos_comissionamento (nome, descricao, padrao)
 select
-  'Modelo Padrão Habittum',
+  'Modelo Padrão AquiHabitto',
   'Regras padrão da plataforma: 80% venda própria, 5% pro indicador direto na primeira venda do indicado, 3% de liderança mensal mediante requisitos de equipe. Sem segundo nível.',
   true
 where not exists (select 1 from public.modelos_comissionamento where padrao = true);
@@ -2400,7 +2400,7 @@ alter table public.comissoes add constraint comissoes_vendedor_venda_id_fkey
   foreign key (vendedor_venda_id) references public.vendedores (id);
 
 -- ---------------------------------------------------------------------
--- Funcionários do painel admin (equipe do Habittum, não vendedor nem
+-- Funcionários do painel admin (equipe do AquiHabitto, não vendedor nem
 -- síndico) — login próprio (auth.users), com acesso restrito só aos
 -- módulos marcados em modulos_permitidos (ver lib/adminModulos.js — a
 -- mesma lista de nomes usada pela checagem no servidor e pela sidebar).
@@ -2480,7 +2480,7 @@ create table if not exists public.blog_posts (
   video_url text,
   meta_descricao text,
   status text not null default 'rascunho' check (status in ('rascunho', 'publicado')),
-  autor_nome text not null default 'Equipe Habittum',
+  autor_nome text not null default 'Equipe AquiHabitto',
   published_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { requireAdmin } from "@/lib/adminAuth";
 
-// Platform-owner-only: gestão dos vídeos da Academia Habittum. Usa
+// Platform-owner-only: gestão dos vídeos da Academia AquiHabitto. Usa
 // service role (bypassa RLS) — a policy de select em academia_videos só
 // libera pra "authenticated" vídeo publicado+ativo, então essa rota é
 // a única forma de ver/mexer em rascunhos.

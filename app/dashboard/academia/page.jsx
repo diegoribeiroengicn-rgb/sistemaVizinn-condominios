@@ -57,7 +57,7 @@ export default function AcademiaPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-xl font-bold text-navy-900">Academia Habittum</h1>
+          <h1 className="font-display text-xl font-bold text-navy-900">Academia AquiHabitto</h1>
           <p className="mt-1 text-sm text-navy-500">
             Vídeos curtos pra tirar o máximo proveito do sistema — alguns são públicos, outros
             liberados durante o teste grátis ou exclusivos para assinantes.

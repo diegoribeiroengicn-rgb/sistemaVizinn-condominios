@@ -121,7 +121,7 @@ export default function AdminComissoesContent() {
             ["Comissões geradas", formatarMoeda(resumo.comissoesGeradas), true],
             ["Pendentes", formatarMoeda(resumo.comissoesPendentes), true],
             ["Pagas", formatarMoeda(resumo.comissoesPagas), true],
-            ["Retido pelo Habittum", formatarMoeda(resumo.valorRetidoHabittum), true],
+            ["Retido pelo AquiHabitto", formatarMoeda(resumo.valorRetidoAquiHabitto), true],
           ].map(([label, valor, moeda]) => (
             <div key={label} className="card p-3">
               <p className="text-xs text-navy-400">{label}</p>

@@ -40,7 +40,7 @@ export async function GET(request) {
   const emancipados = (vendedores || []).filter((v) => v.data_emancipacao).length;
 
   const valorTotalAdesoes = (vendas || []).reduce((s, v) => s + (Number(v.taxa_adesao_paga) || 0), 0);
-  const totalRetidoHabittum = valorTotalAdesoes - (comissoes || [])
+  const totalRetidoAquiHabitto = valorTotalAdesoes - (comissoes || [])
     .filter((c) => c.status !== "cancelada")
     .reduce((s, c) => s + (Number(c.valor) || 0), 0);
 
@@ -61,7 +61,7 @@ export async function GET(request) {
     comissoesGeradas,
     comissoesPendentes,
     comissoesPagas,
-    valorRetidoHabittum: Math.max(0, totalRetidoHabittum),
+    valorRetidoAquiHabitto: Math.max(0, totalRetidoAquiHabitto),
     quantidadeLideres: liderIds.size,
     vendedoresEmFormacao: emFormacao,
     vendedoresEmancipados: emancipados,

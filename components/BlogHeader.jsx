@@ -10,15 +10,15 @@ export default function BlogHeader() {
     <header className="sticky top-0 z-40 border-b border-navy-100 bg-cream-50/90 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2">
-          <Image src="/brand/vizinn-mark.png" alt="Habittum" width={34} height={34} className="rounded-lg" />
-          <span className="font-display text-xl font-bold tracking-tight text-navy-900">Habittum</span>
+          <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={34} height={34} className="rounded-lg" />
+          <span className="font-display text-xl font-bold tracking-tight text-navy-900">AquiHabitto</span>
         </Link>
         <nav className="flex items-center gap-2 sm:gap-3">
           <Link href="/blog" className="btn-ghost">
             Blog
           </Link>
           <Link href="/" className="btn-primary">
-            Conhecer o Habittum
+            Conhecer o AquiHabitto
           </Link>
         </nav>
       </div>

@@ -36,7 +36,7 @@ export default async function BlogPage() {
     <div className="min-h-screen bg-cream-50">
       <BlogHeader />
       <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        <h1 className="font-display text-3xl font-bold text-navy-900">Blog Habittum</h1>
+        <h1 className="font-display text-3xl font-bold text-navy-900">Blog AquiHabitto</h1>
         <p className="mt-2 text-navy-600">
           Dicas e conteúdo sobre gestão condominial — financeiro, chamados, portaria e mais.
         </p>

@@ -90,7 +90,7 @@ export default function AdminCondominiosContent() {
         <h1 className="font-display text-xl font-bold text-navy-900">
           Condomínios ({totalCondominiosBusca})
         </h1>
-        <p className="mt-1 text-sm text-navy-500">Todos os condomínios cadastrados na Habittum.</p>
+        <p className="mt-1 text-sm text-navy-500">Todos os condomínios cadastrados na AquiHabitto.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">

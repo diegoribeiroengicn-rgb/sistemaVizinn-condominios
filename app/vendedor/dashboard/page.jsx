@@ -62,7 +62,7 @@ function CadastrarCondominioModal({ onClose, onCriado }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          descricao: `Adesão Habittum - ${form.condominioNome || "condomínio"}`,
+          descricao: `Adesão AquiHabitto - ${form.condominioNome || "condomínio"}`,
           valor: form.valorAdesao,
           planoId: form.planoId,
         }),
@@ -335,7 +335,7 @@ function PainelVendedor() {
           <div>
             <h2 className="text-sm font-semibold text-navy-800">Meu link de venda</h2>
             <p className="mt-1 text-xs text-navy-500">
-              Compartilhe com síndicos interessados no Habittum. Quem se cadastrar por esse link vira sua venda
+              Compartilhe com síndicos interessados no AquiHabitto. Quem se cadastrar por esse link vira sua venda
               automaticamente, sem precisar de cupom.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -348,7 +348,7 @@ function PainelVendedor() {
           <div>
             <h2 className="text-sm font-semibold text-navy-800">Meu link de convite de vendedor</h2>
             <p className="mt-1 text-xs text-navy-500">
-              Compartilhe com quem você quer indicar como novo vendedor Habittum. Na primeira venda dele, você recebe
+              Compartilhe com quem você quer indicar como novo vendedor AquiHabitto. Na primeira venda dele, você recebe
               sua bonificação de indicação.
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
