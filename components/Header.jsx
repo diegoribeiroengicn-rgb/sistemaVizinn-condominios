@@ -7,10 +7,13 @@ import { useAuth } from "@/hooks/useAuth";
 const Logo = () => (
   <Link href="/" className="flex items-center gap-3">
     <Image src="/brand/vizinn-mark.png" alt="AquiHabitto" width={52} height={52} className="rounded-xl" />
-    <span className="font-display text-2xl font-bold leading-none tracking-tight text-navy-900">
-      Aqui
-      <br />
-      Habitto
+    <span className="flex flex-col">
+      <span className="font-display text-2xl font-bold leading-none tracking-tight text-navy-900">
+        Aqui
+        <br />
+        Habitto<span className="ml-1 inline-block h-2 w-2 align-top bg-coral" />
+      </span>
+      <span className="mt-1.5 h-0.5 w-10 bg-coral" />
     </span>
   </Link>
 );
