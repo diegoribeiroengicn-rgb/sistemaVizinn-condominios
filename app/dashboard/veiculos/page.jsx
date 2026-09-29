@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
@@ -29,6 +31,7 @@ const emptyForm = {
 
 export default function VeiculosPage() {
   const { condominio, user, member, temPermissao } = useAuth();
+  const searchParams = useSearchParams();
   const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
   const [exportando, setExportando] = useState(null);
   const [veiculos, setVeiculos] = useState([]);
@@ -50,6 +53,7 @@ export default function VeiculosPage() {
   const podeCriar = temPermissao("veiculos", "criar");
   const podeEditar = temPermissao("veiculos", "editar");
   const podeExcluir = temPermissao("veiculos", "excluir");
+  const podeCriarMorador = temPermissao("moradores", "criar");
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -68,6 +72,20 @@ export default function VeiculosPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Vem do atalho "+ Adicionar veículo" da tela de Moradores (unidade,
+  // bloco e nome já preenchidos na URL) — pré-preenche o formulário sem
+  // precisar redigitar o que já foi informado lá.
+  useEffect(() => {
+    const unidade = searchParams.get("unidade");
+    if (!unidade) return;
+    setForm((f) => ({
+      ...f,
+      unidade,
+      bloco: searchParams.get("bloco") || f.bloco,
+      morador_nome: searchParams.get("morador") || f.morador_nome,
+    }));
+  }, [searchParams]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -160,6 +178,52 @@ export default function VeiculosPage() {
     setImportando(true);
     setError("");
 
+    let moradoresCriados = 0;
+
+    // Se quem está importando também pode cadastrar moradores, aproveita e
+    // já cria quem ainda não existe (por unidade + nome) — assim não
+    // precisa preencher a planilha de Moradores à parte pro caso comum
+    // (cada morador com até um veículo).
+    if (podeCriarMorador) {
+      const paresUnicos = new Map();
+      for (const l of preview.linhas) {
+        const chave = `${l.unidade}|||${l.morador_nome.toLowerCase()}`;
+        if (!paresUnicos.has(chave)) {
+          paresUnicos.set(chave, { unidade: l.unidade, bloco: l.bloco || null, nome: l.morador_nome });
+        }
+      }
+
+      const unidades = [...new Set([...paresUnicos.values()].map((p) => p.unidade))];
+      const { data: moradoresExistentes, error: buscaError } = await supabase
+        .from("moradores")
+        .select("unidade, nome")
+        .eq("condominio_id", condominio.id)
+        .in("unidade", unidades);
+
+      if (buscaError) {
+        setError(buscaError.message);
+        setImportando(false);
+        return;
+      }
+
+      const existentes = new Set(
+        (moradoresExistentes || []).map((m) => `${m.unidade}|||${m.nome.toLowerCase()}`)
+      );
+      const moradoresParaCriar = [...paresUnicos.entries()]
+        .filter(([chave]) => !existentes.has(chave))
+        .map(([, p]) => ({ condominio_id: condominio.id, unidade: p.unidade, bloco: p.bloco, nome: p.nome }));
+
+      if (moradoresParaCriar.length > 0) {
+        const { error: moradoresError } = await supabase.from("moradores").insert(moradoresParaCriar);
+        if (moradoresError) {
+          setError(moradoresError.message);
+          setImportando(false);
+          return;
+        }
+        moradoresCriados = moradoresParaCriar.length;
+      }
+    }
+
     const payload = preview.linhas.map((l) => ({
       condominio_id: condominio.id,
       unidade: l.unidade,
@@ -179,7 +243,10 @@ export default function VeiculosPage() {
       setError(importError.message);
       return;
     }
-    setImportResumo(`${payload.length} veículo(s) importado(s) com sucesso.`);
+    setImportResumo(
+      `${payload.length} veículo(s) importado(s) com sucesso` +
+        (moradoresCriados > 0 ? ` (${moradoresCriados} morador(es) cadastrado(s) automaticamente).` : ".")
+    );
     setPreview(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     load();
@@ -352,9 +419,19 @@ export default function VeiculosPage() {
 
         {podeCriar && (
           <div className="card">
-            <h2 className="font-display text-lg font-bold text-navy-900">
-              {editingId ? "Editar veículo" : "Cadastrar manualmente"}
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display text-lg font-bold text-navy-900">
+                {editingId ? "Editar veículo" : "Cadastrar manualmente"}
+              </h2>
+              {!editingId && podeCriarMorador && (
+                <Link
+                  href={`/dashboard/moradores?unidade=${encodeURIComponent(form.unidade)}&bloco=${encodeURIComponent(form.bloco)}`}
+                  className="text-xs font-semibold text-navy-700 hover:underline"
+                >
+                  Morador ainda não cadastrado? + Cadastrar morador
+                </Link>
+              )}
+            </div>
             <form onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="label-field">Unidade</label>
