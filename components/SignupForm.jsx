@@ -61,11 +61,36 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
     }
   }, []);
 
+  // Uma falha passageira aqui não pode virar "taxa de adesão = R$ 0" na
+  // tela de pagamento (calcularAdesaoComCupom trata valor ausente como
+  // 0) — isso prometeria ao visitante que não vai cobrar nada quando na
+  // verdade vai (o valor real cobrado vem do backend em
+  // create-payment-intent, só o texto exibido aqui estaria errado).
+  // Tenta de novo uma vez antes de desistir; se insistir, marca como
+  // "não confirmado" pra tela de pagamento evitar mostrar um valor.
   useEffect(() => {
-    fetch("/api/public/taxas-adesao")
-      .then((res) => res.json())
-      .then((data) => setTaxasAdesao(data.taxas || {}))
-      .catch(() => {});
+    let ativo = true;
+
+    async function buscar(ultimaTentativa) {
+      try {
+        const res = await fetch("/api/public/taxas-adesao");
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = await res.json();
+        if (ativo) setTaxasAdesao(data.taxas || {});
+      } catch {
+        if (!ativo) return;
+        if (!ultimaTentativa) {
+          setTimeout(() => {
+            if (ativo) buscar(true);
+          }, 1500);
+        }
+      }
+    }
+
+    buscar(false);
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   async function aplicarCupom() {
@@ -421,9 +446,16 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
         <div className="space-y-4">
           <div className="rounded-lg bg-navy-50 px-4 py-3 text-sm text-navy-700">
             Plano <strong>{selectedPlan.name}</strong> — R$ {selectedPlan.price}/mês após 14
-            dias grátis. Cobraremos a taxa de adesão de{" "}
-            <strong>R$ {calcularAdesaoComCupom(taxasAdesao[planId], cupomAplicado)}</strong>{" "}
-            agora.
+            dias grátis.{" "}
+            {taxasAdesao[planId] != null || cupomAplicado?.tipo === "isencao" ? (
+              <>
+                Cobraremos a taxa de adesão de{" "}
+                <strong>R$ {calcularAdesaoComCupom(taxasAdesao[planId], cupomAplicado)}</strong>{" "}
+                agora.
+              </>
+            ) : (
+              "O valor da taxa de adesão cobrada agora está confirmado no pagamento abaixo."
+            )}
           </div>
           <Elements stripe={stripePromise} options={{ clientSecret }}>
             <StripePaymentForm

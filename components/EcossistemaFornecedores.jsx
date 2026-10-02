@@ -13,17 +13,39 @@ import { useEffect, useState } from "react";
 // cadastrado ainda, cai num texto genérico — nunca inventa nada.
 export default function EcossistemaFornecedores({ onStart }) {
   const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState(false);
 
+  // Uma falha passageira na busca não é a mesma coisa que "a rede ainda
+  // não tem fornecedor" — tratar as duas igual fazia a seção mostrar
+  // "estamos formando a rede agora" mesmo com fornecedores cadastrados,
+  // até alguém atualizar a página. Tenta de novo uma vez antes de
+  // desistir; se insistir, só esconde a vitrine em vez de afirmar algo
+  // que pode não ser verdade.
   useEffect(() => {
     let ativo = true;
-    fetch("/api/public/fornecedores-destaque")
-      .then((res) => res.json())
-      .then((json) => {
-        if (ativo) setDados(json);
-      })
-      .catch(() => {
-        if (ativo) setDados({ total: 0, destaques: [], porCategoria: [] });
-      });
+
+    async function buscar(ultimaTentativa) {
+      try {
+        const res = await fetch("/api/public/fornecedores-destaque");
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const json = await res.json();
+        if (ativo) {
+          setDados(json);
+          setErro(false);
+        }
+      } catch {
+        if (!ativo) return;
+        if (ultimaTentativa) {
+          setErro(true);
+        } else {
+          setTimeout(() => {
+            if (ativo) buscar(true);
+          }, 1500);
+        }
+      }
+    }
+
+    buscar(false);
     return () => {
       ativo = false;
     };
@@ -95,12 +117,12 @@ export default function EcossistemaFornecedores({ onStart }) {
             )}
           </div>
         </>
-      ) : (
+      ) : !erro ? (
         <div className="card mx-auto mt-10 max-w-2xl text-center text-navy-500">
           Estamos formando a rede agora — cada fornecedor cadastrado por um síndico entra
           automaticamente na base compartilhada, com CNPJ único e reputação real.
         </div>
-      )}
+      ) : null}
 
       <div className="mt-8 text-center">
         <button onClick={onStart} className="btn-primary">

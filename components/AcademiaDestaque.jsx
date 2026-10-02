@@ -9,18 +9,41 @@ import { useEffect, useState } from "react";
 // inventa título de vídeo que não existe.
 export default function AcademiaDestaque({ onStart }) {
   const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState(false);
   const [tocando, setTocando] = useState(null);
 
+  // Uma falha passageira na busca (rede, timeout) não é a mesma coisa que
+  // "não tem vídeo público cadastrado" — tratar as duas igual fazia a
+  // seção mostrar "estamos gravando os primeiros vídeos" pra visitante
+  // mesmo quando já existem vídeos publicados, até alguém atualizar a
+  // página. Tenta de novo uma vez antes de desistir; se insistir, só
+  // esconde a vitrine (o texto de cima da seção continua válido sozinho)
+  // em vez de afirmar algo que pode não ser verdade.
   useEffect(() => {
     let ativo = true;
-    fetch("/api/public/academia-destaque")
-      .then((res) => res.json())
-      .then((json) => {
-        if (ativo) setDados(json);
-      })
-      .catch(() => {
-        if (ativo) setDados({ videos: [], totalPublicado: 0 });
-      });
+
+    async function buscar(ultimaTentativa) {
+      try {
+        const res = await fetch("/api/public/academia-destaque");
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const json = await res.json();
+        if (ativo) {
+          setDados(json);
+          setErro(false);
+        }
+      } catch {
+        if (!ativo) return;
+        if (ultimaTentativa) {
+          setErro(true);
+        } else {
+          setTimeout(() => {
+            if (ativo) buscar(true);
+          }, 1500);
+        }
+      }
+    }
+
+    buscar(false);
     return () => {
       ativo = false;
     };
@@ -76,12 +99,12 @@ export default function AcademiaDestaque({ onStart }) {
             </div>
           ))}
         </div>
-      ) : (
+      ) : !erro ? (
         <div className="card mx-auto mt-12 max-w-2xl text-center text-navy-500">
           Estamos gravando os primeiros vídeos — em breve, aulas curtas liberadas pra qualquer
           visitante, sem precisar criar conta.
         </div>
-      )}
+      ) : null}
 
       <p className="mx-auto mt-6 max-w-xl text-center text-sm text-navy-400">
         Alguns vídeos são livres pra qualquer visitante; o restante libera durante o teste grátis
