@@ -65,10 +65,20 @@ export function AuthProvider({ children }) {
     if (ownedResult.error) console.error("Erro ao buscar condomínio:", ownedResult.error.message);
     if (ownedResult.data) return { condominio: ownedResult.data, member: null, erro: false };
 
-    if (membroResult.error) console.error("Erro ao buscar acesso:", membroResult.error.message);
-    // As duas consultas falharam de verdade (não só "não achou nada") —
-    // não conclui que a conta é órfã, avisa que precisa tentar de novo.
-    if (ownedResult.error && membroResult.error) {
+    // Um síndico/dono nunca tem linha em "membros" — pra ele, essa busca
+    // vir vazia é sempre esperado, erro ou não. Então, se foi a busca de
+    // "condominios" (a que de fato importaria pro dono) que falhou, não
+    // dá pra concluir "não encontrado" só porque "membros" (que nunca
+    // acharia nada mesmo) foi bem. Bastava UMA consulta relevante falhar
+    // pra essa tela de "conta órfã" aparecer num soluço de rede comum —
+    // exigir as DUAS falharem juntas (como antes) deixava passar
+    // exatamente esse caso, o mais frequente.
+    if (ownedResult.error) {
+      return { condominio: null, member: null, erro: true };
+    }
+
+    if (membroResult.error) {
+      console.error("Erro ao buscar acesso:", membroResult.error.message);
       return { condominio: null, member: null, erro: true };
     }
 
