@@ -26,9 +26,6 @@ export async function POST(request) {
   if (!taxa) return NextResponse.json({ error: "Plano não encontrado." }, { status: 404 });
 
   const tetoAtual = tetoEfetivo(taxa);
-  if (valor <= tetoAtual) {
-    return NextResponse.json({ error: `O teto atual (${tetoAtual}) já cobre esse valor — não precisa pedir aumento.` }, { status: 400 });
-  }
 
   const { data: pendenteExistente } = await supabaseAdmin
     .from("solicitacoes_teto_adesao")
