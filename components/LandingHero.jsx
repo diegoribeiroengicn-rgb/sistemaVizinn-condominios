@@ -4,7 +4,7 @@ const bullets = [
   "Notificações automáticas por WhatsApp e e-mail",
   "Portal do condômino 24/7",
   "Relatórios em PDF e Word",
-  "Sem intermediários",
+  "Inteligência Financeira",
 ];
 
 export default function LandingHero({ onStart }) {

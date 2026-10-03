@@ -15,9 +15,9 @@ const features = [
     text: "Financeiro, chamados, portaria e mais — exportados em PDF ou Word com um clique, prontos para prestação de contas e assembleia.",
   },
   {
-    icon: "🤝",
-    title: "Sem intermediários",
-    text: "Fale direto com o síndico e a administradora, sem burocracia extra.",
+    icon: "🧠",
+    title: "Inteligência Financeira",
+    text: "O sistema cruza o histórico do próprio condomínio e avisa quando um fornecedor fica anos sem concorrência, quando uma conta de água ou energia sobe fora do padrão, e sugere o que fazer — sem comparar valores entre condomínios.",
   },
   {
     icon: "🎓",

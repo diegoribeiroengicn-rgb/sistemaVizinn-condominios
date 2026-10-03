@@ -20,7 +20,7 @@ const display = Libre_Baskerville({
 
 const SITE_URL = "https://www.aquihabitto.com.br";
 const DESCRICAO =
-  "AquiHabitto é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7 e relatórios profissionais em PDF e Word, sem intermediários.";
+  "AquiHabitto é o sistema de condomínio inteligente: notificações automáticas por WhatsApp e e-mail, portal do condômino 24/7, relatórios profissionais em PDF e Word e Inteligência Financeira que avisa quando vale a pena comparar preço.";
 
 export const metadata = {
   metadataBase: new URL(SITE_URL),
