@@ -13,8 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
-import { gerarPdf, gerarDocx } from "@/lib/relatorios";
+import { gerarPdf, gerarDocx, gerarRelatorioFinanceiroPdf } from "@/lib/relatorios";
 import { STATUS_PAGAR_LABELS, STATUS_RECEBER_LABELS, formatarMoeda } from "@/lib/financeiro";
+import { calcularAlertasFinanceiros } from "@/lib/inteligenciaFinanceira";
 import { STATUS_LABELS as CHAMADOS_STATUS_LABELS, STATUS_ORDER as CHAMADOS_STATUS_ORDER, PRIORIDADE_LABELS, PRIORIDADE_ORDER, TIPO_LABELS as CHAMADOS_TIPO_LABELS } from "@/lib/chamados";
 
 function formatarData(valor, comHora = false) {
@@ -135,6 +136,7 @@ export default function RelatoriosPage() {
   const [error, setError] = useState("");
   const [exportando, setExportando] = useState(null);
   const [filtros, setFiltros] = useState({});
+  const [observacoesFinanceiro, setObservacoesFinanceiro] = useState("");
 
   const intervalo = calcularIntervaloPeriodo(periodo, periodoPersonalizado);
   const tipoAtual = TIPOS_RELATORIO.find((t) => t.id === tipo);
@@ -147,12 +149,20 @@ export default function RelatoriosPage() {
 
     let resultado = { data: null, error: null };
     if (tipo === "financeiro") {
-      const [pagar, receber] = await Promise.all([
+      const [pagar, receber, fornecedores, alertasTratados] = await Promise.all([
         supabase.from("contas_pagar").select("*").eq("condominio_id", condominio.id),
         supabase.from("contas_receber").select("*").eq("condominio_id", condominio.id),
+        supabase.from("fornecedores").select("id, razao_social, eh_concessionaria, confianca").eq("condominio_id", condominio.id),
+        supabase.from("alertas_financeiros_tratados").select("tipo, chave").eq("condominio_id", condominio.id),
       ]);
       if (pagar.error || receber.error) resultado.error = pagar.error || receber.error;
-      else resultado.data = { pagar: pagar.data || [], receber: receber.data || [] };
+      else
+        resultado.data = {
+          pagar: pagar.data || [],
+          receber: receber.data || [],
+          fornecedores: fornecedores.data || [],
+          alertasTratados: alertasTratados.data || [],
+        };
     } else if (tipo === "chamados") {
       const [chamados, colaboradores] = await Promise.all([
         supabase.from("chamados").select("*").eq("condominio_id", condominio.id),
@@ -230,11 +240,19 @@ export default function RelatoriosPage() {
     const vencidas = filtrados.filter((l) => l.status === "vencida").length;
     const categoriasDisponiveis = [...new Set(lancamentos.map((l) => l.categoria).filter(Boolean))].sort();
     const fornecedoresDisponiveis = [...new Set(lancamentos.map((l) => l.fornecedor_nome).filter(Boolean))].sort();
+    const alertasFinanceiros = calcularAlertasFinanceiros({
+      contasPagar: dadosBrutos.pagar,
+      fornecedores: dadosBrutos.fornecedores || [],
+      condominio,
+      tratados: dadosBrutos.alertasTratados || [],
+    });
     return {
       colunas,
       linhas,
+      filtrados,
       categoriasDisponiveis,
       fornecedoresDisponiveis,
+      alertasFinanceiros,
       resumo: [
         { label: "Total de receitas", valor: formatarMoeda(totalReceitas) },
         { label: "Total de despesas", valor: formatarMoeda(totalDespesas) },
@@ -244,7 +262,7 @@ export default function RelatoriosPage() {
         { label: "Contas vencidas", valor: vencidas },
       ],
     };
-  }, [tipo, dadosBrutos, intervalo, filtros]);
+  }, [tipo, dadosBrutos, intervalo, filtros, condominio]);
 
   // ---- CHAMADOS --------------------------------------------------------
   const chamadosRel = useMemo(() => {
@@ -457,6 +475,62 @@ export default function RelatoriosPage() {
     setExportando("docx");
     try {
       await gerarDocx(montarConfigExport());
+    } finally {
+      setExportando(null);
+    }
+  }
+
+  // Agrupa os lançamentos já filtrados (mesmos que alimentam a
+  // pré-visualização) por mês e por categoria de despesa, pro gráfico
+  // do relatório resumido — nunca busca dado novo, só reagrupa o que já
+  // está na tela.
+  function montarConfigResumoFinanceiro() {
+    const lancamentos = financeiro.filtrados;
+    const porMes = new Map();
+    for (const l of lancamentos) {
+      const data = l.data_pagamento || l.data_recebimento || l.data_competencia || l.data_vencimento;
+      if (!data) continue;
+      const chave = String(data).slice(0, 7); // "YYYY-MM"
+      if (!porMes.has(chave)) porMes.set(chave, { receitas: 0, despesas: 0 });
+      const grupo = porMes.get(chave);
+      if (l.tipoLancamento === "receita" && l.status === "recebida") grupo.receitas += Number(l.valor_recebido ?? l.valor ?? 0);
+      if (l.tipoLancamento === "despesa" && l.status === "pago") grupo.despesas += Number(l.valor || 0);
+    }
+    const mesesOrdenados = Array.from(porMes.keys()).sort().slice(-6);
+    const porMesSerie = mesesOrdenados.map((chave) => {
+      const [ano, mes] = chave.split("-");
+      const nomeMes = new Date(Number(ano), Number(mes) - 1, 1).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+      return { mes: nomeMes, ...porMes.get(chave) };
+    });
+
+    const porCategoria = new Map();
+    for (const l of lancamentos) {
+      if (l.tipoLancamento !== "despesa" || l.status !== "pago" || !l.categoria) continue;
+      porCategoria.set(l.categoria, (porCategoria.get(l.categoria) || 0) + Number(l.valor || 0));
+    }
+    const porCategoriaDespesa = Array.from(porCategoria.entries())
+      .map(([categoria, valor]) => ({ categoria, valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 6);
+
+    return {
+      condominioNome: condominio?.nome,
+      periodoLabel: intervalo ? formatarIntervalo(intervalo) : "Todos os registros",
+      geradoEm: new Date(),
+      geradoPor: nomeUsuario,
+      resumo: financeiro.resumo,
+      porMes: porMesSerie,
+      porCategoriaDespesa,
+      alertasFinanceiros: financeiro.alertasFinanceiros,
+      observacoes: observacoesFinanceiro.trim(),
+    };
+  }
+
+  async function handleExportarResumoFinanceiro() {
+    if (!financeiro) return;
+    setExportando("resumo");
+    try {
+      await gerarRelatorioFinanceiroPdf(montarConfigResumoFinanceiro());
     } finally {
       setExportando(null);
     }
@@ -691,7 +765,29 @@ export default function RelatoriosPage() {
             <button onClick={handleExportarDocx} disabled={Boolean(exportando)} className="btn-secondary disabled:opacity-50">
               {exportando === "docx" ? "Gerando Word..." : "Exportar Word"}
             </button>
+            {tipo === "financeiro" && (
+              <button onClick={handleExportarResumoFinanceiro} disabled={Boolean(exportando)} className="btn-primary disabled:opacity-50">
+                {exportando === "resumo" ? "Gerando..." : "Relatório financeiro (1 página)"}
+              </button>
+            )}
           </div>
+
+          {tipo === "financeiro" && financeiro && (
+            <div className="card">
+              <h2 className="font-semibold text-navy-900">Observações</h2>
+              <p className="mt-1 text-sm text-navy-500">
+                Texto livre incluído no relatório financeiro de 1 página — use pra contexto que os
+                números sozinhos não explicam (ex: obra extraordinária, negociação em andamento).
+              </p>
+              <textarea
+                className="input-field mt-2"
+                rows={3}
+                value={observacoesFinanceiro}
+                onChange={(e) => setObservacoesFinanceiro(e.target.value)}
+                placeholder="Opcional"
+              />
+            </div>
+          )}
 
           <Resumo itens={relatorioAtual.resumo} />
           <TabelaPreview colunas={relatorioAtual.colunas} linhas={relatorioAtual.linhas} />
