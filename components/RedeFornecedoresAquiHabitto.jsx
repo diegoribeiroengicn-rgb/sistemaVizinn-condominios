@@ -58,6 +58,7 @@ export default function RedeFornecedoresAquiHabitto({ condominioId, meusForneced
             nota_media: f.nota_media,
             total_avaliacoes: f.total_avaliacoes,
             total_condominios: f.total_condominios,
+            total_confianca: f.total_confianca,
           },
           condominiosPublicos: condominiosPublicos || [],
         };
@@ -157,6 +158,12 @@ export default function RedeFornecedoresAquiHabitto({ condominioId, meusForneced
                         </p>
                       ) : (
                         <p className="mt-1 text-xs text-navy-400">Este fornecedor ainda não possui avaliações.</p>
+                      )}
+                      {f.reputacao?.total_confianca > 0 && (
+                        <p className="mt-1 text-xs font-medium text-emerald-700">
+                          ✓ {f.reputacao.total_confianca} condomínio{f.reputacao.total_confianca === 1 ? "" : "s"} marca
+                          {f.reputacao.total_confianca === 1 ? "" : "m"} como fornecedor de confiança
+                        </p>
                       )}
                       {f.condominiosPublicos?.length > 0 && (
                         <p className="mt-1 text-xs text-navy-400">
