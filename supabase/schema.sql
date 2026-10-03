@@ -588,6 +588,13 @@ create table if not exists public.fornecedores (
 alter table public.fornecedores add column if not exists vendedor_nome text;
 alter table public.fornecedores add column if not exists vendedor_contato text;
 
+-- Concessionária de serviço público (água, luz, gás etc.) — não tem
+-- concorrente possível, então fica fora dos alertas de "sem cotação"/
+-- "fornecedor de confiança" (ver Inteligência Financeira) e fora da
+-- Rede de Fornecedores AquiHabitto (a flag que vale pra rede é a do
+-- fornecedor global, propagada em buscarOuCriarFornecedorGlobal).
+alter table public.fornecedores add column if not exists eh_concessionaria boolean not null default false;
+
 create index if not exists fornecedores_condominio_id_idx on public.fornecedores (condominio_id);
 
 alter table public.fornecedores enable row level security;
@@ -1502,6 +1509,14 @@ grant execute on function public.reputacao_fornecedor_global(uuid) to authentica
 -- disponível só pro owner da plataforma).
 alter table public.fornecedores_globais add column if not exists status text not null default 'ativo' check (status in ('ativo', 'inativo'));
 
+-- Concessionária (água, luz, gás etc.) — atributo da empresa, não do
+-- cadastro local de um condomínio específico: se qualquer condomínio
+-- confirma que é concessionária, vale pra rede toda (ver merge em
+-- buscarOuCriarFornecedorGlobal, lib/fornecedores.js). Fica de fora da
+-- busca da Rede de Fornecedores (buscar_fornecedores_rede) e do
+-- destaque público da Landing Page.
+alter table public.fornecedores_globais add column if not exists eh_concessionaria boolean not null default false;
+
 -- Academia AquiHabitto: vídeos administrados pelo painel admin, consumidos
 -- por qualquer condomínio logado conforme o nível de acesso de cada
 -- vídeo. Implementação inicial simples (sem certificado, prova,
@@ -2137,6 +2152,7 @@ as $$
   ) rep on true
   left join public.fornecedores_destaque_comercial d on d.fornecedor_global_id = f.id
   where f.status = 'ativo'
+    and f.eh_concessionaria = false
     and (
       p.categoria is null
       or f.categoria ilike '%' || p.categoria || '%'

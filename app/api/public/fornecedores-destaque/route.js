@@ -25,6 +25,7 @@ export async function GET() {
     .from("fornecedores_globais")
     .select("id, razao_social, nome_fantasia, categoria, categorias")
     .eq("status", "ativo")
+    .eq("eh_concessionaria", false)
     .order("razao_social", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

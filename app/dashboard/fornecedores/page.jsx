@@ -43,6 +43,7 @@ const emptyForm = {
   vendedorContato: "",
   observacoes: "",
   status: "ativo",
+  ehConcessionaria: false,
 };
 
 const emptyAvaliacao = {
@@ -171,6 +172,7 @@ export default function FornecedoresPage() {
         nomeFantasia: form.nomeFantasia.trim(),
         endereco: form.endereco.trim(),
         categorias: form.categorias,
+        ehConcessionaria: form.ehConcessionaria,
       });
       if (resultado.erro) {
         setSubmitting(false);
@@ -199,6 +201,7 @@ export default function FornecedoresPage() {
       observacoes: form.observacoes.trim() || null,
       status: form.status,
       fornecedor_global_id: fornecedorGlobalId,
+      eh_concessionaria: form.ehConcessionaria,
     };
 
     const query = editingId
@@ -234,6 +237,7 @@ export default function FornecedoresPage() {
       vendedorContato: fornecedor.vendedor_contato || "",
       observacoes: fornecedor.observacoes || "",
       status: fornecedor.status,
+      ehConcessionaria: fornecedor.eh_concessionaria || false,
     });
   }
 
@@ -641,6 +645,22 @@ export default function FornecedoresPage() {
                 onChange={(categorias) => setForm((f) => ({ ...f, categorias }))}
               />
             </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-2 text-sm text-navy-600">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.ehConcessionaria}
+                  onChange={(e) => setForm((f) => ({ ...f, ehConcessionaria: e.target.checked }))}
+                />
+                É concessionária de serviço público?
+              </label>
+              <p className="mt-1 text-xs text-navy-400">
+                Marque sim para água, luz, gás ou outro serviço sem opção de troca. Concessionárias não
+                entram na Rede de Fornecedores nem recebem alerta de cotação — só o alerta de variação de
+                valor continua ativo.
+              </p>
+            </div>
             <div>
               <label className="label-field">Status</label>
               <select
@@ -803,13 +823,22 @@ export default function FornecedoresPage() {
                       <span className="rounded-full bg-navy-50 px-2 py-0.5 text-xs font-medium text-navy-600">
                         {TIPO_LABELS[f.tipo]}
                       </span>
-                      {f.fornecedor_global_id && (
+                      {f.eh_concessionaria ? (
                         <span
-                          className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700"
-                          title="Esse CNPJ já está na base compartilhada da AquiHabitto"
+                          className="rounded-full bg-navy-100 px-2 py-0.5 text-xs font-medium text-navy-600"
+                          title="Concessionária de serviço público — fora da Rede de Fornecedores e dos alertas de cotação"
                         >
-                          🌐 Rede AquiHabitto
+                          Concessionária
                         </span>
+                      ) : (
+                        f.fornecedor_global_id && (
+                          <span
+                            className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700"
+                            title="Esse CNPJ já está na base compartilhada da AquiHabitto"
+                          >
+                            🌐 Rede AquiHabitto
+                          </span>
+                        )
                       )}
                     </div>
                     <p className="mt-1 text-xs text-navy-400">
