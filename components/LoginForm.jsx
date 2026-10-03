@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { IconOlhoAberto, IconOlhoFechado } from "@/components/icons";
 
 export default function LoginForm({ onSuccess, onSwitchToSignup, onClose }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [modoRecuperar, setModoRecuperar] = useState(false);
@@ -150,14 +152,24 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onClose }) {
         </div>
         <div>
           <label className="label-field">Senha</label>
-          <input
-            type="password"
-            required
-            className="input-field"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-          />
+          <div className="relative">
+            <input
+              type={mostrarSenha ? "text" : "password"}
+              required
+              className="input-field pr-10"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarSenha((v) => !v)}
+              className="absolute inset-y-0 right-0 flex items-center px-3 text-navy-400 hover:text-navy-700"
+              aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+            >
+              {mostrarSenha ? <IconOlhoFechado className="h-5 w-5" /> : <IconOlhoAberto className="h-5 w-5" />}
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => {

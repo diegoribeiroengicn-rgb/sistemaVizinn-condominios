@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { IconOlhoAberto, IconOlhoFechado } from "@/components/icons";
 
 export default function VendedorLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -87,7 +89,23 @@ export default function VendedorLoginPage() {
             </div>
             <div>
               <label className="label-field">Senha</label>
-              <input type="password" required className="input-field" value={senha} onChange={(e) => setSenha(e.target.value)} />
+              <div className="relative">
+                <input
+                  type={mostrarSenha ? "text" : "password"}
+                  required
+                  className="input-field pr-10"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarSenha((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-navy-400 hover:text-navy-700"
+                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {mostrarSenha ? <IconOlhoFechado className="h-5 w-5" /> : <IconOlhoAberto className="h-5 w-5" />}
+                </button>
+              </div>
             </div>
             {error && <p className="text-sm text-coral-700">{error}</p>}
             <button type="submit" disabled={loading} className="btn-primary w-full">
