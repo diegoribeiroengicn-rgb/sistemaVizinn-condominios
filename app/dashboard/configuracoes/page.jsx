@@ -174,6 +174,10 @@ export default function ConfiguracoesPage() {
             aumento acima do esperado, prompt de fornecedor de confiança). Valores padrão já vêm
             preenchidos — ajuste se quiser outro critério.
           </p>
+          <p className="mt-2 text-xs text-navy-400">
+            Tudo isso usa só o histórico do seu próprio condomínio — nenhum valor ou dado seu é
+            comparado nem compartilhado com outros condomínios.
+          </p>
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="label-field">Anos sem cotação concorrente</label>
