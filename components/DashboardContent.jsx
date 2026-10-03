@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
@@ -8,6 +8,7 @@ import { getPlan } from "@/lib/plans";
 import { STATUS_FINAIS as CHAMADOS_STATUS_FINAIS, calcularStatusPrazo } from "@/lib/chamados";
 import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
 import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
+import { calcularAlertasFinanceiros, DICAS_POR_CATEGORIA } from "@/lib/inteligenciaFinanceira";
 import VisaoGeralGraficos from "@/components/VisaoGeralGraficos";
 
 const nextSteps = [
@@ -54,17 +55,22 @@ function Indicador({ href, label, value, tone = "text-navy-900" }) {
 }
 
 export default function DashboardContent() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, temPermissao, member, user } = useAuth();
   const [indicadores, setIndicadores] = useState(null);
   const [periodo, setPeriodo] = useState("mes_atual");
   const [periodoPersonalizado, setPeriodoPersonalizado] = useState({ inicio: "", fim: "" });
+  const [processandoAlerta, setProcessandoAlerta] = useState(null); // `${tipo}:${chave}`
 
   const podeChamados = temPermissao("chamados", "visualizar");
   const podeManutencao = temPermissao("manutencao", "visualizar");
   const podeFinanceiro = temPermissao("financeiro", "visualizar");
+  const podeFinanceiroEditar = temPermissao("financeiro", "editar");
   const podeFornecedores = temPermissao("fornecedores", "visualizar");
+  const podeFornecedoresEditar = temPermissao("fornecedores", "editar");
   const podeColaboradores = temPermissao("colaboradores", "visualizar");
   const podeOcorrencias = temPermissao("ocorrencias", "visualizar");
+  const podeAvisosCriar = temPermissao("avisos", "criar");
+  const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -83,10 +89,21 @@ export default function DashboardContent() {
         .eq("condominio_id", condominio.id);
     }
     if (podeFinanceiro) {
-      queries.contasPagar = supabase.from("contas_pagar").select("status, valor, data_vencimento, data_pagamento").eq("condominio_id", condominio.id);
+      queries.contasPagar = supabase
+        .from("contas_pagar")
+        .select("status, valor, data_vencimento, data_pagamento, data_competencia, categoria, fornecedor_id")
+        .eq("condominio_id", condominio.id);
       queries.contasReceber = supabase.from("contas_receber").select("status, valor, valor_recebido, data_vencimento, data_recebimento").eq("condominio_id", condominio.id);
+      queries.alertasTratados = supabase
+        .from("alertas_financeiros_tratados")
+        .select("tipo, chave")
+        .eq("condominio_id", condominio.id);
     }
-    if (podeFornecedores) queries.fornecedores = supabase.from("fornecedores").select("status").eq("condominio_id", condominio.id);
+    if (podeFornecedores)
+      queries.fornecedores = supabase
+        .from("fornecedores")
+        .select("id, razao_social, status, eh_concessionaria, confianca")
+        .eq("condominio_id", condominio.id);
     if (podeColaboradores) queries.colaboradores = supabase.from("colaboradores").select("status").eq("condominio_id", condominio.id);
     if (podeOcorrencias) queries.ocorrencias = supabase.from("ocorrencias").select("id").eq("condominio_id", condominio.id);
     // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
@@ -168,6 +185,42 @@ export default function DashboardContent() {
   const tarefasColaboradoresAbertas =
     chamadosAbertos.filter((c) => c.responsavel_colaborador_id).length +
     manutencoesAbertas.filter((m) => m.responsavel_colaborador_id).length;
+
+  // Inteligência Financeira — cruza só dados do próprio condomínio (ver
+  // lib/inteligenciaFinanceira.js). Precisa de Financeiro visível pra
+  // calcular qualquer coisa; os alertas de fornecedor também precisam
+  // de Fornecedores visível, senão entra lista vazia nesse pedaço.
+  const alertasFinanceiros = useMemo(() => {
+    if (!podeFinanceiro || !indicadores?.contasPagar) return [];
+    return calcularAlertasFinanceiros({
+      contasPagar: indicadores.contasPagar,
+      fornecedores: podeFornecedores ? indicadores?.fornecedores || [] : [],
+      condominio,
+      tratados: indicadores?.alertasTratados || [],
+    });
+  }, [podeFinanceiro, podeFornecedores, indicadores, condominio]);
+
+  async function dispensarAlerta(tipo, chave) {
+    if (!condominio?.id) return;
+    setProcessandoAlerta(`${tipo}:${chave}`);
+    await supabase.from("alertas_financeiros_tratados").insert({
+      condominio_id: condominio.id,
+      tipo,
+      chave,
+      status: "dispensado",
+      tratado_por: nomeUsuario,
+    });
+    setProcessandoAlerta(null);
+    load();
+  }
+
+  async function marcarFornecedorConfianca(fornecedorId) {
+    if (!condominio?.id) return;
+    setProcessandoAlerta(`fornecedor_confianca_prompt:${fornecedorId}`);
+    await supabase.from("fornecedores").update({ confianca: true }).eq("id", fornecedorId);
+    setProcessandoAlerta(null);
+    load();
+  }
 
   // Indicadores derivados (seção 10 do prompt de evolução): taxa de
   // conclusão/atraso/resposta e tempo médio de atendimento dos chamados.
@@ -302,6 +355,135 @@ export default function DashboardContent() {
                 </span>
               </Link>
             ))}
+          </div>
+        </section>
+      )}
+
+      {podeFinanceiro && alertasFinanceiros.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-coral-700">Inteligência Financeira</h2>
+          <div className="space-y-3">
+            {alertasFinanceiros.map((a) => {
+              const chaveProcessando = `${a.tipo}:${a.chave}`;
+              const processando = processandoAlerta === chaveProcessando;
+
+              if (a.tipo === "fornecedor_sem_cotacao") {
+                return (
+                  <div key={chaveProcessando} className="card border-coral-100 bg-coral-50/40">
+                    <p className="text-sm font-semibold text-navy-900">
+                      {a.reforcado
+                        ? `Valor de ${a.categoria} subiu sem cotação concorrente`
+                        : `Sem cotação concorrente há ${a.anos} anos`}
+                    </p>
+                    <p className="mt-1 text-sm text-navy-600">
+                      {a.reforcado ? (
+                        <>
+                          O valor pago a <strong>{a.fornecedorNome}</strong> por {a.categoria} subiu {a.percentual}%
+                          (de {formatarMoeda(a.valorAnterior)} para {formatarMoeda(a.valorAtual)}), e não há nenhuma
+                          cotação concorrente registrada nesse período. Pode valer a pena comparar com outros
+                          fornecedores antes da próxima renovação.
+                        </>
+                      ) : (
+                        <>
+                          O fornecedor <strong>{a.fornecedorNome}</strong> atende {a.categoria} há {a.anos} anos sem
+                          nenhuma cotação concorrente registrada no sistema. Não é necessariamente um problema — pode
+                          valer a pena comparar preços na próxima renovação, só pra confirmar que o valor continua
+                          justo.
+                        </>
+                      )}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {podeFornecedores && (
+                        <Link href="/dashboard/fornecedores" className="text-xs font-semibold text-navy-700 hover:underline">
+                          Ver fornecedor
+                        </Link>
+                      )}
+                      {podeFinanceiroEditar && (
+                        <button
+                          onClick={() => dispensarAlerta(a.tipo, a.chave)}
+                          disabled={processando}
+                          className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50"
+                        >
+                          {processando ? "..." : "Dispensar"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (a.tipo === "fornecedor_confianca_prompt") {
+                return (
+                  <div key={chaveProcessando} className="card border-navy-100">
+                    <p className="text-sm font-semibold text-navy-900">
+                      Marcar {a.fornecedorNome} como fornecedor de confiança?
+                    </p>
+                    <p className="mt-1 text-sm text-navy-600">
+                      Você já tem {a.quantidade} anos de histórico com {a.fornecedorNome}. Se é um fornecedor em quem
+                      você confia, marque como &quot;de confiança&quot; — isso aumenta o prazo do alerta de cotação,
+                      sem desligar completamente.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      {podeFornecedoresEditar && (
+                        <button
+                          onClick={() => marcarFornecedorConfianca(a.fornecedorId)}
+                          disabled={processando}
+                          className="btn-primary text-xs disabled:opacity-50"
+                        >
+                          {processando ? "..." : "Marcar como de confiança"}
+                        </button>
+                      )}
+                      {podeFinanceiroEditar && (
+                        <button
+                          onClick={() => dispensarAlerta(a.tipo, a.chave)}
+                          disabled={processando}
+                          className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50"
+                        >
+                          Agora não
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // conta_consumo_salto
+              const dica = DICAS_POR_CATEGORIA[a.categoria];
+              const avisoHref = dica
+                ? `/dashboard/avisos?titulo=${encodeURIComponent(dica.avisoTitulo)}&mensagem=${encodeURIComponent(dica.avisoTexto)}`
+                : "/dashboard/avisos";
+              return (
+                <div key={chaveProcessando} className="card border-coral-100 bg-coral-50/40">
+                  <p className="text-sm font-semibold text-navy-900">{a.categoria} acima do normal</p>
+                  <p className="mt-1 text-sm text-navy-600">
+                    A conta de {a.categoria} veio {formatarMoeda(a.valorAtual)} esse mês — {a.percentual}% acima da
+                    média dos últimos meses ({formatarMoeda(a.valorAnterior)}). Pode ser reajuste de tarifa ou
+                    aumento de consumo; vale a pena conferir a fatura.
+                  </p>
+                  {dica && (
+                    <p className="mt-2 text-xs text-navy-500">
+                      <strong>{dica.titulo}:</strong> {dica.texto}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {podeAvisosCriar && dica && (
+                      <Link href={avisoHref} className="text-xs font-semibold text-navy-700 hover:underline">
+                        Criar aviso para os moradores
+                      </Link>
+                    )}
+                    {podeFinanceiroEditar && (
+                      <button
+                        onClick={() => dispensarAlerta(a.tipo, a.chave)}
+                        disabled={processando}
+                        className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50"
+                      >
+                        {processando ? "..." : "Dispensar"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

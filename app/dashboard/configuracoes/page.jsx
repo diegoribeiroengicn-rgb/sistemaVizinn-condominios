@@ -13,6 +13,11 @@ export default function ConfiguracoesPage() {
   const [alertaSalvo, setAlertaSalvo] = useState(false);
   const [salvandoDistribuicao, setSalvandoDistribuicao] = useState(false);
   const [salvandoNotificarLogin, setSalvandoNotificarLogin] = useState(false);
+  const [finAnos, setFinAnos] = useState(condominio?.fin_alerta_sem_cotacao_anos ?? 2);
+  const [finPercentual, setFinPercentual] = useState(condominio?.fin_alerta_aumento_percentual ?? 15);
+  const [finRenovacoes, setFinRenovacoes] = useState(condominio?.fin_confianca_renovacoes ?? 3);
+  const [salvandoFin, setSalvandoFin] = useState(false);
+  const [finSalvo, setFinSalvo] = useState(false);
 
   async function salvarAlertaPadrao() {
     if (!condominio?.id) return;
@@ -38,6 +43,25 @@ export default function ConfiguracoesPage() {
       .eq("id", condominio.id);
     setSalvandoDistribuicao(false);
     if (!error) refreshCondominio();
+  }
+
+  async function salvarConfigFinanceira() {
+    if (!condominio?.id) return;
+    setSalvandoFin(true);
+    setFinSalvo(false);
+    const { error } = await supabase
+      .from("condominios")
+      .update({
+        fin_alerta_sem_cotacao_anos: Number(finAnos) || 2,
+        fin_alerta_aumento_percentual: Number(finPercentual) || 15,
+        fin_confianca_renovacoes: Number(finRenovacoes) || 3,
+      })
+      .eq("id", condominio.id);
+    setSalvandoFin(false);
+    if (!error) {
+      setFinSalvo(true);
+      refreshCondominio();
+    }
   }
 
   async function alternarNotificarLogin(ativar) {
@@ -139,6 +163,55 @@ export default function ConfiguracoesPage() {
             />
             Ativar distribuição automática
           </label>
+        </div>
+      )}
+
+      {role === "sindico" && (
+        <div className="card">
+          <h2 className="font-semibold text-navy-900">Inteligência Financeira</h2>
+          <p className="mt-1 text-sm text-navy-500">
+            Prazos e limites usados pelos alertas da Visão Geral (fornecedor sem cotação concorrente,
+            aumento acima do esperado, prompt de fornecedor de confiança). Valores padrão já vêm
+            preenchidos — ajuste se quiser outro critério.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="label-field">Anos sem cotação concorrente</label>
+              <input
+                type="number"
+                min="1"
+                className="input-field"
+                value={finAnos}
+                onChange={(e) => setFinAnos(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label-field">% de aumento considerado alto</label>
+              <input
+                type="number"
+                min="1"
+                className="input-field"
+                value={finPercentual}
+                onChange={(e) => setFinPercentual(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label-field">Renovações pra sugerir &quot;de confiança&quot;</label>
+              <input
+                type="number"
+                min="1"
+                className="input-field"
+                value={finRenovacoes}
+                onChange={(e) => setFinRenovacoes(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-3">
+            <button onClick={salvarConfigFinanceira} disabled={salvandoFin} className="btn-secondary">
+              {salvandoFin ? "Salvando..." : "Salvar"}
+            </button>
+            {finSalvo && <span className="text-sm text-emerald-700">Salvo.</span>}
+          </div>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import { authedFetch } from "@/lib/adminFetch";
@@ -12,12 +13,24 @@ const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false };
 
 export default function AvisosPage() {
   const { condominio, temPermissao } = useAuth();
+  const searchParams = useSearchParams();
   const [avisos, setAvisos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   useAvisoSaidaSemSalvar(form, emptyForm);
   const [submitting, setSubmitting] = useState(false);
+
+  // Vem do atalho "Criar aviso" da Inteligência Financeira (Visão Geral)
+  // — título/mensagem já preenchidos com o texto-modelo da campanha de
+  // economia, só precisa revisar e publicar.
+  useEffect(() => {
+    const titulo = searchParams.get("titulo");
+    const mensagem = searchParams.get("mensagem");
+    if (!titulo && !mensagem) return;
+    setForm((f) => ({ ...f, titulo: titulo || f.titulo, mensagem: mensagem || f.mensagem }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const podeCriar = temPermissao("avisos", "criar");
 

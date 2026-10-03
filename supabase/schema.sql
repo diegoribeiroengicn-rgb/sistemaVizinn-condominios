@@ -670,6 +670,85 @@ alter table public.condominios add column if not exists manutencao_alerta_dias_p
 -- chamados em aberto no momento — nunca obrigatório, o síndico liga em
 -- Configurações.
 alter table public.condominios add column if not exists chamados_distribuicao_automatica boolean not null default false;
+
+-- Inteligência Financeira: prazos/limites configuráveis em Configurações,
+-- com um padrão automático sugerido (ver componentes/DashboardContent.jsx,
+-- que calcula os alertas em cima disso).
+-- - fin_alerta_sem_cotacao_anos: anos seguidos com o mesmo fornecedor,
+--   sem cotação concorrente registrada, pra disparar o alerta leve.
+-- - fin_alerta_aumento_percentual: % de aumento (fornecedor ou conta de
+--   consumo) acima da média histórica que dispara o alerta reforçado.
+-- - fin_confianca_renovacoes: renovações seguidas com o mesmo fornecedor
+--   pra o sistema oferecer proativamente "marcar como confiança".
+alter table public.condominios add column if not exists fin_alerta_sem_cotacao_anos integer not null default 2;
+alter table public.condominios add column if not exists fin_alerta_aumento_percentual numeric not null default 15;
+alter table public.condominios add column if not exists fin_confianca_renovacoes integer not null default 3;
+
+-- "Fornecedor de confiança" é uma marcação do próprio condomínio (cada
+-- condomínio decide por si, diferente de "concessionária" que é fato
+-- da empresa) — ajusta o alerta de cotação, nunca desliga. A contagem
+-- agregada e anônima pra Rede de Fornecedores é calculada sob demanda
+-- em confianca_fornecedor_global (mesma lógica de reputacao_fornecedor_global),
+-- nunca armazenada pronta nem ligada a qual condomínio marcou.
+alter table public.fornecedores add column if not exists confianca boolean not null default false;
+
+-- Alertas de Inteligência Financeira são sempre calculados na hora (não
+-- existe tabela de "alertas" — eles nascem do cruzamento de dados já
+-- existentes). O que precisa persistir é só o que o síndico já tratou
+-- ou dispensou, pra não reaparecer. "chave" identifica o alvo dentro do
+-- tipo: id do fornecedor (fornecedor_sem_cotacao, fornecedor_confianca_prompt)
+-- ou "categoria:competencia" (conta_consumo_salto, ex: "Água:2026-09").
+create table if not exists public.alertas_financeiros_tratados (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  tipo text not null check (tipo in ('fornecedor_sem_cotacao', 'fornecedor_confianca_prompt', 'conta_consumo_salto')),
+  chave text not null,
+  status text not null default 'tratado' check (status in ('tratado', 'dispensado')),
+  tratado_por text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists alertas_financeiros_tratados_chave_idx
+  on public.alertas_financeiros_tratados (condominio_id, tipo, chave);
+
+alter table public.alertas_financeiros_tratados enable row level security;
+
+drop policy if exists "Members with financeiro can view alertas tratados" on public.alertas_financeiros_tratados;
+create policy "Members with financeiro can view alertas tratados"
+  on public.alertas_financeiros_tratados for select
+  using (public.membro_tem_modulo(condominio_id, 'financeiro'));
+
+drop policy if exists "Members with financeiro can insert alertas tratados" on public.alertas_financeiros_tratados;
+create policy "Members with financeiro can insert alertas tratados"
+  on public.alertas_financeiros_tratados for insert
+  with check (public.membro_tem_permissao(condominio_id, 'financeiro', 'editar'));
+
+drop policy if exists "Members with financeiro can delete alertas tratados" on public.alertas_financeiros_tratados;
+create policy "Members with financeiro can delete alertas tratados"
+  on public.alertas_financeiros_tratados for delete
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'editar'));
+
+grant select, insert, delete on public.alertas_financeiros_tratados to authenticated;
+grant all on public.alertas_financeiros_tratados to service_role;
+
+-- Contagem agregada e anônima de "fornecedor de confiança" pra Rede de
+-- Fornecedores — mesmo princípio de reputacao_fornecedor_global: nunca
+-- expõe qual condomínio marcou, só quantos.
+create or replace function public.confianca_fornecedor_global(p_fornecedor_global_id uuid)
+returns bigint
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select count(distinct f.condominio_id)
+  from public.fornecedores f
+  where f.fornecedor_global_id = p_fornecedor_global_id
+    and f.confianca = true;
+$$;
+
+grant execute on function public.confianca_fornecedor_global(uuid) to authenticated;
+
 alter table public.propostas add column if not exists fornecedor_id uuid references public.fornecedores (id) on delete set null;
 alter table public.propostas add column if not exists fornecedor_nome text;
 
@@ -2123,7 +2202,8 @@ returns table (
   endereco text,
   nota_media numeric,
   total_avaliacoes bigint,
-  total_condominios bigint
+  total_condominios bigint,
+  total_confianca bigint
 )
 language sql
 security definer
@@ -2138,7 +2218,8 @@ as $$
   )
   select
     f.id, f.cnpj, f.razao_social, f.nome_fantasia, f.categoria, f.categorias, f.endereco,
-    rep.nota_media, coalesce(rep.total_avaliacoes, 0), coalesce(rep.total_condominios, 0)
+    rep.nota_media, coalesce(rep.total_avaliacoes, 0), coalesce(rep.total_condominios, 0),
+    coalesce(conf.total_confianca, 0)
   from public.fornecedores_globais f
   cross join parametros p
   left join lateral (
@@ -2150,6 +2231,11 @@ as $$
     left join public.avaliacoes_fornecedor av on av.fornecedor_id = ff.id
     where ff.fornecedor_global_id = f.id
   ) rep on true
+  left join lateral (
+    select count(distinct ff.condominio_id) as total_confianca
+    from public.fornecedores ff
+    where ff.fornecedor_global_id = f.id and ff.confianca = true
+  ) conf on true
   left join public.fornecedores_destaque_comercial d on d.fornecedor_global_id = f.id
   where f.status = 'ativo'
     and f.eh_concessionaria = false
