@@ -313,6 +313,11 @@ export default function ManutencaoPage() {
       fornecedor_id: ordem.fornecedor_id,
       fornecedor_nome: ordem.fornecedor_nome,
       responsavel_colaborador_id: ordem.responsavel_colaborador_id,
+      // Mantém os mesmos estágios de alerta configurados no ciclo
+      // anterior — sem isso, o próximo ciclo perdia a configuração e
+      // caía no padrão genérico do condomínio.
+      alerta_dias_antecedencia: ordem.alerta_dias_antecedencia,
+      alertas_dias_antecedencia: ordem.alertas_dias_antecedencia,
       status: "aberta",
       ciclo_origem_id: ordem.id,
     });
