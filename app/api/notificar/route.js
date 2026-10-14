@@ -12,6 +12,7 @@ export async function POST(request) {
   const { condominioId, evento } = body;
 
   if (evento === "ocorrencia_entrega") return handleOcorrenciaEntrega(request, condominioId, body);
+  if (evento === "ocorrencia_morador") return handleOcorrenciaMorador(request, condominioId, body);
   if (evento === "ocorrencia_aviso_geral") return handleAvisoGeralMoradores(request, condominioId, body, "ocorrencias");
   if (evento === "manutencao_aviso") return handleAvisoGeralMoradores(request, condominioId, body, "manutencao");
   if (evento === "aviso_publicado") return handleAvisoGeralMoradores(request, condominioId, body, "avisos");
@@ -111,6 +112,86 @@ async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, un
         html: `<p>Olá, ${morador.nome}!</p><p>Chegou uma encomenda para você em <strong>${nomeCondominio}</strong>.</p><p>${mensagemTexto}</p>`,
       },
       parametrosWhatsapp: [morador.nome, nomeCondominio, mensagemTexto],
+      canais,
+    });
+    resultados.push({ morador: morador.nome, resultados: r });
+  }
+
+  return NextResponse.json({ success: true, notificados: moradores.length, resultados });
+}
+
+// Mesma busca de morador por unidade/bloco de handleOcorrenciaEntrega, mas
+// pra ocorrência que NÃO é entrega — usa o título/descrição livres em vez
+// do texto fixo de encomenda. Ex: "percebemos um barulho estranho no seu
+// apartamento", "seu visitante está te esperando".
+async function handleOcorrenciaMorador(request, condominioId, { ocorrenciaId, unidade, bloco, titulo, descricao, canais }) {
+  const auth = await requireCondominioAccess(request, condominioId, "ocorrencias", "criar");
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!unidade) return NextResponse.json({ error: "Informe a unidade para notificar o morador." }, { status: 400 });
+  if (!titulo?.trim()) return NextResponse.json({ error: "Informe o título da ocorrência." }, { status: 400 });
+
+  const { supabaseAdmin } = auth;
+
+  const [{ data: condominio }, { data: cadastro, error: cadastroError }, { data: membrosCondominos, error: membrosError }] =
+    await Promise.all([
+      supabaseAdmin.from("condominios").select("nome").eq("id", condominioId).maybeSingle(),
+      (() => {
+        let query = supabaseAdmin
+          .from("moradores")
+          .select("nome, email, telefone")
+          .eq("condominio_id", condominioId)
+          .eq("unidade", unidade);
+        if (bloco) query = query.eq("bloco", bloco);
+        return query;
+      })(),
+      (() => {
+        let query = supabaseAdmin
+          .from("membros")
+          .select("nome, email, telefone")
+          .eq("condominio_id", condominioId)
+          .eq("papel", "condomino")
+          .eq("unidade", unidade);
+        if (bloco) query = query.eq("bloco", bloco);
+        return query;
+      })(),
+    ]);
+
+  if (cadastroError) return NextResponse.json({ error: cadastroError.message }, { status: 500 });
+  if (membrosError) return NextResponse.json({ error: membrosError.message }, { status: 500 });
+
+  const vistos = new Set();
+  const moradores = [];
+  for (const pessoa of [...(cadastro || []), ...(membrosCondominos || [])]) {
+    const chave = (pessoa.email || "").toLowerCase() || normalizarTelefone({ telefone: pessoa.telefone }) || pessoa.nome;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    moradores.push(pessoa);
+  }
+
+  if (moradores.length === 0) {
+    return NextResponse.json({ success: true, notificados: 0, aviso: "Nenhum morador encontrado para essa unidade." });
+  }
+
+  const nomeCondominio = condominio?.nome || "seu condomínio";
+  const tituloFinal = titulo.trim();
+  const mensagemFinal = descricao?.trim() || "";
+  const resultados = [];
+  for (const morador of moradores) {
+    const whatsapp = normalizarTelefone({ telefone: morador.telefone });
+    const r = await notificarPessoa(supabaseAdmin, {
+      condominioId,
+      evento: "ocorrencia_morador",
+      referenciaId: ocorrenciaId,
+      nome: morador.nome,
+      email: morador.email,
+      whatsapp,
+      template: WHATSAPP_TEMPLATES.ocorrencia_morador,
+      fromName: nomeCondominio,
+      parametrosEmail: {
+        subject: `Ocorrência registrada em seu nome: ${tituloFinal} — ${nomeCondominio}`,
+        html: `<p>Olá, ${morador.nome}!</p><p>Uma ocorrência foi registrada em seu nome: <strong>${tituloFinal}</strong></p>${mensagemFinal ? `<p>${mensagemFinal}</p>` : ""}`,
+      },
+      parametrosWhatsapp: [morador.nome, tituloFinal, mensagemFinal],
       canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });

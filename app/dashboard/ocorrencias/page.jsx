@@ -16,6 +16,7 @@ const emptyForm = {
   unidade: "",
   bloco: "",
   notificarMorador: false,
+  motivoMorador: "encomenda",
   canalMorador: "ambos",
   notificarTodos: false,
   canalTodos: "ambos",
@@ -99,10 +100,11 @@ export default function OcorrenciasPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           condominioId: condominio.id,
-          evento: "ocorrencia_entrega",
+          evento: form.motivoMorador === "encomenda" ? "ocorrencia_entrega" : "ocorrencia_morador",
           ocorrenciaId: ocorrenciaCriada.id,
           unidade: form.unidade.trim(),
           bloco: form.bloco.trim() || null,
+          titulo: form.titulo.trim(),
           descricao: form.descricao.trim(),
           canais: canaisDoValor(form.canalMorador),
         }),
@@ -169,8 +171,30 @@ export default function OcorrenciasPage() {
                   checked={form.notificarMorador}
                   onChange={(e) => setForm((f) => ({ ...f, notificarMorador: e.target.checked }))}
                 />
-                Chegou uma entrega — avisar o morador
+                Avisar o morador dessa unidade
               </label>
+              {form.notificarMorador && (
+                <div className="mt-2 flex flex-wrap gap-3 text-sm text-navy-600">
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="motivoMorador"
+                      checked={form.motivoMorador === "encomenda"}
+                      onChange={() => setForm((f) => ({ ...f, motivoMorador: "encomenda" }))}
+                    />
+                    Encomenda (usa o texto padrão de &ldquo;chegou uma encomenda&rdquo;)
+                  </label>
+                  <label className="flex items-center gap-1.5">
+                    <input
+                      type="radio"
+                      name="motivoMorador"
+                      checked={form.motivoMorador === "outro"}
+                      onChange={() => setForm((f) => ({ ...f, motivoMorador: "outro" }))}
+                    />
+                    Outro motivo (usa o Título e a Descrição acima)
+                  </label>
+                </div>
+              )}
               {form.notificarMorador && (
                 <SeletorCanalNotificacao
                   name="canalMorador"

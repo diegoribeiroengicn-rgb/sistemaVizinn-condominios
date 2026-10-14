@@ -163,10 +163,14 @@ mesma unidade), a notificação não tem para quem ir.
 ## Notificações automáticas (e-mail + WhatsApp)
 
 `lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
-(Meta Cloud API) para oito eventos hoje:
+(Meta Cloud API) para nove eventos hoje:
 
 - **Encomenda chegou**: ao registrar uma Ocorrência marcando "avisar o
-  morador", todo condômino daquela unidade/bloco recebe a notificação.
+  morador" com motivo "Encomenda", todo condômino daquela unidade/bloco
+  recebe a notificação.
+- **Ocorrência com morador específico**: mesma coisa, mas com motivo
+  "Outro" — usa o título/descrição livres da ocorrência em vez do texto
+  fixo de encomenda (ex: barulho, visitante, manutenção no apartamento).
 - **Chamado atribuído**: ao definir um responsável (colaborador ou membro)
   num chamado, essa pessoa recebe a notificação.
 - **Chamado registrado em nome de morador**: ao criar um chamado vinculado
@@ -198,7 +202,7 @@ acesso a Auditoria).
    `WHATSAPP_PHONE_NUMBER_ID`.
 3. No modo de desenvolvimento, a Meta libera um número de teste grátis e até
    5 números de destino verificados — dá pra testar tudo sem pagar nada.
-4. **Crie os oito templates de mensagem** em WhatsApp Manager → Message
+4. **Crie os nove templates de mensagem** em WhatsApp Manager → Message
    Templates (categoria "Utility", idioma Português (BR)), com estes textos
    exatos — o nome do template tem que ser idêntico ao `WHATSAPP_TEMPLATES`
    de `lib/notificacoes.js`. A Meta exige variáveis **nomeadas** (não mais
@@ -208,6 +212,9 @@ acesso a Auditoria).
 
    - **Nome:** `encomenda_chegou`
      **Corpo:** `Olá {{nome_morador}}, chegou uma encomenda para você em {{nome_condominio}}. {{mensagem}}`
+
+   - **Nome:** `ocorrencia_morador`
+     **Corpo:** `Olá {{nome_morador}}, ocorrência registrada em seu nome: {{titulo}}. {{mensagem}}`
 
    - **Nome:** `chamado_atribuido`
      **Corpo:** `Olá {{nome}}, um novo chamado foi atribuído a você: {{titulo_chamado}} (prioridade: {{prioridade}}).`
