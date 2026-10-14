@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
+import { authedFetch } from "@/lib/adminFetch";
 import {
   PRIORIDADE_LABELS,
   PRIORIDADE_OPTIONS,
@@ -72,6 +73,8 @@ export default function LembretesPage() {
   const [filtroStatus, setFiltroStatus] = useState("pendentes");
   const [filtroOrigem, setFiltroOrigem] = useState("todas");
   const [filtroCategoria, setFiltroCategoria] = useState("todas");
+  const [sincronizando, setSincronizando] = useState(false);
+  const [mensagemSync, setMensagemSync] = useState("");
 
   const podeCriar = temPermissao("lembretes", "criar");
   const podeEditarQualquer = temPermissao("lembretes", "editar");
@@ -136,6 +139,37 @@ export default function LembretesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // O processamento de verdade (criar/atualizar os lembretes espelho de
+  // Manutenção, disparar estágios vencidos, mandar a cutuca de atraso)
+  // roda 1x/dia sozinho pelo cron — este botão chama a mesma lógica na
+  // hora, travada neste condomínio, só pra quem não quer esperar até o
+  // próximo horário do cron pra ver o resultado.
+  async function sincronizarAgora() {
+    if (!condominio?.id) return;
+    setSincronizando(true);
+    setMensagemSync("");
+    try {
+      const res = await authedFetch("/api/lembretes/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ condominioId: condominio.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao sincronizar.");
+      setMensagemSync(
+        `Sincronizado: ${data.espelhosSincronizados} ordem(ns) de manutenção, ${data.estagiosDisparados} aviso(s) enviado(s)${
+          data.erros?.length ? ` — ${data.erros.length} erro(s), veja o console` : ""
+        }.`
+      );
+      if (data.erros?.length) console.error("Erros ao sincronizar lembretes:", data.erros);
+      load();
+    } catch (err) {
+      setMensagemSync(`Erro: ${err.message}`);
+    } finally {
+      setSincronizando(false);
+    }
+  }
 
   function toggleEstagio(dias) {
     setForm((f) => ({
@@ -304,12 +338,20 @@ export default function LembretesPage() {
                 Compromissos, vencimentos e alertas automáticos num só lugar.
               </p>
             </div>
-            {podeCriar && (
-              <button onClick={() => setMostrarForm((v) => !v)} className="btn-primary text-sm">
-                {mostrarForm ? "Cancelar" : "+ Novo lembrete"}
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {podeCriar && (
+                <button onClick={sincronizarAgora} disabled={sincronizando} className="btn-secondary text-sm disabled:opacity-50">
+                  {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+                </button>
+              )}
+              {podeCriar && (
+                <button onClick={() => setMostrarForm((v) => !v)} className="btn-primary text-sm">
+                  {mostrarForm ? "Cancelar" : "+ Novo lembrete"}
+                </button>
+              )}
+            </div>
           </div>
+          {mensagemSync && <p className="mt-2 text-xs text-navy-500">{mensagemSync}</p>}
 
           {mostrarForm && podeCriar && (
             <form onSubmit={handleCreate} className="mt-4 space-y-3 border-t border-navy-100 pt-4">
