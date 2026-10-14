@@ -208,36 +208,37 @@ acesso a Auditoria).
    de `lib/notificacoes.js`. A Meta exige variáveis **nomeadas** (não mais
    numeradas tipo `{{1}}`) — os nomes abaixo têm que bater exatamente com
    `WHATSAPP_TEMPLATE_PARAMS` no mesmo arquivo, na mesma ordem. A Meta
-   também recusa variável logo no início ou bem no final do corpo (precisa
-   de texto fixo antes/depois) — por isso os templates com mensagem livre
-   no fim terminam com "— AquiHabitto" como assinatura fixa:
+   também recusa variável logo no início/fim do corpo e exige uma
+   proporção mínima de palavras fixas por variável (regra não documentada
+   oficialmente, na prática ~3 palavras fixas por variável) — por isso os
+   textos abaixo são mais longos do que o mínimo necessário, com folga:
 
    - **Nome:** `encomenda_chegou`
-     **Corpo:** `Olá {{nome_morador}}, chegou uma encomenda para você em {{nome_condominio}}. {{mensagem}} — AquiHabitto`
+     **Corpo:** `Olá {{nome_morador}}, uma encomenda acabou de chegar para você no condomínio {{nome_condominio}}. Detalhes: {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `ocorrencia_morador`
-     **Corpo:** `Olá {{nome_morador}}, ocorrência registrada em seu nome: {{titulo}}. {{mensagem}} — AquiHabitto`
+     **Corpo:** `Olá {{nome_morador}}, uma ocorrência foi registrada em seu nome no condomínio: {{titulo}}. Detalhes: {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `chamado_atribuido`
-     **Corpo:** `Olá {{nome}}, um novo chamado foi atribuído a você: {{titulo_chamado}} (prioridade: {{prioridade}}).`
+     **Corpo:** `Olá {{nome}}, um novo chamado de manutenção foi atribuído a você: {{titulo_chamado}} — prioridade {{prioridade}}. Confira os detalhes no sistema AquiHabitto.`
 
    - **Nome:** `chamado_morador`
-     **Corpo:** `Olá {{nome_morador}}, um chamado foi registrado em seu nome: {{titulo_chamado}}. Você será avisado quando for concluído.`
+     **Corpo:** `Olá {{nome_morador}}, um chamado foi registrado em seu nome: {{titulo_chamado}}. Você será avisado por aqui quando for concluído.`
 
    - **Nome:** `chamado_concluido`
-     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. {{resultado}} — AquiHabitto`
+     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. Resultado: {{resultado}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `ocorrencia_aviso_geral`
-     **Corpo:** `Olá {{nome_morador}}, aviso do condomínio: {{titulo}}. {{mensagem}} — AquiHabitto`
+     **Corpo:** `Olá {{nome_morador}}, segue um aviso do condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `manutencao_aviso`
-     **Corpo:** `Olá {{nome_morador}}, manutenção programada: {{titulo}}. {{mensagem}} — AquiHabitto`
+     **Corpo:** `Olá {{nome_morador}}, segue um aviso de manutenção programada: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `aviso_publicado`
-     **Corpo:** `Olá {{nome_morador}}, novo aviso do condomínio: {{titulo}}. {{mensagem}} — AquiHabitto`
+     **Corpo:** `Olá {{nome_morador}}, foi publicado um novo aviso no condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `acesso_login`
-     **Corpo:** `Alerta de acesso: {{nome}} ({{papel}}) entrou no sistema em {{data_hora}}.`
+     **Corpo:** `Alerta de segurança do AquiHabitto: {{nome}} ({{papel}}) acabou de entrar no sistema do seu condomínio, em {{data_hora}}.`
 
    A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
    não estiver aprovado, o envio de WhatsApp falha (fica registrado como
