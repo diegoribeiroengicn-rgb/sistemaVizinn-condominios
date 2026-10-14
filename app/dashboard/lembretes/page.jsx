@@ -134,10 +134,16 @@ export default function LembretesPage() {
   }, [load]);
 
   // O processamento de verdade (criar/atualizar os lembretes espelho de
-  // Manutenção, disparar estágios vencidos, mandar a cutuca de atraso)
-  // roda 1x/dia sozinho pelo cron — este botão chama a mesma lógica na
-  // hora, travada neste condomínio, só pra quem não quer esperar até o
-  // próximo horário do cron pra ver o resultado.
+  // Manutenção/Financeiro, disparar estágios vencidos, mandar a cutuca de
+  // atraso) roda 1x/dia sozinho pelo cron do Vercel — mas ninguém devia
+  // precisar clicar em nada pra ver isso em dia. Por isso também roda
+  // sozinho aqui, uma vez, assim que a tela abre — o botão abaixo só fica
+  // como reforço opcional, pra quem quiser forçar de novo na hora.
+  useEffect(() => {
+    if (condominio?.id) sincronizarAgora();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [condominio?.id]);
+
   async function sincronizarAgora() {
     if (!condominio?.id) return;
     setSincronizando(true);
@@ -304,7 +310,7 @@ export default function LembretesPage() {
             <div className="flex flex-wrap items-center gap-2">
               {podeCriar && (
                 <button onClick={sincronizarAgora} disabled={sincronizando} className="btn-secondary text-sm disabled:opacity-50">
-                  {sincronizando ? "Sincronizando..." : "Sincronizar agora"}
+                  {sincronizando ? "Sincronizando..." : "Sincronizar de novo"}
                 </button>
               )}
               {podeCriar && (
