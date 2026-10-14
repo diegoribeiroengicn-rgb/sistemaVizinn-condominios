@@ -262,6 +262,43 @@ acesso a Auditoria).
 5. Pra produção (enviar pra qualquer número, não só os 5 de teste), é
    preciso verificar a empresa no Meta Business Manager.
 
+## Lembretes (`/dashboard/lembretes`)
+
+Painel central de compromissos do síndico — reúne lembretes manuais e um
+espelho (por referência, nunca cópia) dos alertas de Manutenção. Financeiro
+nunca teve alerta automático agendado em nenhum condomínio; a tela só lê
+`contas_pagar`/`contas_receber` em tempo real pra exibir junto, sem gerar
+linha nem notificação nova.
+
+- **Lembretes manuais**: título, descrição, data do alerta, data limite,
+  prioridade, recorrência e um ou vários estágios de aviso (ex.: 2 meses /
+  1 mês / 15 dias antes). Privado por padrão; o síndico pode compartilhar
+  com membros específicos (só abre visualização daquele lembrete, nunca
+  acesso a outro módulo).
+- **Manutenção**: o formulário de criação agora aceita marcar vários dias
+  de antecedência (em vez de só um). O cron (`/api/cron/lembretes`, 1x/dia)
+  sincroniza um lembrete espelho por ordem aberta com `data_prevista`
+  configurada, recalcula os estágios sempre que a data ou a configuração
+  mudar, e fecha o espelho sozinho quando a ordem é concluída — sem nunca
+  mexer na ordem de manutenção em si.
+- **Sino de notificações**: no topo do dashboard, mostra quantos lembretes
+  estão atrasados/vencendo em breve e um pop-up ao entrar (fechar o pop-up
+  não conclui nada — só evita repetir no mesmo dia; o lembrete continua na
+  lista central).
+- **Permissão**: módulo concedível igual aos demais (`visualizar`, `criar`,
+  `editar`, `excluir` em Acessos) — ninguém além do síndico vê por padrão.
+- **E-mail**: o cron manda e-mail pro síndico (`condominios.owner_email`)
+  em cada estágio configurado, e uma cutucada semanal (não diária) pra
+  lembrete vencido ainda pendente. Não há canal WhatsApp pra lembretes
+  ainda (evita precisar aprovar mais um template na Meta agora).
+- **Push no app mobile (celular com app fechado)**: infraestrutura
+  preparada mas **não implementada** — falta criar um projeto Firebase
+  (FCM), instalar `@capacitor/push-notifications` e recompilar o app
+  Android. A tabela `lembretes_dispositivos` já existe no banco pra isso,
+  só não é usada ainda. Como o app hoje é a mesma página web dentro da
+  WebView do Capacitor, a tela de Lembretes e o sino já aparecem
+  normalmente no app — só não chega notificação com o app fechado.
+
 ## Estrutura
 
 ```

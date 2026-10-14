@@ -25,6 +25,7 @@ import {
   IconObras,
   IconAcademia,
   IconRelatorios,
+  IconLembretes,
   IconConfiguracoes,
   IconSol,
   IconLua,
@@ -53,6 +54,7 @@ const SINDICO_NAV = [
   { href: "/dashboard/moradores", label: "Moradores", Icon: IconMoradores },
   { href: "/dashboard/veiculos", label: "Veículos", Icon: IconVeiculos },
   { href: "/dashboard/obras", label: "Obras e Melhorias", Icon: IconObras },
+  { href: "/dashboard/lembretes", label: "Lembretes", Icon: IconLembretes },
   { href: "/dashboard/academia", label: "Academia AquiHabitto", Icon: IconAcademia },
   { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
@@ -79,6 +81,7 @@ const ICON_BY_MODULO = {
   moradores: IconMoradores,
   veiculos: IconVeiculos,
   obras: IconObras,
+  lembretes: IconLembretes,
 };
 
 const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };

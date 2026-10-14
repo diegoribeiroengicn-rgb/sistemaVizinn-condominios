@@ -2596,3 +2596,254 @@ create index if not exists blog_posts_status_published_idx on public.blog_posts 
 
 alter table public.blog_posts enable row level security;
 grant all on public.blog_posts to service_role;
+
+-- ---------------------------------------------------------------------
+-- Lembretes: painel central do síndico. Lembretes manuais (qualquer
+-- compromisso avulso) + lembretes "espelho" de Manutenção, materializados
+-- por referência (origem/referencia_id), nunca copiando os dados do
+-- registro original. Financeiro NUNCA teve alerta automático agendado
+-- pra nenhum condomínio (só o card "O que precisa de atenção", calculado
+-- na hora) — não inventamos um aqui; a tela de Lembretes só lê
+-- contas_pagar/contas_receber em tempo real pra exibir junto, sem gerar
+-- linha nem notificação nova pra eles.
+create table if not exists public.lembretes (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  origem text not null default 'manual' check (origem in ('manual', 'manutencao')),
+  referencia_id uuid,
+  criado_por_id uuid references auth.users (id) on delete set null,
+  criado_por_nome text,
+  titulo text not null,
+  descricao text,
+  data_alerta date,
+  data_limite date,
+  prioridade text not null default 'normal' check (prioridade in ('baixa', 'normal', 'alta', 'urgente')),
+  status text not null default 'pendente' check (status in ('pendente', 'concluido', 'cancelado')),
+  recorrencia text check (recorrencia is null or recorrencia in ('diaria', 'semanal', 'mensal', 'anual')),
+  visibilidade text not null default 'privado' check (visibilidade in ('privado', 'compartilhado', 'condominio')),
+  concluido_em timestamptz,
+  concluido_por_nome text,
+  -- Cutuca periódica pós-vencimento (ver seção 6 do pedido: "após o
+  -- vencimento, enquanto a pendência continuar sem solução, com
+  -- frequência controlada"). Só o cron escreve aqui.
+  ultimo_aviso_atraso_em timestamptz,
+  created_at timestamptz not null default now()
+);
+
+-- Garante um único lembrete "espelho" por registro de origem (o cron faz
+-- select-then-upsert manualmente; este índice é só a rede de segurança
+-- contra corrida/duplicidade).
+create unique index if not exists lembretes_origem_referencia_idx
+  on public.lembretes (origem, referencia_id) where origem <> 'manual';
+create index if not exists lembretes_condominio_id_idx on public.lembretes (condominio_id);
+create index if not exists lembretes_status_data_alerta_idx on public.lembretes (condominio_id, status, data_alerta);
+
+alter table public.lembretes enable row level security;
+
+-- Compartilhamento explícito: abre só a VISUALIZAÇÃO daquele lembrete
+-- específico pra membros escolhidos — nunca concede acesso a outros
+-- módulos nem ao registro de origem (ver um lembrete de manutenção
+-- compartilhado não dá acesso ao módulo Manutenção em si).
+create table if not exists public.lembretes_compartilhamentos (
+  id uuid primary key default gen_random_uuid(),
+  lembrete_id uuid not null references public.lembretes (id) on delete cascade,
+  membro_id uuid not null references public.membros (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists lembretes_compartilhamentos_unica_idx
+  on public.lembretes_compartilhamentos (lembrete_id, membro_id);
+
+alter table public.lembretes_compartilhamentos enable row level security;
+
+-- Regra única de visibilidade, reaproveitada pelas policies de
+-- lembretes, lembretes_compartilhamentos e lembretes_estagios: dono do
+-- condomínio, quem criou, quem recebeu compartilhamento explícito, ou
+-- (se o lembrete for "do condomínio") quem tem o módulo liberado.
+create or replace function public.lembrete_visivel(p_lembrete_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.lembretes l
+    where l.id = p_lembrete_id
+      and (
+        public.is_condominio_owner(l.condominio_id)
+        or l.criado_por_id = auth.uid()
+        or (
+          l.visibilidade = 'condominio'
+          and public.membro_tem_modulo(l.condominio_id, 'lembretes')
+        )
+        or exists (
+          select 1 from public.lembretes_compartilhamentos lc
+          join public.membros m on m.id = lc.membro_id
+          where lc.lembrete_id = l.id and m.user_id = auth.uid()
+        )
+      )
+  );
+$$;
+
+grant execute on function public.lembrete_visivel(uuid) to authenticated;
+
+drop policy if exists "Visibility rule for lembretes" on public.lembretes;
+create policy "Visibility rule for lembretes"
+  on public.lembretes for select
+  using (public.lembrete_visivel(id));
+
+drop policy if exists "Members with lembretes can insert" on public.lembretes;
+create policy "Members with lembretes can insert"
+  on public.lembretes for insert
+  with check (public.membro_tem_permissao(condominio_id, 'lembretes', 'criar'));
+
+drop policy if exists "Owners and creators can update lembretes" on public.lembretes;
+create policy "Owners and creators can update lembretes"
+  on public.lembretes for update
+  using (
+    public.is_condominio_owner(condominio_id)
+    or criado_por_id = auth.uid()
+    or public.membro_tem_permissao(condominio_id, 'lembretes', 'editar')
+  );
+
+drop policy if exists "Owners and creators can delete lembretes" on public.lembretes;
+create policy "Owners and creators can delete lembretes"
+  on public.lembretes for delete
+  using (
+    public.is_condominio_owner(condominio_id)
+    or criado_por_id = auth.uid()
+    or public.membro_tem_permissao(condominio_id, 'lembretes', 'excluir')
+  );
+
+grant select, insert, update, delete on public.lembretes to authenticated;
+grant all on public.lembretes to service_role;
+
+drop policy if exists "Visibility rule for lembretes_compartilhamentos" on public.lembretes_compartilhamentos;
+create policy "Visibility rule for lembretes_compartilhamentos"
+  on public.lembretes_compartilhamentos for select
+  using (public.lembrete_visivel(lembrete_id));
+
+drop policy if exists "Creators manage their lembretes_compartilhamentos" on public.lembretes_compartilhamentos;
+create policy "Creators manage their lembretes_compartilhamentos"
+  on public.lembretes_compartilhamentos for all
+  using (
+    exists (
+      select 1 from public.lembretes l
+      where l.id = lembrete_id
+        and (public.is_condominio_owner(l.condominio_id) or l.criado_por_id = auth.uid())
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.lembretes l
+      where l.id = lembrete_id
+        and (public.is_condominio_owner(l.condominio_id) or l.criado_por_id = auth.uid())
+    )
+  );
+
+grant select, insert, update, delete on public.lembretes_compartilhamentos to authenticated;
+grant all on public.lembretes_compartilhamentos to service_role;
+
+-- Estágios de alerta de cada lembrete (pode ter vários: 2 meses antes, 1
+-- mês antes, 15 dias antes...). `processado_em` garante idempotência: o
+-- cron só dispara aquele estágio uma vez, mesmo rodando mais de uma vez
+-- no mesmo dia.
+create table if not exists public.lembretes_estagios (
+  id uuid primary key default gen_random_uuid(),
+  lembrete_id uuid not null references public.lembretes (id) on delete cascade,
+  dias_antecedencia integer not null,
+  data_disparo date not null,
+  processado_em timestamptz,
+  erro_mensagem text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists lembretes_estagios_unico_idx
+  on public.lembretes_estagios (lembrete_id, dias_antecedencia);
+create index if not exists lembretes_estagios_disparo_idx
+  on public.lembretes_estagios (data_disparo) where processado_em is null;
+
+alter table public.lembretes_estagios enable row level security;
+
+drop policy if exists "Visibility rule for lembretes_estagios" on public.lembretes_estagios;
+create policy "Visibility rule for lembretes_estagios"
+  on public.lembretes_estagios for select
+  using (public.lembrete_visivel(lembrete_id));
+
+-- Quem pode editar o lembrete (dono do condomínio, quem criou, ou quem
+-- tem "editar" no módulo) também pode ajustar os estágios de alerta
+-- dele — é o formulário de lembrete manual que grava aqui direto do
+-- cliente.
+drop policy if exists "Editors manage lembretes_estagios" on public.lembretes_estagios;
+create policy "Editors manage lembretes_estagios"
+  on public.lembretes_estagios for insert
+  with check (
+    exists (
+      select 1 from public.lembretes l
+      where l.id = lembrete_id
+        and (
+          public.is_condominio_owner(l.condominio_id)
+          or l.criado_por_id = auth.uid()
+          or public.membro_tem_permissao(l.condominio_id, 'lembretes', 'editar')
+        )
+    )
+  );
+
+drop policy if exists "Editors delete lembretes_estagios" on public.lembretes_estagios;
+create policy "Editors delete lembretes_estagios"
+  on public.lembretes_estagios for delete
+  using (
+    exists (
+      select 1 from public.lembretes l
+      where l.id = lembrete_id
+        and (
+          public.is_condominio_owner(l.condominio_id)
+          or l.criado_por_id = auth.uid()
+          or public.membro_tem_permissao(l.condominio_id, 'lembretes', 'editar')
+        )
+    )
+  );
+
+grant select, insert, delete on public.lembretes_estagios to authenticated;
+grant all on public.lembretes_estagios to service_role;
+
+-- Dispositivos pra push notification (celular) — infraestrutura
+-- preparada, ainda NÃO usada: falta configurar Firebase/FCM e o plugin
+-- @capacitor/push-notifications no app Android (ver README). Nenhuma
+-- rota grava aqui ainda; existe só pra não exigir outra migração quando
+-- o push for implementado de fato.
+create table if not exists public.lembretes_dispositivos (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  plataforma text not null check (plataforma in ('android', 'ios', 'web')),
+  push_token text not null,
+  ativo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists lembretes_dispositivos_token_idx on public.lembretes_dispositivos (push_token);
+create index if not exists lembretes_dispositivos_user_id_idx on public.lembretes_dispositivos (user_id);
+
+alter table public.lembretes_dispositivos enable row level security;
+
+drop policy if exists "Users manage their own devices" on public.lembretes_dispositivos;
+create policy "Users manage their own devices"
+  on public.lembretes_dispositivos for all
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+grant select, insert, update, delete on public.lembretes_dispositivos to authenticated;
+grant all on public.lembretes_dispositivos to service_role;
+
+-- Manutenção: múltiplos estágios de alerta (substitui a limitação de "só
+-- um alerta por ordem"). O campo único antigo (`alerta_dias_antecedencia`)
+-- continua existindo e funcionando exatamente como antes — quem já
+-- configurou não perde nada; o array novo é só uma capacidade adicional,
+-- preenchida por padrão com o valor antigo de quem já tinha algo.
+alter table public.manutencoes add column if not exists alertas_dias_antecedencia integer[];
+update public.manutencoes
+  set alertas_dias_antecedencia = array[alerta_dias_antecedencia]
+  where alerta_dias_antecedencia is not null and alertas_dias_antecedencia is null;

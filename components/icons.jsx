@@ -160,6 +160,24 @@ export function IconObras(props) {
   );
 }
 
+export function IconLembretes(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.2-1.3 5.8-2.2 6.7a.8.8 0 0 0 .6 1.3h16.2a.8.8 0 0 0 .6-1.3c-.9-.9-2.2-2.5-2.2-6.7A6.5 6.5 0 0 0 12 2.5Z" />
+      <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+    </Icon>
+  );
+}
+
+export function IconSino(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 2.5a6.5 6.5 0 0 0-6.5 6.5c0 4.2-1.3 5.8-2.2 6.7a.8.8 0 0 0 .6 1.3h16.2a.8.8 0 0 0 .6-1.3c-.9-.9-2.2-2.5-2.2-6.7A6.5 6.5 0 0 0 12 2.5Z" />
+      <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+    </Icon>
+  );
+}
+
 export function IconConfiguracoes(props) {
   return (
     <Icon {...props}>

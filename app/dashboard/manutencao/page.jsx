@@ -14,6 +14,7 @@ import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCana
 import PreviaMensagem from "@/components/PreviaMensagem";
 import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
+import { ESTAGIOS_SUGERIDOS } from "@/lib/lembretes";
 
 const STATUS_ORDER = ["aberta", "em_andamento", "concluida"];
 const STATUS_LABELS = { aberta: "Aberta", em_andamento: "Em andamento", concluida: "Concluída" };
@@ -47,7 +48,8 @@ const emptyForm = {
   dataPrevista: "",
   fornecedorId: "",
   colaboradorId: "",
-  alertaDias: "",
+  alertasDias: [],
+  alertaDiaCustom: "",
   notificarMoradores: false,
   canalNotificacao: "ambos",
 };
@@ -187,7 +189,12 @@ export default function ManutencaoPage() {
         fornecedor_id: form.fornecedorId || null,
         fornecedor_nome: fornecedor?.razao_social || null,
         responsavel_colaborador_id: form.colaboradorId || null,
-        alerta_dias_antecedencia: form.alertaDias ? Number(form.alertaDias) : null,
+        // alerta_dias_antecedencia (único) continua preenchido — com o
+        // maior valor do array — só pra manter o destaque de "Visão
+        // Geral" funcionando sem precisar tocar nele; quem de fato
+        // controla os múltiplos avisos é alertas_dias_antecedencia.
+        alerta_dias_antecedencia: form.alertasDias.length > 0 ? Math.max(...form.alertasDias) : null,
+        alertas_dias_antecedencia: form.alertasDias.length > 0 ? form.alertasDias : null,
         status: "aberta",
         chamado_origem_id: chamadoId,
         notificar_moradores: form.notificarMoradores,
@@ -637,16 +644,62 @@ export default function ManutencaoPage() {
             </div>
             <div>
               <label className="label-field">
-                Alertar com quantos dias de antecedência (opcional)
+                Alertar com quantos dias de antecedência (opcional, pode marcar vários)
               </label>
-              <input
-                type="number"
-                min="1"
-                className="input-field"
-                value={form.alertaDias}
-                onChange={(e) => setForm((f) => ({ ...f, alertaDias: e.target.value }))}
-                placeholder={`Padrão do condomínio: ${condominio?.manutencao_alerta_dias_padrao ?? 7} dias`}
-              />
+              <p className="mb-1.5 text-xs text-navy-400">
+                Sem nenhum marcado, usa o padrão do condomínio: {condominio?.manutencao_alerta_dias_padrao ?? 7} dias.
+                Cada alerta marcado também aparece em Lembretes.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {ESTAGIOS_SUGERIDOS.map((e) => (
+                  <label
+                    key={e.dias}
+                    className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-medium ${
+                      form.alertasDias.includes(e.dias) ? "border-coral bg-coral-50 text-coral-700" : "border-navy-100 text-navy-600"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={form.alertasDias.includes(e.dias)}
+                      onChange={() =>
+                        setForm((f) => ({
+                          ...f,
+                          alertasDias: f.alertasDias.includes(e.dias)
+                            ? f.alertasDias.filter((d) => d !== e.dias)
+                            : [...f.alertasDias, e.dias],
+                        }))
+                      }
+                    />
+                    {e.label}
+                  </label>
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  className="input-field w-32"
+                  placeholder="Outro (dias)"
+                  value={form.alertaDiaCustom}
+                  onChange={(e) => setForm((f) => ({ ...f, alertaDiaCustom: e.target.value }))}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => {
+                    const dias = Number(form.alertaDiaCustom);
+                    if (!Number.isFinite(dias) || dias < 0) return;
+                    setForm((f) => ({
+                      ...f,
+                      alertasDias: f.alertasDias.includes(dias) ? f.alertasDias : [...f.alertasDias, dias],
+                      alertaDiaCustom: "",
+                    }));
+                  }}
+                >
+                  Adicionar
+                </button>
+              </div>
             </div>
             {form.tipo === "recorrente" && (
               <>
