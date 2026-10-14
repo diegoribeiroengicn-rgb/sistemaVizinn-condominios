@@ -2856,3 +2856,12 @@ alter table public.lembretes add column if not exists categoria text not null de
 alter table public.lembretes drop constraint if exists lembretes_categoria_check;
 alter table public.lembretes add constraint lembretes_categoria_check
   check (categoria in ('manutencao', 'financeiro', 'contrato_documento', 'administrativo', 'seguranca', 'reuniao', 'outros'));
+
+-- Amplia as origens automáticas: Manutenção já existia; agora Financeiro
+-- (contas a pagar/receber) também vira automático (um espelho por conta
+-- em aberto, igual Manutenção), e Avisos/Ocorrências ganham um lembrete
+-- opcional ("caixinha" no formulário) por registro, quando o síndico
+-- marcar.
+alter table public.lembretes drop constraint if exists lembretes_origem_check;
+alter table public.lembretes add constraint lembretes_origem_check
+  check (origem in ('manual', 'manutencao', 'avisos', 'ocorrencias', 'financeiro_pagar', 'financeiro_receber'));

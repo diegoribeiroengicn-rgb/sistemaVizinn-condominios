@@ -12,10 +12,18 @@ import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCana
 import PreviaMensagem from "@/components/PreviaMensagem";
 import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
 
-const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false, canalNotificacao: "ambos" };
+const emptyForm = {
+  titulo: "",
+  mensagem: "",
+  notificarMoradores: false,
+  canalNotificacao: "ambos",
+  criarLembrete: false,
+  lembreteData: "",
+};
 
 export default function AvisosPage() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
+  const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
   const searchParams = useSearchParams();
   const [avisos, setAvisos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +101,30 @@ export default function AvisosPage() {
       }).catch((err) => console.error("Erro ao notificar moradores:", err));
     }
 
+    if (form.criarLembrete && form.lembreteData) {
+      const { data: lembreteCriado, error: lembreteError } = await supabase
+        .from("lembretes")
+        .insert({
+          condominio_id: condominio.id,
+          origem: "avisos",
+          referencia_id: avisoCriado.id,
+          criado_por_id: user?.id || null,
+          criado_por_nome: nomeUsuario,
+          titulo: `Aviso: ${form.titulo.trim()}`,
+          data_alerta: form.lembreteData,
+          data_limite: form.lembreteData,
+          visibilidade: "condominio",
+        })
+        .select("id")
+        .single();
+      if (lembreteError) console.error("Erro ao criar lembrete do aviso:", lembreteError.message);
+      else {
+        await supabase
+          .from("lembretes_estagios")
+          .insert({ lembrete_id: lembreteCriado.id, dias_antecedencia: 0, data_disparo: form.lembreteData });
+      }
+    }
+
     setForm(emptyForm);
     load();
   }
@@ -155,6 +187,28 @@ export default function AvisosPage() {
                   whatsapp={previaWhatsapp("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
                   email={previaEmail("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
                 />
+              )}
+            </div>
+            <div className="rounded-lg border border-navy-100 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                <input
+                  type="checkbox"
+                  checked={form.criarLembrete}
+                  onChange={(e) => setForm((f) => ({ ...f, criarLembrete: e.target.checked }))}
+                />
+                Criar lembrete de acompanhamento em Lembretes
+              </label>
+              {form.criarLembrete && (
+                <div className="mt-2">
+                  <label className="label-field">Lembrar em</label>
+                  <input
+                    type="date"
+                    className="input-field w-auto"
+                    value={form.lembreteData}
+                    onChange={(e) => setForm((f) => ({ ...f, lembreteData: e.target.value }))}
+                    required={form.criarLembrete}
+                  />
+                </div>
               )}
             </div>
             <button type="submit" disabled={submitting} className="btn-primary">

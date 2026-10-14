@@ -21,8 +21,6 @@ import {
   CATEGORIA_PADRAO,
   calcularStatusLembrete,
 } from "@/lib/lembretes";
-import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
-
 const emptyForm = {
   titulo: "",
   descricao: "",
@@ -47,8 +45,19 @@ const FILTROS_ORIGEM = [
   { id: "todas", label: "Todas as origens" },
   { id: "manual", label: "Manual" },
   { id: "manutencao", label: "Manutenção" },
-  { id: "financeiro", label: "Financeiro" },
+  { id: "avisos", label: "Avisos" },
+  { id: "ocorrencias", label: "Ocorrências" },
+  { id: "financeiro_pagar", label: "Financeiro (a pagar)" },
+  { id: "financeiro_receber", label: "Financeiro (a receber)" },
 ];
+
+const HREF_POR_ORIGEM = {
+  manutencao: "/dashboard/manutencao",
+  avisos: "/dashboard/avisos",
+  ocorrencias: "/dashboard/ocorrencias",
+  financeiro_pagar: "/dashboard/financeiro?aba=visao",
+  financeiro_receber: "/dashboard/financeiro?aba=visao",
+};
 
 const FILTROS_CATEGORIA = [{ id: "todas", label: "Todas as categorias" }, ...CATEGORIA_OPTIONS.map((c) => ({ id: c, label: CATEGORIA_LABELS[c] }))];
 
@@ -61,8 +70,6 @@ function formatarDataBr(isoOuNulo) {
 export default function LembretesPage() {
   const { condominio, user, member, role, temPermissao } = useAuth();
   const [lembretes, setLembretes] = useState([]);
-  const [contasPagar, setContasPagar] = useState([]);
-  const [contasReceber, setContasReceber] = useState([]);
   const [membrosParaCompartilhar, setMembrosParaCompartilhar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,7 +86,6 @@ export default function LembretesPage() {
   const podeCriar = temPermissao("lembretes", "criar");
   const podeEditarQualquer = temPermissao("lembretes", "editar");
   const podeExcluir = temPermissao("lembretes", "excluir");
-  const podeFinanceiro = temPermissao("financeiro", "visualizar");
 
   // Além de quem tem "editar" liberado no módulo, quem criou o próprio
   // lembrete manual sempre pode concluir/cancelar o que criou (mesma
@@ -104,12 +110,6 @@ export default function LembretesPage() {
         .order("data_alerta", { ascending: true, nullsFirst: false }),
     ];
 
-    if (podeFinanceiro) {
-      consultas.push(
-        supabase.from("contas_pagar").select("*").eq("condominio_id", condominio.id),
-        supabase.from("contas_receber").select("*").eq("condominio_id", condominio.id)
-      );
-    }
     // Só o síndico (dono) enxerga a lista completa de membros (ver RLS de
     // "membros") — o seletor de compartilhamento só faz sentido pra ele.
     if (role === "sindico") {
@@ -122,19 +122,12 @@ export default function LembretesPage() {
     if (lembretesResult.error) setError(lembretesResult.error.message);
     else setLembretes(lembretesResult.data || []);
 
-    let idx = 0;
-    if (podeFinanceiro) {
-      setContasPagar(resto[idx]?.data || []);
-      idx++;
-      setContasReceber(resto[idx]?.data || []);
-      idx++;
-    }
     if (role === "sindico") {
-      setMembrosParaCompartilhar(resto[idx]?.data || []);
+      setMembrosParaCompartilhar(resto[0]?.data || []);
     }
 
     setLoading(false);
-  }, [condominio?.id, podeFinanceiro, role]);
+  }, [condominio?.id, role]);
 
   useEffect(() => {
     load();
@@ -272,44 +265,14 @@ export default function LembretesPage() {
     load();
   }
 
-  // Financeiro nunca gera linha em `lembretes` (ver nota no cron) — essas
-  // entradas são só uma leitura em tempo real, sempre "origem: financeiro",
-  // sem id pra concluir/excluir por aqui (a ação de verdade é em Financeiro).
-  const itensFinanceiro = useMemo(() => {
-    if (!podeFinanceiro) return [];
-    const pagar = contasPagar
-      .filter((c) => !STATUS_PAGAR_FINAIS.includes(c.status))
-      .map((c) => ({
-      chave: `pagar-${c.id}`,
-      origem: "financeiro",
-      titulo: `A pagar: ${c.descricao}`,
-      descricao: c.fornecedor_nome ? `Fornecedor: ${c.fornecedor_nome} · ${formatarMoeda(c.valor)}` : formatarMoeda(c.valor),
-      data_alerta: c.data_vencimento,
-      status: "pendente",
-      categoria: "financeiro",
-      prioridade: calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "vermelho" ? "alta" : "normal",
-      href: "/dashboard/financeiro?aba=visao",
-      }));
-    const receber = contasReceber
-      .filter((c) => !STATUS_RECEBER_FINAIS.includes(c.status))
-      .map((c) => ({
-      chave: `receber-${c.id}`,
-      origem: "financeiro",
-      titulo: `A receber: ${c.descricao}`,
-      descricao: formatarMoeda(c.valor),
-      data_alerta: c.data_vencimento,
-      status: "pendente",
-      categoria: "financeiro",
-      prioridade: calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho" ? "alta" : "normal",
-      href: "/dashboard/financeiro?aba=visao",
-    }));
-    return [...pagar, ...receber].filter((i) => i.data_alerta);
-  }, [podeFinanceiro, contasPagar, contasReceber]);
-
-  const todosOsItens = useMemo(() => {
-    const manuaisEAutomaticos = lembretes.map((l) => ({ ...l, chave: l.id, href: l.origem === "manutencao" ? "/dashboard/manutencao" : null }));
-    return [...manuaisEAutomaticos, ...itensFinanceiro];
-  }, [lembretes, itensFinanceiro]);
+  // Financeiro/Manutenção/Avisos/Ocorrências automáticos já chegam como
+  // linhas reais em `lembretes` (sincronizadas pelo cron ou pelo botão
+  // "Sincronizar agora") — não precisa mais unir com uma leitura virtual
+  // de contas_pagar/contas_receber aqui.
+  const todosOsItens = useMemo(
+    () => lembretes.map((l) => ({ ...l, chave: l.id, href: HREF_POR_ORIGEM[l.origem] || null })),
+    [lembretes]
+  );
 
   const itensFiltrados = useMemo(() => {
     return todosOsItens.filter((item) => {

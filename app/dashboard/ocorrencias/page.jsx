@@ -22,6 +22,8 @@ const emptyForm = {
   canalMorador: "ambos",
   notificarTodos: false,
   canalTodos: "ambos",
+  criarLembrete: false,
+  lembreteData: "",
 };
 
 export default function OcorrenciasPage() {
@@ -125,6 +127,30 @@ export default function OcorrenciasPage() {
           canais: canaisDoValor(form.canalTodos),
         }),
       }).catch((err) => console.error("Erro ao notificar moradores:", err));
+    }
+
+    if (form.criarLembrete && form.lembreteData) {
+      const { data: lembreteCriado, error: lembreteError } = await supabase
+        .from("lembretes")
+        .insert({
+          condominio_id: condominio.id,
+          origem: "ocorrencias",
+          referencia_id: ocorrenciaCriada.id,
+          criado_por_id: user?.id || null,
+          criado_por_nome: registradoPor,
+          titulo: `Ocorrência: ${form.titulo.trim()}`,
+          data_alerta: form.lembreteData,
+          data_limite: form.lembreteData,
+          visibilidade: "condominio",
+        })
+        .select("id")
+        .single();
+      if (lembreteError) console.error("Erro ao criar lembrete da ocorrência:", lembreteError.message);
+      else {
+        await supabase
+          .from("lembretes_estagios")
+          .insert({ lembrete_id: lembreteCriado.id, dias_antecedencia: 0, data_disparo: form.lembreteData });
+      }
     }
 
     setForm(emptyForm);
@@ -275,6 +301,29 @@ export default function OcorrenciasPage() {
                     mensagem: form.descricao,
                   })}
                 />
+              )}
+            </div>
+
+            <div className="rounded-lg border border-navy-100 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-navy-700">
+                <input
+                  type="checkbox"
+                  checked={form.criarLembrete}
+                  onChange={(e) => setForm((f) => ({ ...f, criarLembrete: e.target.checked }))}
+                />
+                Criar lembrete de acompanhamento em Lembretes
+              </label>
+              {form.criarLembrete && (
+                <div className="mt-2">
+                  <label className="label-field">Lembrar em</label>
+                  <input
+                    type="date"
+                    className="input-field w-auto"
+                    value={form.lembreteData}
+                    onChange={(e) => setForm((f) => ({ ...f, lembreteData: e.target.value }))}
+                    required={form.criarLembrete}
+                  />
+                </div>
               )}
             </div>
 
