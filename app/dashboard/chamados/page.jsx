@@ -8,6 +8,7 @@ import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
+import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 import { PAPEIS_EQUIPE } from "@/lib/permissoes";
 import {
   CATEGORIA_SUGESTOES,
@@ -38,6 +39,7 @@ const emptyForm = {
   colaboradorId: "",
   moradorId: "",
   notificarMorador: true,
+  canalMorador: "ambos",
 };
 
 const emptyFiltro = { status: "", tipo: "", soAtrasados: false };
@@ -271,6 +273,7 @@ export default function ChamadosPage() {
         chamadoId: chamado.id,
         titulo: chamado.titulo,
         moradorId: chamado.morador_id,
+        canais: canaisDoValor(form.canalMorador),
       }),
     }).catch((err) => console.error("Erro ao notificar morador:", err));
   }
@@ -667,8 +670,15 @@ export default function ChamadosPage() {
                       checked={form.notificarMorador}
                       onChange={(e) => setForm((f) => ({ ...f, notificarMorador: e.target.checked }))}
                     />
-                    Avisar esse morador por e-mail e WhatsApp
+                    Avisar esse morador
                   </label>
+                )}
+                {form.moradorId && form.notificarMorador && (
+                  <SeletorCanalNotificacao
+                    name="canalMorador"
+                    value={form.canalMorador}
+                    onChange={(v) => setForm((f) => ({ ...f, canalMorador: v }))}
+                  />
                 )}
               </div>
             )}

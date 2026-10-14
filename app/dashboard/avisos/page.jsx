@@ -8,8 +8,9 @@ import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
+import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 
-const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false };
+const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false, canalNotificacao: "ambos" };
 
 export default function AvisosPage() {
   const { condominio, temPermissao } = useAuth();
@@ -85,6 +86,7 @@ export default function AvisosPage() {
           referenciaId: avisoCriado.id,
           titulo: form.titulo.trim(),
           mensagem: form.mensagem.trim(),
+          canais: canaisDoValor(form.canalNotificacao),
         }),
       }).catch((err) => console.error("Erro ao notificar moradores:", err));
     }
@@ -137,8 +139,15 @@ export default function AvisosPage() {
                   checked={form.notificarMoradores}
                   onChange={(e) => setForm((f) => ({ ...f, notificarMoradores: e.target.checked }))}
                 />
-                Avisar todos os moradores por e-mail
+                Avisar todos os moradores
               </label>
+              {form.notificarMoradores && (
+                <SeletorCanalNotificacao
+                  name="canalNotificacao"
+                  value={form.canalNotificacao}
+                  onChange={(v) => setForm((f) => ({ ...f, canalNotificacao: v }))}
+                />
+              )}
             </div>
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "Publicando..." : "Publicar aviso"}

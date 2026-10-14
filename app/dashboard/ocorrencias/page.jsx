@@ -8,8 +8,18 @@ import { authedFetch } from "@/lib/adminFetch";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
+import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 
-const emptyForm = { titulo: "", descricao: "", unidade: "", bloco: "", notificarMorador: false, notificarTodos: false };
+const emptyForm = {
+  titulo: "",
+  descricao: "",
+  unidade: "",
+  bloco: "",
+  notificarMorador: false,
+  canalMorador: "ambos",
+  notificarTodos: false,
+  canalTodos: "ambos",
+};
 
 export default function OcorrenciasPage() {
   const { condominio, user, member, temPermissao } = useAuth();
@@ -94,6 +104,7 @@ export default function OcorrenciasPage() {
           unidade: form.unidade.trim(),
           bloco: form.bloco.trim() || null,
           descricao: form.descricao.trim(),
+          canais: canaisDoValor(form.canalMorador),
         }),
       }).catch((err) => console.error("Erro ao notificar morador:", err));
     }
@@ -107,6 +118,7 @@ export default function OcorrenciasPage() {
           referenciaId: ocorrenciaCriada.id,
           titulo: form.titulo.trim(),
           mensagem: form.descricao.trim(),
+          canais: canaisDoValor(form.canalTodos),
         }),
       }).catch((err) => console.error("Erro ao notificar moradores:", err));
     }
@@ -157,8 +169,15 @@ export default function OcorrenciasPage() {
                   checked={form.notificarMorador}
                   onChange={(e) => setForm((f) => ({ ...f, notificarMorador: e.target.checked }))}
                 />
-                Chegou uma entrega — avisar o morador por WhatsApp e e-mail
+                Chegou uma entrega — avisar o morador
               </label>
+              {form.notificarMorador && (
+                <SeletorCanalNotificacao
+                  name="canalMorador"
+                  value={form.canalMorador}
+                  onChange={(v) => setForm((f) => ({ ...f, canalMorador: v }))}
+                />
+              )}
               {form.notificarMorador && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <div>
@@ -192,8 +211,15 @@ export default function OcorrenciasPage() {
                   checked={form.notificarTodos}
                   onChange={(e) => setForm((f) => ({ ...f, notificarTodos: e.target.checked }))}
                 />
-                Avisar todos os moradores por e-mail sobre essa ocorrência
+                Avisar todos os moradores sobre essa ocorrência
               </label>
+              {form.notificarTodos && (
+                <SeletorCanalNotificacao
+                  name="canalTodos"
+                  value={form.canalTodos}
+                  onChange={(v) => setForm((f) => ({ ...f, canalTodos: v }))}
+                />
+              )}
             </div>
 
             <button type="submit" disabled={submitting} className="btn-primary">

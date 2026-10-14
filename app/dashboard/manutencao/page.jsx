@@ -10,6 +10,7 @@ import PropostasDoRegistro from "@/components/PropostasDoRegistro";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
+import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
 
 const STATUS_ORDER = ["aberta", "em_andamento", "concluida"];
@@ -46,6 +47,7 @@ const emptyForm = {
   colaboradorId: "",
   alertaDias: "",
   notificarMoradores: false,
+  canalNotificacao: "ambos",
 };
 
 const emptyAvaliacao = { nota_qualidade: 5, nota_prazo: 5, nota_custo: 5, nota_atendimento: 5, observacao: "" };
@@ -207,6 +209,7 @@ export default function ManutencaoPage() {
           referenciaId: manutencaoCriada.id,
           titulo: form.titulo.trim(),
           mensagem: form.descricao.trim(),
+          canais: canaisDoValor(form.canalNotificacao),
         }),
       }).catch((err) => console.error("Erro ao notificar moradores:", err));
     }
@@ -723,8 +726,15 @@ export default function ManutencaoPage() {
                   checked={form.notificarMoradores}
                   onChange={(e) => setForm((f) => ({ ...f, notificarMoradores: e.target.checked }))}
                 />
-                Avisar todos os moradores por e-mail sobre essa manutenção
+                Avisar todos os moradores sobre essa manutenção
               </label>
+              {form.notificarMoradores && (
+                <SeletorCanalNotificacao
+                  name="canalNotificacao"
+                  value={form.canalNotificacao}
+                  onChange={(v) => setForm((f) => ({ ...f, canalNotificacao: v }))}
+                />
+              )}
             </div>
             <div className="sm:col-span-2">
               <button type="submit" disabled={submitting} className="btn-primary">

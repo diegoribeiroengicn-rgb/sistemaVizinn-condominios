@@ -45,7 +45,7 @@ async function buscarTodosMoradores(supabaseAdmin, condominioId) {
   return moradores;
 }
 
-async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, unidade, bloco, descricao }) {
+async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, unidade, bloco, descricao, canais }) {
   const auth = await requireCondominioAccess(request, condominioId, "ocorrencias", "criar");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!unidade) return NextResponse.json({ error: "Informe a unidade para notificar o morador." }, { status: 400 });
@@ -111,6 +111,7 @@ async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, un
         html: `<p>Olá, ${morador.nome}!</p><p>Chegou uma encomenda para você em <strong>${nomeCondominio}</strong>.</p><p>${mensagemTexto}</p>`,
       },
       parametrosWhatsapp: [morador.nome, nomeCondominio, mensagemTexto],
+      canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });
   }
@@ -127,7 +128,7 @@ const AVISO_GERAL_CONFIG = {
   avisos: { modulo: "avisos", acao: "criar", evento: "aviso_publicado", template: WHATSAPP_TEMPLATES.aviso_publicado, tituloPadrao: "Novo aviso" },
 };
 
-async function handleAvisoGeralMoradores(request, condominioId, { referenciaId, titulo, mensagem }, origem) {
+async function handleAvisoGeralMoradores(request, condominioId, { referenciaId, titulo, mensagem, canais }, origem) {
   const config = AVISO_GERAL_CONFIG[origem];
   const auth = await requireCondominioAccess(request, condominioId, config.modulo, config.acao);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -169,6 +170,7 @@ async function handleAvisoGeralMoradores(request, condominioId, { referenciaId, 
         html: `<p>Olá, ${morador.nome}!</p><p><strong>${tituloFinal}</strong></p>${mensagemFinal ? `<p>${mensagemFinal}</p>` : ""}`,
       },
       parametrosWhatsapp: [morador.nome, tituloFinal, mensagemFinal],
+      canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });
   }
@@ -243,7 +245,7 @@ async function handleChamadoAtribuido(request, condominioId, { chamadoId, titulo
 // quando quem abre é a portaria/síndico registrando em nome de
 // alguém), avisa direto pelo cadastro em Moradores — não depende da
 // pessoa ter login no sistema.
-async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, moradorId }) {
+async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, moradorId, canais }) {
   const auth = await requireCondominioAccess(request, condominioId, "chamados", "criar");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!moradorId) return NextResponse.json({ success: true, notificado: false, aviso: "Chamado sem morador vinculado." });
@@ -276,6 +278,7 @@ async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, 
       html: `<p>Olá, ${morador.nome}!</p><p>Um chamado foi registrado em seu nome: <strong>${titulo}</strong>. Você será avisado quando for concluído.</p>`,
     },
     parametrosWhatsapp: [morador.nome, titulo],
+    canais,
   });
 
   return NextResponse.json({ success: true, notificado: true, resultados });
