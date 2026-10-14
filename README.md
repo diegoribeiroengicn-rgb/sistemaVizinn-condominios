@@ -240,7 +240,10 @@ acesso a Auditoria).
    - **Nome:** `aviso_publicado`
      **Corpo:** `Olá {{nome_morador}}, foi publicado um novo aviso no condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
-   - **Nome:** `acesso_criado`
+   - **Nome:** `acesso_criado__` (a Meta não deixou reusar `acesso_criado` depois
+     de uma versão anterior reprovada — se for criar do zero, pode tentar
+     `acesso_criado` primeiro; se recusar, ajuste `WHATSAPP_TEMPLATES.acesso_criado`
+     em `lib/notificacoes.js` pro nome real que a Meta aceitar)
      **Corpo:** `Olá {{nome}}, seu acesso ao sistema AquiHabitto foi criado! Fale com o síndico para saber como acessar sua conta. Baixe o app direto do navegador em aquihabitto.com.br: no Android toque em "Baixar app", no iPhone use Compartilhar > Adicionar à Tela de Início.`
 
    (Categoria **Utilidade**, não Autenticação — login e senha não vão no
