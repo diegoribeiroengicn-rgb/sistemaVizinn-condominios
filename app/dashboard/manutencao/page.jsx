@@ -166,6 +166,10 @@ export default function ManutencaoPage() {
   async function handleCreate(e) {
     e.preventDefault();
     if (!condominio?.id || !form.titulo.trim()) return;
+    if (!form.dataPrevista) {
+      setError("Informe a data prevista — sem ela não dá pra gerar o lembrete automático.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
@@ -282,6 +286,14 @@ export default function ManutencaoPage() {
         observacao: a.observacao.trim() || null,
       });
       if (avaliacaoError) console.error("Erro ao registrar avaliação do fornecedor:", avaliacaoError.message);
+    }
+
+    // Programa o próximo ciclo automaticamente ao concluir uma ordem
+    // recorrente — não depende de ter fornecedor (isso é só da
+    // avaliação, acima); é puramente o lembrete pro próximo ciclo, que
+    // deve existir mesmo sem fornecedor nenhum vinculado.
+    if (!updateError && vaiConcluir && ordem.tipo === "recorrente" && ordem.periodicidade) {
+      await handleProgramarProxima({ ...ordem, ...updates });
     }
 
     setSalvando(false);
@@ -639,10 +651,11 @@ export default function ManutencaoPage() {
               </select>
             </div>
             <div>
-              <label className="label-field">Data prevista (opcional)</label>
+              <label className="label-field">Data prevista</label>
               <input
                 type="date"
                 className="input-field"
+                required
                 value={form.dataPrevista}
                 onChange={(e) => setForm((f) => ({ ...f, dataPrevista: e.target.value }))}
               />
