@@ -207,14 +207,16 @@ acesso a Auditoria).
    exatos — o nome do template tem que ser idêntico ao `WHATSAPP_TEMPLATES`
    de `lib/notificacoes.js`. A Meta exige variáveis **nomeadas** (não mais
    numeradas tipo `{{1}}`) — os nomes abaixo têm que bater exatamente com
-   `WHATSAPP_TEMPLATE_PARAMS` no mesmo arquivo, na mesma ordem, senão o
-   envio é recusado:
+   `WHATSAPP_TEMPLATE_PARAMS` no mesmo arquivo, na mesma ordem. A Meta
+   também recusa variável logo no início ou bem no final do corpo (precisa
+   de texto fixo antes/depois) — por isso os templates com mensagem livre
+   no fim terminam com "— AquiHabitto" como assinatura fixa:
 
    - **Nome:** `encomenda_chegou`
-     **Corpo:** `Olá {{nome_morador}}, chegou uma encomenda para você em {{nome_condominio}}. {{mensagem}}`
+     **Corpo:** `Olá {{nome_morador}}, chegou uma encomenda para você em {{nome_condominio}}. {{mensagem}} — AquiHabitto`
 
    - **Nome:** `ocorrencia_morador`
-     **Corpo:** `Olá {{nome_morador}}, ocorrência registrada em seu nome: {{titulo}}. {{mensagem}}`
+     **Corpo:** `Olá {{nome_morador}}, ocorrência registrada em seu nome: {{titulo}}. {{mensagem}} — AquiHabitto`
 
    - **Nome:** `chamado_atribuido`
      **Corpo:** `Olá {{nome}}, um novo chamado foi atribuído a você: {{titulo_chamado}} (prioridade: {{prioridade}}).`
@@ -223,25 +225,23 @@ acesso a Auditoria).
      **Corpo:** `Olá {{nome_morador}}, um chamado foi registrado em seu nome: {{titulo_chamado}}. Você será avisado quando for concluído.`
 
    - **Nome:** `chamado_concluido`
-     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. {{resultado}}`
+     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. {{resultado}} — AquiHabitto`
 
    - **Nome:** `ocorrencia_aviso_geral`
-     **Corpo:** `Olá {{nome_morador}}, aviso do condomínio: {{titulo}}. {{mensagem}}`
+     **Corpo:** `Olá {{nome_morador}}, aviso do condomínio: {{titulo}}. {{mensagem}} — AquiHabitto`
 
    - **Nome:** `manutencao_aviso`
-     **Corpo:** `Olá {{nome_morador}}, manutenção programada: {{titulo}}. {{mensagem}}`
+     **Corpo:** `Olá {{nome_morador}}, manutenção programada: {{titulo}}. {{mensagem}} — AquiHabitto`
 
    - **Nome:** `aviso_publicado`
-     **Corpo:** `Olá {{nome_morador}}, novo aviso do condomínio: {{titulo}}. {{mensagem}}`
+     **Corpo:** `Olá {{nome_morador}}, novo aviso do condomínio: {{titulo}}. {{mensagem}} — AquiHabitto`
 
    - **Nome:** `acesso_login`
-     **Corpo:** `{{nome}} ({{papel}}) entrou no sistema em {{data_hora}}.`
+     **Corpo:** `Alerta de acesso: {{nome}} ({{papel}}) entrou no sistema em {{data_hora}}.`
 
    A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
    não estiver aprovado, o envio de WhatsApp falha (fica registrado como
    "erro" em `notificacoes_log`) — o e-mail continua funcionando normalmente.
-   Só `encomenda_chegou` e `chamado_atribuido` tinham sido cadastrados até
-   agora — os outros seis provavelmente ainda precisam ser criados.
 5. Pra produção (enviar pra qualquer número, não só os 5 de teste), é
    preciso verificar a empresa no Meta Business Manager.
 
