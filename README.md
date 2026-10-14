@@ -163,8 +163,11 @@ mesma unidade), a notificação não tem para quem ir.
 ## Notificações automáticas (e-mail + WhatsApp)
 
 `lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
-(Meta Cloud API) para nove eventos hoje:
+(Meta Cloud API) para dez eventos hoje:
 
+- **Acesso criado**: ao criar um acesso em Acessos (sem exigir aprovação
+  de síndico), a pessoa recebe login e senha provisória automaticamente.
+  Dispara direto de `app/api/members/create`, não de `/api/notificar`.
 - **Encomenda chegou**: ao registrar uma Ocorrência marcando "avisar o
   morador" com motivo "Encomenda", todo condômino daquela unidade/bloco
   recebe a notificação.
@@ -237,8 +240,12 @@ acesso a Auditoria).
    - **Nome:** `aviso_publicado`
      **Corpo:** `Olá {{nome_morador}}, foi publicado um novo aviso no condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
-   - **Nome:** `acesso_login`
-     **Corpo:** `Alerta de segurança do AquiHabitto: {{nome}} ({{papel}}) acabou de entrar no sistema do seu condomínio, em {{data_hora}}.`
+   - **Nome:** `acesso_criado`
+     **Corpo:** `Olá {{nome}}, seu acesso ao sistema AquiHabitto foi criado! Use o login {{login}} e a senha provisória {{senha}} para entrar. Recomendamos trocar a senha assim que possível.`
+
+   (`acesso_login` — alerta ao síndico sobre login de outro membro — não
+   precisa de template porque hoje só dispara por e-mail, nunca por
+   WhatsApp.)
 
    A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
    não estiver aprovado, o envio de WhatsApp falha (fica registrado como

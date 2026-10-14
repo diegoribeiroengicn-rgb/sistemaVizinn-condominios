@@ -6,6 +6,7 @@ import {
   papelPodeRequererAprovacao,
   sanitizePermissoes,
 } from "@/lib/permissoes";
+import { notificarPessoa, normalizarTelefone, WHATSAPP_TEMPLATES } from "@/lib/notificacoes";
 
 const VALID_PAPEIS = new Set([
   "condomino",
@@ -131,6 +132,31 @@ export async function POST(request) {
       await supabaseAdmin.auth.admin.deleteUser(userData.user.id).catch(() => {});
       throw memberError;
     }
+
+    // Manda login/senha pra pessoa — só dá pra fazer isso aqui, no momento
+    // da criação: a senha em texto puro nunca é guardada em lugar nenhum
+    // (nem na pendência de aprovação), por segurança.
+    const { data: condominioNotif } = await supabaseAdmin
+      .from("condominios")
+      .select("nome")
+      .eq("id", condominioId)
+      .maybeSingle();
+    const nomeCondominio = condominioNotif?.nome || "seu condomínio";
+    notificarPessoa(supabaseAdmin, {
+      condominioId,
+      evento: "acesso_criado",
+      referenciaId: userData.user.id,
+      nome,
+      email: email || null,
+      whatsapp: normalizarTelefone({ telefone }),
+      template: WHATSAPP_TEMPLATES.acesso_criado,
+      fromName: nomeCondominio,
+      parametrosEmail: {
+        subject: `Seu acesso ao AquiHabitto foi criado — ${nomeCondominio}`,
+        html: `<p>Olá, ${nome}!</p><p>Seu acesso ao sistema foi criado.</p><p><strong>Login:</strong> ${loginEmail}<br/><strong>Senha provisória:</strong> ${password}</p><p>Recomendamos trocar a senha assim que possível.</p>`,
+      },
+      parametrosWhatsapp: [nome, loginEmail, password],
+    }).catch((err) => console.error("Erro ao notificar acesso criado:", err));
 
     await registrarAuditoria(supabaseAdmin, {
       condominioId,
