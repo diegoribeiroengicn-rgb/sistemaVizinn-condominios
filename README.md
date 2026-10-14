@@ -198,9 +198,12 @@ acesso a Auditoria).
    `WHATSAPP_PHONE_NUMBER_ID`.
 3. No modo de desenvolvimento, a Meta libera um número de teste grátis e até
    5 números de destino verificados — dá pra testar tudo sem pagar nada.
-4. **Crie os dois templates de mensagem** em WhatsApp Manager → Message
-   Templates (categoria "Utility"), com estes textos exatos (as variáveis
-   `{{1}}`, `{{2}}`... viram os dados reais na hora do envio):
+4. **Crie os oito templates de mensagem** em WhatsApp Manager → Message
+   Templates (categoria "Utility", idioma Português (BR)), com estes textos
+   exatos — o nome do template tem que ser idêntico ao `WHATSAPP_TEMPLATES`
+   de `lib/notificacoes.js`, e o número de variáveis `{{1}}`, `{{2}}`...
+   tem que bater exatamente com o que o código envia, senão a Meta recusa
+   o envio:
 
    - **Nome:** `encomenda_chegou`
      **Corpo:** `Olá {{1}}, chegou uma encomenda para você em {{2}}. {{3}}`
@@ -208,9 +211,29 @@ acesso a Auditoria).
    - **Nome:** `chamado_atribuido`
      **Corpo:** `Olá {{1}}, um novo chamado foi atribuído a você: {{2}} (prioridade: {{3}}).`
 
+   - **Nome:** `chamado_morador`
+     **Corpo:** `Olá {{1}}, um chamado foi registrado em seu nome: {{2}}. Você será avisado quando for concluído.`
+
+   - **Nome:** `chamado_concluido`
+     **Corpo:** `Olá {{1}}, o chamado {{2}} foi concluído. {{3}}`
+
+   - **Nome:** `ocorrencia_aviso_geral`
+     **Corpo:** `Olá {{1}}, aviso do condomínio: {{2}}. {{3}}`
+
+   - **Nome:** `manutencao_aviso`
+     **Corpo:** `Olá {{1}}, manutenção programada: {{2}}. {{3}}`
+
+   - **Nome:** `aviso_publicado`
+     **Corpo:** `Olá {{1}}, novo aviso do condomínio: {{2}}. {{3}}`
+
+   - **Nome:** `acesso_login`
+     **Corpo:** `{{1}} ({{2}}) entrou no sistema em {{3}}.`
+
    A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
    não estiver aprovado, o envio de WhatsApp falha (fica registrado como
    "erro" em `notificacoes_log`) — o e-mail continua funcionando normalmente.
+   Só `encomenda_chegou` e `chamado_atribuido` tinham sido cadastrados até
+   agora — os outros seis provavelmente ainda precisam ser criados.
 5. Pra produção (enviar pra qualquer número, não só os 5 de teste), é
    preciso verificar a empresa no Meta Business Manager.
 
