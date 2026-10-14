@@ -15,6 +15,9 @@ import {
   ORIGEM_LABELS,
   RECORRENCIA_LABELS,
   ESTAGIOS_SUGERIDOS,
+  CATEGORIA_LABELS,
+  CATEGORIA_OPTIONS,
+  CATEGORIA_PADRAO,
   calcularStatusLembrete,
 } from "@/lib/lembretes";
 import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, formatarMoeda } from "@/lib/financeiro";
@@ -22,6 +25,7 @@ import { STATUS_PAGAR_FINAIS, STATUS_RECEBER_FINAIS, calcularStatusVencimento, f
 const emptyForm = {
   titulo: "",
   descricao: "",
+  categoria: CATEGORIA_PADRAO,
   dataAlerta: "",
   dataLimite: "",
   prioridade: "normal",
@@ -45,6 +49,8 @@ const FILTROS_ORIGEM = [
   { id: "financeiro", label: "Financeiro" },
 ];
 
+const FILTROS_CATEGORIA = [{ id: "todas", label: "Todas as categorias" }, ...CATEGORIA_OPTIONS.map((c) => ({ id: c, label: CATEGORIA_LABELS[c] }))];
+
 function formatarDataBr(isoOuNulo) {
   if (!isoOuNulo) return "";
   const [ano, mes, dia] = isoOuNulo.split("-");
@@ -65,6 +71,7 @@ export default function LembretesPage() {
   const [mostrarForm, setMostrarForm] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState("pendentes");
   const [filtroOrigem, setFiltroOrigem] = useState("todas");
+  const [filtroCategoria, setFiltroCategoria] = useState("todas");
 
   const podeCriar = temPermissao("lembretes", "criar");
   const podeEditarQualquer = temPermissao("lembretes", "editar");
@@ -172,6 +179,7 @@ export default function LembretesPage() {
         criado_por_nome: nomeUsuario,
         titulo: form.titulo.trim(),
         descricao: form.descricao.trim() || null,
+        categoria: form.categoria || CATEGORIA_PADRAO,
         data_alerta: form.dataAlerta,
         data_limite: form.dataLimite || null,
         prioridade: form.prioridade,
@@ -244,6 +252,7 @@ export default function LembretesPage() {
       descricao: c.fornecedor_nome ? `Fornecedor: ${c.fornecedor_nome} · ${formatarMoeda(c.valor)}` : formatarMoeda(c.valor),
       data_alerta: c.data_vencimento,
       status: "pendente",
+      categoria: "financeiro",
       prioridade: calcularStatusVencimento(c.data_vencimento, c.status, STATUS_PAGAR_FINAIS)?.nivel === "vermelho" ? "alta" : "normal",
       href: "/dashboard/financeiro?aba=visao",
       }));
@@ -256,6 +265,7 @@ export default function LembretesPage() {
       descricao: formatarMoeda(c.valor),
       data_alerta: c.data_vencimento,
       status: "pendente",
+      categoria: "financeiro",
       prioridade: calcularStatusVencimento(c.data_vencimento, c.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho" ? "alta" : "normal",
       href: "/dashboard/financeiro?aba=visao",
     }));
@@ -270,13 +280,14 @@ export default function LembretesPage() {
   const itensFiltrados = useMemo(() => {
     return todosOsItens.filter((item) => {
       if (filtroOrigem !== "todas" && item.origem !== filtroOrigem) return false;
+      if (filtroCategoria !== "todas" && (item.categoria || CATEGORIA_PADRAO) !== filtroCategoria) return false;
       const statusInfo = calcularStatusLembrete(item.data_alerta, item.status);
       if (filtroStatus === "pendentes") return item.status === "pendente";
       if (filtroStatus === "atrasados") return item.status === "pendente" && statusInfo?.atrasado;
       if (filtroStatus === "concluidos") return item.status === "concluido";
       return item.status !== "cancelado" || filtroStatus === "todos";
     });
-  }, [todosOsItens, filtroStatus, filtroOrigem]);
+  }, [todosOsItens, filtroStatus, filtroOrigem, filtroCategoria]);
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -320,6 +331,20 @@ export default function LembretesPage() {
                   value={form.descricao}
                   onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
                 />
+              </div>
+              <div>
+                <label className="label-field">Categoria</label>
+                <select
+                  className="input-field"
+                  value={form.categoria}
+                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
+                >
+                  {CATEGORIA_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {CATEGORIA_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -467,6 +492,13 @@ export default function LembretesPage() {
                 </option>
               ))}
             </select>
+            <select className="input-field w-auto" value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
+              {FILTROS_CATEGORIA.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -495,6 +527,9 @@ export default function LembretesPage() {
                         </span>
                         <span className="rounded-full bg-navy-100 px-2 py-0.5 text-xs font-medium text-navy-600">
                           {ORIGEM_LABELS[item.origem] || item.origem}
+                        </span>
+                        <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+                          {CATEGORIA_LABELS[item.categoria] || CATEGORIA_LABELS[CATEGORIA_PADRAO]}
                         </span>
                         {statusInfo && (
                           <span className="text-xs">

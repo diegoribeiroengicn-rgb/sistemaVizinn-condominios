@@ -2847,3 +2847,12 @@ alter table public.manutencoes add column if not exists alertas_dias_antecedenci
 update public.manutencoes
   set alertas_dias_antecedencia = array[alerta_dias_antecedencia]
   where alerta_dias_antecedencia is not null and alertas_dias_antecedencia is null;
+
+-- Categoria do lembrete — lista fixa (ver CATEGORIA_LABELS em
+-- lib/lembretes.js) em vez de texto livre, pra garantir que o filtro da
+-- lista sempre tenha as mesmas opções, com "outros" sempre presente como
+-- padrão. Lembretes que já existiam (sem categoria) viram "outros".
+alter table public.lembretes add column if not exists categoria text not null default 'outros';
+alter table public.lembretes drop constraint if exists lembretes_categoria_check;
+alter table public.lembretes add constraint lembretes_categoria_check
+  check (categoria in ('manutencao', 'financeiro', 'contrato_documento', 'administrativo', 'seguranca', 'reuniao', 'outros'));

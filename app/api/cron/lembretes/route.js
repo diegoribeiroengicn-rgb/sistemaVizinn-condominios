@@ -90,6 +90,7 @@ export async function GET(request) {
             data_alerta: m.data_prevista,
             data_limite: m.data_prevista,
             prioridade: "normal",
+            categoria: "manutencao",
             visibilidade: "condominio",
           })
           .select("id")
