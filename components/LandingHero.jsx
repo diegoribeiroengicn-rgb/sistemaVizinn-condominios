@@ -26,7 +26,7 @@ export default function LandingHero({ onStart }) {
 
           <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {bullets.map((b) => (
-              <li key={b} className="flex items-center gap-2 text-cream-50">
+              <li key={b} className="flex items-center gap-2 text-cream-100">
                 <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-coral text-xs text-white">
                   ✓
                 </span>
