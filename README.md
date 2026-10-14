@@ -163,12 +163,20 @@ mesma unidade), a notificação não tem para quem ir.
 ## Notificações automáticas (e-mail + WhatsApp)
 
 `lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
-(Meta Cloud API) para dois eventos hoje:
+(Meta Cloud API) para oito eventos hoje:
 
 - **Encomenda chegou**: ao registrar uma Ocorrência marcando "avisar o
   morador", todo condômino daquela unidade/bloco recebe a notificação.
 - **Chamado atribuído**: ao definir um responsável (colaborador ou membro)
   num chamado, essa pessoa recebe a notificação.
+- **Chamado registrado em nome de morador**: ao criar um chamado vinculado
+  a um morador cadastrado (mesmo sem login no sistema).
+- **Chamado concluído**: ao marcar um chamado como concluído, o morador
+  vinculado (ou o condômino que abriu, se logado) é avisado.
+- **Aviso geral de Ocorrência / Manutenção programada / Aviso publicado**:
+  mandam pra todos os moradores do condomínio.
+- **Alerta de login**: avisa o síndico por e-mail quando outro membro
+  entra no sistema (opcional, liga em Configurações).
 
 Cada tentativa fica registrada em `notificacoes_log` (visível em quem tem
 acesso a Auditoria).
