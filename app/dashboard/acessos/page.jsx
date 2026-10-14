@@ -497,6 +497,7 @@ export default function AcessosPage() {
                 <label className="label-field">Unidade (apartamento)</label>
                 <input
                   className="input-field"
+                  inputMode="numeric"
                   value={form.unidade}
                   onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
                   placeholder="Ex: 32"
@@ -835,6 +836,7 @@ export default function AcessosPage() {
                       <label className="label-field">Unidade (apartamento)</label>
                       <input
                         className="input-field"
+                        inputMode="numeric"
                         value={editForm.unidade}
                         onChange={(e) => setEditForm((f) => ({ ...f, unidade: e.target.value }))}
                         placeholder="Ex: 32"

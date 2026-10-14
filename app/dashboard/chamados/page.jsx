@@ -562,6 +562,7 @@ export default function ChamadosPage() {
                   <label className="label-field">Unidade (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode="numeric"
                     value={form.unidade}
                     onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
                     placeholder="Ex: 32"

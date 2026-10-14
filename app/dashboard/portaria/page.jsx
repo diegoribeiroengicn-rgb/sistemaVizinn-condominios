@@ -161,6 +161,7 @@ export default function PortariaPage() {
               <label className="label-field">Unidade relacionada</label>
               <input
                 className="input-field"
+                inputMode="numeric"
                 value={form.unidade}
                 onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
                 placeholder="Ex: Apto 32"

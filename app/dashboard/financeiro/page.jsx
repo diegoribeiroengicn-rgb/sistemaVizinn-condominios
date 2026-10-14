@@ -1099,6 +1099,7 @@ export default function FinanceiroPage() {
                   <label className="label-field">Unidade (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode="numeric"
                     value={formReceber.unidade}
                     onChange={(e) => setFormReceber((f) => ({ ...f, unidade: e.target.value }))}
                   />

@@ -165,6 +165,7 @@ export default function OcorrenciasPage() {
                     <label className="label-field">Unidade</label>
                     <input
                       className="input-field"
+                      inputMode="numeric"
                       value={form.unidade}
                       onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
                       placeholder="Ex: 32"
