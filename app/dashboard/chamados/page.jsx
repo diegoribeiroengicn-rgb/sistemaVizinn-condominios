@@ -9,6 +9,8 @@ import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
+import PreviaMensagem from "@/components/PreviaMensagem";
+import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
 import { PAPEIS_EQUIPE } from "@/lib/permissoes";
 import {
   CATEGORIA_SUGESTOES,
@@ -678,6 +680,12 @@ export default function ChamadosPage() {
                     name="canalMorador"
                     value={form.canalMorador}
                     onChange={(v) => setForm((f) => ({ ...f, canalMorador: v }))}
+                  />
+                )}
+                {form.moradorId && form.notificarMorador && (
+                  <PreviaMensagem
+                    whatsapp={previaWhatsapp("chamado_morador", { titulo_chamado: form.titulo })}
+                    email={previaEmail("chamado_morador", { titulo_chamado: form.titulo })}
                   />
                 )}
               </div>

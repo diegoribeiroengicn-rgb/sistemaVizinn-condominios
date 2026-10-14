@@ -11,6 +11,8 @@ import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
+import PreviaMensagem from "@/components/PreviaMensagem";
+import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
 
 const STATUS_ORDER = ["aberta", "em_andamento", "concluida"];
@@ -733,6 +735,12 @@ export default function ManutencaoPage() {
                   name="canalNotificacao"
                   value={form.canalNotificacao}
                   onChange={(v) => setForm((f) => ({ ...f, canalNotificacao: v }))}
+                />
+              )}
+              {form.notificarMoradores && (
+                <PreviaMensagem
+                  whatsapp={previaWhatsapp("manutencao_aviso", { titulo: form.titulo || "Manutenção programada", mensagem: form.descricao })}
+                  email={previaEmail("manutencao_aviso", { titulo: form.titulo || "Manutenção programada", mensagem: form.descricao })}
                 />
               )}
             </div>

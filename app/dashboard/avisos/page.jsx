@@ -9,6 +9,8 @@ import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
+import PreviaMensagem from "@/components/PreviaMensagem";
+import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
 
 const emptyForm = { titulo: "", mensagem: "", notificarMoradores: false, canalNotificacao: "ambos" };
 
@@ -146,6 +148,12 @@ export default function AvisosPage() {
                   name="canalNotificacao"
                   value={form.canalNotificacao}
                   onChange={(v) => setForm((f) => ({ ...f, canalNotificacao: v }))}
+                />
+              )}
+              {form.notificarMoradores && (
+                <PreviaMensagem
+                  whatsapp={previaWhatsapp("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
+                  email={previaEmail("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
                 />
               )}
             </div>
