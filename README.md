@@ -201,33 +201,34 @@ acesso a Auditoria).
 4. **Crie os oito templates de mensagem** em WhatsApp Manager → Message
    Templates (categoria "Utility", idioma Português (BR)), com estes textos
    exatos — o nome do template tem que ser idêntico ao `WHATSAPP_TEMPLATES`
-   de `lib/notificacoes.js`, e o número de variáveis `{{1}}`, `{{2}}`...
-   tem que bater exatamente com o que o código envia, senão a Meta recusa
-   o envio:
+   de `lib/notificacoes.js`. A Meta exige variáveis **nomeadas** (não mais
+   numeradas tipo `{{1}}`) — os nomes abaixo têm que bater exatamente com
+   `WHATSAPP_TEMPLATE_PARAMS` no mesmo arquivo, na mesma ordem, senão o
+   envio é recusado:
 
    - **Nome:** `encomenda_chegou`
-     **Corpo:** `Olá {{1}}, chegou uma encomenda para você em {{2}}. {{3}}`
+     **Corpo:** `Olá {{nome_morador}}, chegou uma encomenda para você em {{nome_condominio}}. {{mensagem}}`
 
    - **Nome:** `chamado_atribuido`
-     **Corpo:** `Olá {{1}}, um novo chamado foi atribuído a você: {{2}} (prioridade: {{3}}).`
+     **Corpo:** `Olá {{nome}}, um novo chamado foi atribuído a você: {{titulo_chamado}} (prioridade: {{prioridade}}).`
 
    - **Nome:** `chamado_morador`
-     **Corpo:** `Olá {{1}}, um chamado foi registrado em seu nome: {{2}}. Você será avisado quando for concluído.`
+     **Corpo:** `Olá {{nome_morador}}, um chamado foi registrado em seu nome: {{titulo_chamado}}. Você será avisado quando for concluído.`
 
    - **Nome:** `chamado_concluido`
-     **Corpo:** `Olá {{1}}, o chamado {{2}} foi concluído. {{3}}`
+     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. {{resultado}}`
 
    - **Nome:** `ocorrencia_aviso_geral`
-     **Corpo:** `Olá {{1}}, aviso do condomínio: {{2}}. {{3}}`
+     **Corpo:** `Olá {{nome_morador}}, aviso do condomínio: {{titulo}}. {{mensagem}}`
 
    - **Nome:** `manutencao_aviso`
-     **Corpo:** `Olá {{1}}, manutenção programada: {{2}}. {{3}}`
+     **Corpo:** `Olá {{nome_morador}}, manutenção programada: {{titulo}}. {{mensagem}}`
 
    - **Nome:** `aviso_publicado`
-     **Corpo:** `Olá {{1}}, novo aviso do condomínio: {{2}}. {{3}}`
+     **Corpo:** `Olá {{nome_morador}}, novo aviso do condomínio: {{titulo}}. {{mensagem}}`
 
    - **Nome:** `acesso_login`
-     **Corpo:** `{{1}} ({{2}}) entrou no sistema em {{3}}.`
+     **Corpo:** `{{nome}} ({{papel}}) entrou no sistema em {{data_hora}}.`
 
    A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
    não estiver aprovado, o envio de WhatsApp falha (fica registrado como
