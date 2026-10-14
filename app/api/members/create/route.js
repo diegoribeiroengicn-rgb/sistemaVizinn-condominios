@@ -155,7 +155,7 @@ export async function POST(request) {
         subject: `Seu acesso ao AquiHabitto foi criado — ${nomeCondominio}`,
         html: `<p>Olá, ${nome}!</p><p>Seu acesso ao sistema foi criado.</p><p><strong>Login:</strong> ${loginEmail}<br/><strong>Senha provisória:</strong> ${password}</p><p>Baixe o app direto do navegador em <a href="https://aquihabitto.com.br">aquihabitto.com.br</a> — no Android toque em "Baixar app", no iPhone use Compartilhar &gt; Adicionar à Tela de Início.</p><p>Recomendamos trocar a senha assim que possível.</p>`,
       },
-      parametrosWhatsapp: [nome, loginEmail, password],
+      parametrosWhatsapp: [nome, loginEmail],
     }).catch((err) => console.error("Erro ao notificar acesso criado:", err));
 
     await registrarAuditoria(supabaseAdmin, {

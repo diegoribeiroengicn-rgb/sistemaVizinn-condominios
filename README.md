@@ -241,7 +241,13 @@ acesso a Auditoria).
      **Corpo:** `Olá {{nome_morador}}, foi publicado um novo aviso no condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
 
    - **Nome:** `acesso_criado`
-     **Corpo:** `Olá {{nome}}, seu acesso ao sistema AquiHabitto foi criado! Use o login {{login}} e a senha provisória {{senha}} para entrar. Baixe o app direto do navegador em aquihabitto.com.br — no Android toque em "Baixar app", no iPhone use Compartilhar > Adicionar à Tela de Início. Recomendamos trocar a senha assim que possível.`
+     **Corpo:** `Olá {{nome}}, seu acesso ao sistema AquiHabitto foi criado! Seu login é {{login}} — peça a senha provisória com o síndico. Baixe o app direto do navegador em aquihabitto.com.br: no Android toque em "Baixar app", no iPhone use Compartilhar > Adicionar à Tela de Início.`
+
+   (Categoria **Utilidade**, não Autenticação — a senha não vai no texto
+   do WhatsApp de propósito: a categoria Autenticação do WhatsApp é só
+   pra código de verificação curto, não aceita texto livre com senha e
+   instruções. A senha continua indo só por e-mail, que não passa por
+   essa validação.)
 
    (`acesso_login` — alerta ao síndico sobre login de outro membro — não
    precisa de template porque hoje só dispara por e-mail, nunca por
