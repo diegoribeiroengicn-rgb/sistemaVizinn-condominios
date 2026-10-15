@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import CapturaFoto from "@/components/CapturaFoto";
+import VisualizadorFoto from "@/components/VisualizadorFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { parseMoradoresCsv, parseMoradoresXlsx, gerarModeloMoradores, COLUNAS_RELATORIO } from "@/lib/moradores";
 import { baixarBlob } from "@/lib/xlsx";
@@ -60,6 +61,7 @@ export default function MoradoresPage() {
   useEffect(() => {
     if (!podeVerMoradores && podeVerVisitantes) setAba("visitantes");
   }, [podeVerMoradores, podeVerVisitantes]);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
   // ---- Moradores (igual já funcionava) --------------------------------
   const [exportando, setExportando] = useState(null);
@@ -192,7 +194,7 @@ export default function MoradoresPage() {
     setAbrindoFotoId(morador.id);
     const url = await obterUrlFotoAssinada(morador.foto_path);
     setAbrindoFotoId(null);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (url) setFotoAmpliada(url);
     else setError("Não consegui abrir a foto agora. Tente de novo.");
   }
 
@@ -452,7 +454,7 @@ export default function MoradoresPage() {
     setAbrindoFotoPessoaId(pessoa.id);
     const url = await obterUrlFotoAssinada(pessoa.foto_path);
     setAbrindoFotoPessoaId(null);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (url) setFotoAmpliada(url);
     else setErrorPessoas("Não consegui abrir a foto agora. Tente de novo.");
   }
 
@@ -986,6 +988,7 @@ export default function MoradoresPage() {
           )}
         </div>
       )}
+      <VisualizadorFoto url={fotoAmpliada} onFechar={() => setFotoAmpliada(null)} />
     </div>
   );
 }

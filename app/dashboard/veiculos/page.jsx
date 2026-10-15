@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import CapturaFoto from "@/components/CapturaFoto";
+import VisualizadorFoto from "@/components/VisualizadorFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   TIPO_VEICULO_LABELS,
@@ -48,6 +49,7 @@ export default function VeiculosPage() {
   const [fotoArquivo, setFotoArquivo] = useState(null);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [abrindoFotoId, setAbrindoFotoId] = useState(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
 
   const [preview, setPreview] = useState(null); // { linhas, erros }
   const [importando, setImportando] = useState(false);
@@ -154,7 +156,7 @@ export default function VeiculosPage() {
     setAbrindoFotoId(veiculo.id);
     const url = await obterUrlFotoAssinada(veiculo.foto_path);
     setAbrindoFotoId(null);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (url) setFotoAmpliada(url);
     else setError("Não consegui abrir a foto agora. Tente de novo.");
   }
 
@@ -654,6 +656,7 @@ export default function VeiculosPage() {
           </div>
         )}
       </div>
+      <VisualizadorFoto url={fotoAmpliada} onFechar={() => setFotoAmpliada(null)} />
     </ModuloGuard>
   );
 }

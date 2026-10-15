@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import CapturaFoto from "@/components/CapturaFoto";
+import VisualizadorFoto from "@/components/VisualizadorFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   DOCUMENTO_TIPO_LABELS,
@@ -71,6 +72,7 @@ export default function PortariaPage() {
   const [correcaoForm, setCorrecaoForm] = useState(emptyCorrecao);
   const [salvandoCorrecao, setSalvandoCorrecao] = useState(false);
   const [abrindoFotoId, setAbrindoFotoId] = useState(null);
+  const [fotoAmpliada, setFotoAmpliada] = useState(null);
   const [fotoNovoVisitante, setFotoNovoVisitante] = useState(null);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [unidadesDisponiveis, setUnidadesDisponiveis] = useState([]);
@@ -367,7 +369,7 @@ export default function PortariaPage() {
     const { data } = await supabase.from(tabela).select("foto_path").eq("id", id).maybeSingle();
     const url = data?.foto_path ? await obterUrlFotoAssinada(data.foto_path) : null;
     setAbrindoFotoId(null);
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    if (url) setFotoAmpliada(url);
     else setError("Essa pessoa não tem foto cadastrada.");
   }
 
@@ -933,6 +935,7 @@ export default function PortariaPage() {
         )}
       </div>
     </div>
+    <VisualizadorFoto url={fotoAmpliada} onFechar={() => setFotoAmpliada(null)} />
     </ModuloGuard>
   );
 }
