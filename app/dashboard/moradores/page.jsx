@@ -10,8 +10,18 @@ import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { parseMoradoresCsv, parseMoradoresXlsx, gerarModeloMoradores, COLUNAS_RELATORIO } from "@/lib/moradores";
 import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
+import { DOCUMENTO_TIPO_LABELS, enviarFotoPessoa, obterUrlFotoAssinada } from "@/lib/pessoas";
 
-const emptyForm = { unidade: "", bloco: "", nome: "", telefone: "", email: "", observacoes: "" };
+const emptyForm = {
+  unidade: "",
+  bloco: "",
+  nome: "",
+  telefone: "",
+  email: "",
+  documentoTipo: "",
+  documentoNumero: "",
+  observacoes: "",
+};
 
 export default function MoradoresPage() {
   const { condominio, user, member, temPermissao } = useAuth();
@@ -27,6 +37,9 @@ export default function MoradoresPage() {
   const [editingId, setEditingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
   const [busca, setBusca] = useState("");
+  const [fotoArquivo, setFotoArquivo] = useState(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [abrindoFotoId, setAbrindoFotoId] = useState(null);
 
   const [preview, setPreview] = useState(null); // { linhas, erros }
   const [importando, setImportando] = useState(false);
@@ -69,14 +82,52 @@ export default function MoradoresPage() {
   function resetForm() {
     setForm(emptyForm);
     setEditingId(null);
+    setFotoArquivo(null);
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
     if (!condominio?.id || !form.unidade.trim() || !form.nome.trim()) return;
+    if (form.documentoNumero.trim() && !form.documentoTipo) {
+      setError("Escolha o tipo do documento informado.");
+      return;
+    }
 
     setSubmitting(true);
     setError("");
+
+    // O documento identifica a pessoa e evita duplicidade — se já existe
+    // um morador com esse mesmo documento (fora quem está sendo editado
+    // agora), não cria outro cadastro: avisa qual já existe.
+    if (form.documentoNumero.trim()) {
+      let buscaDuplicado = supabase
+        .from("moradores")
+        .select("id, nome, unidade")
+        .eq("condominio_id", condominio.id)
+        .eq("documento_tipo", form.documentoTipo)
+        .eq("documento_numero", form.documentoNumero.trim());
+      if (editingId) buscaDuplicado = buscaDuplicado.neq("id", editingId);
+      const { data: duplicado } = await buscaDuplicado.maybeSingle();
+      if (duplicado) {
+        setSubmitting(false);
+        setError(`Esse documento já está cadastrado para "${duplicado.nome}" (unidade ${duplicado.unidade}).`);
+        return;
+      }
+    }
+
+    let fotoPath;
+    if (fotoArquivo) {
+      setEnviandoFoto(true);
+      try {
+        fotoPath = await enviarFotoPessoa(condominio.id, "moradores", fotoArquivo);
+      } catch (uploadError) {
+        setSubmitting(false);
+        setEnviandoFoto(false);
+        setError(`Erro ao enviar a foto: ${uploadError.message}`);
+        return;
+      }
+      setEnviandoFoto(false);
+    }
 
     const payload = {
       condominio_id: condominio.id,
@@ -85,7 +136,11 @@ export default function MoradoresPage() {
       nome: form.nome.trim(),
       telefone: form.telefone.trim() || null,
       email: form.email.trim() || null,
+      documento_tipo: form.documentoTipo || null,
+      documento_numero: form.documentoNumero.trim() || null,
       observacoes: form.observacoes.trim() || null,
+      ...(fotoPath ? { foto_path: fotoPath } : {}),
+      ...(editingId ? {} : { criado_por_id: user?.id || null }),
     };
 
     const query = editingId
@@ -102,15 +157,27 @@ export default function MoradoresPage() {
     load();
   }
 
+  async function handleVerFoto(morador) {
+    if (!morador.foto_path) return;
+    setAbrindoFotoId(morador.id);
+    const url = await obterUrlFotoAssinada(morador.foto_path);
+    setAbrindoFotoId(null);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else setError("Não consegui abrir a foto agora. Tente de novo.");
+  }
+
   function openEdit(morador) {
     setError("");
     setEditingId(morador.id);
+    setFotoArquivo(null);
     setForm({
       unidade: morador.unidade,
       bloco: morador.bloco || "",
       nome: morador.nome,
       telefone: morador.telefone || "",
       email: morador.email || "",
+      documentoTipo: morador.documento_tipo || "",
+      documentoNumero: morador.documento_numero || "",
       observacoes: morador.observacoes || "",
     });
   }
@@ -391,6 +458,42 @@ export default function MoradoresPage() {
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 />
               </div>
+              <div>
+                <label className="label-field">Tipo de documento (opcional)</label>
+                <select
+                  className="input-field"
+                  value={form.documentoTipo}
+                  onChange={(e) => setForm((f) => ({ ...f, documentoTipo: e.target.value }))}
+                >
+                  <option value="">Não informar</option>
+                  {Object.entries(DOCUMENTO_TIPO_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label-field">Número do documento (opcional)</label>
+                <input
+                  className="input-field"
+                  value={form.documentoNumero}
+                  onChange={(e) => setForm((f) => ({ ...f, documentoNumero: e.target.value }))}
+                  placeholder="Usado pela portaria pra reconhecer essa pessoa"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label-field">Foto (opcional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm text-navy-600"
+                  onChange={(e) => setFotoArquivo(e.target.files?.[0] || null)}
+                />
+                <p className="mt-1 text-xs text-navy-400">
+                  {editingId && !fotoArquivo ? "Deixe em branco pra manter a foto atual." : ""}
+                </p>
+              </div>
               <div className="sm:col-span-2">
                 <label className="label-field">Observações (opcional)</label>
                 <textarea
@@ -403,7 +506,7 @@ export default function MoradoresPage() {
 
               <div className="sm:col-span-2 flex gap-3">
                 <button type="submit" disabled={submitting} className="btn-primary">
-                  {submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar morador"}
+                  {enviandoFoto ? "Enviando foto..." : submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar morador"}
                 </button>
                 {editingId && (
                   <button type="button" onClick={resetForm} className="text-sm font-semibold text-navy-500 hover:underline">
@@ -457,12 +560,25 @@ export default function MoradoresPage() {
                     {m.bloco ? ` · Bloco ${m.bloco}` : ""}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-navy-400">{[m.telefone, m.email].filter(Boolean).join(" · ")}</p>
+                <p className="mt-1 text-xs text-navy-400">
+                  {[m.telefone, m.email, m.documento_numero ? `${DOCUMENTO_TIPO_LABELS[m.documento_tipo] || "Doc."}: ${m.documento_numero}` : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
                 {m.observacoes && <p className="mt-2 text-sm text-navy-600">{m.observacoes}</p>}
                 <div className="mt-3 flex flex-wrap gap-3">
                   {podeEditar && (
                     <button onClick={() => openEdit(m)} className="text-xs font-semibold text-navy-700 hover:underline">
                       Editar
+                    </button>
+                  )}
+                  {m.foto_path && (
+                    <button
+                      onClick={() => handleVerFoto(m)}
+                      disabled={abrindoFotoId === m.id}
+                      className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                    >
+                      {abrindoFotoId === m.id ? "Abrindo..." : "Ver foto"}
                     </button>
                   )}
                   {podeCriarVeiculo && (

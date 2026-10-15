@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { MODULO_LABELS } from "@/lib/permissoes";
+import { formatarDataHoraBR, dataBrasiliaYMD } from "@/lib/datetime";
 
 const ACAO_LABELS = {
   login: "Login",
@@ -64,7 +65,7 @@ export default function AuditoriaPage() {
         return false;
       if (filtro.modulo && r.modulo !== filtro.modulo) return false;
       if (filtro.acao && r.acao !== filtro.acao) return false;
-      if (filtro.data && !r.created_at.startsWith(filtro.data)) return false;
+      if (filtro.data && dataBrasiliaYMD(r.created_at) !== filtro.data) return false;
       return true;
     });
   }, [registros, filtro]);
@@ -145,9 +146,7 @@ export default function AuditoriaPage() {
                       </span>{" "}
                       <span className="text-navy-600">{MODULO_LABELS[r.modulo] || r.modulo}</span>
                     </div>
-                    <span className="text-xs text-navy-400">
-                      {new Date(r.created_at).toLocaleString("pt-BR")}
-                    </span>
+                    <span className="text-xs text-navy-400">{formatarDataHoraBR(r.created_at)}</span>
                   </div>
                   {temDetalhe && (
                     <button

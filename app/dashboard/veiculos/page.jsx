@@ -16,6 +16,7 @@ import {
 } from "@/lib/veiculos";
 import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
+import { enviarFotoPessoa, obterUrlFotoAssinada } from "@/lib/pessoas";
 
 const emptyForm = {
   unidade: "",
@@ -43,6 +44,9 @@ export default function VeiculosPage() {
   const [editingId, setEditingId] = useState(null);
   const [removingId, setRemovingId] = useState(null);
   const [busca, setBusca] = useState("");
+  const [fotoArquivo, setFotoArquivo] = useState(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [abrindoFotoId, setAbrindoFotoId] = useState(null);
 
   const [preview, setPreview] = useState(null); // { linhas, erros }
   const [importando, setImportando] = useState(false);
@@ -90,6 +94,7 @@ export default function VeiculosPage() {
   function resetForm() {
     setForm(emptyForm);
     setEditingId(null);
+    setFotoArquivo(null);
   }
 
   async function handleSubmit(e) {
@@ -98,6 +103,22 @@ export default function VeiculosPage() {
 
     setSubmitting(true);
     setError("");
+
+    // Foto do veículo é só mais um dado opcional — sua ausência nunca
+    // impede cadastrar o veículo nem registrar uma entrada a pé.
+    let fotoPath;
+    if (fotoArquivo) {
+      setEnviandoFoto(true);
+      try {
+        fotoPath = await enviarFotoPessoa(condominio.id, "veiculos", fotoArquivo);
+      } catch (uploadError) {
+        setSubmitting(false);
+        setEnviandoFoto(false);
+        setError(`Erro ao enviar a foto: ${uploadError.message}`);
+        return;
+      }
+      setEnviandoFoto(false);
+    }
 
     const payload = {
       condominio_id: condominio.id,
@@ -110,6 +131,7 @@ export default function VeiculosPage() {
       tipo: form.tipo,
       vaga: form.vaga.trim() || null,
       observacoes: form.observacoes.trim() || null,
+      ...(fotoPath ? { foto_path: fotoPath } : {}),
     };
 
     const query = editingId
@@ -126,9 +148,19 @@ export default function VeiculosPage() {
     load();
   }
 
+  async function handleVerFoto(veiculo) {
+    if (!veiculo.foto_path) return;
+    setAbrindoFotoId(veiculo.id);
+    const url = await obterUrlFotoAssinada(veiculo.foto_path);
+    setAbrindoFotoId(null);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else setError("Não consegui abrir a foto agora. Tente de novo.");
+  }
+
   function openEdit(veiculo) {
     setError("");
     setEditingId(veiculo.id);
+    setFotoArquivo(null);
     setForm({
       unidade: veiculo.unidade,
       bloco: veiculo.bloco || "",
@@ -515,6 +547,18 @@ export default function VeiculosPage() {
                 />
               </div>
               <div className="sm:col-span-2">
+                <label className="label-field">Foto do veículo (opcional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="text-sm text-navy-600"
+                  onChange={(e) => setFotoArquivo(e.target.files?.[0] || null)}
+                />
+                <p className="mt-1 text-xs text-navy-400">
+                  {editingId && !fotoArquivo ? "Deixe em branco pra manter a foto atual." : ""}
+                </p>
+              </div>
+              <div className="sm:col-span-2">
                 <label className="label-field">Observações (opcional)</label>
                 <textarea
                   className="input-field"
@@ -526,7 +570,7 @@ export default function VeiculosPage() {
 
               <div className="sm:col-span-2 flex gap-3">
                 <button type="submit" disabled={submitting} className="btn-primary">
-                  {submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar veículo"}
+                  {enviandoFoto ? "Enviando foto..." : submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar veículo"}
                 </button>
                 {editingId && (
                   <button type="button" onClick={resetForm} className="text-sm font-semibold text-navy-500 hover:underline">
@@ -591,6 +635,15 @@ export default function VeiculosPage() {
                   {podeEditar && (
                     <button onClick={() => openEdit(v)} className="text-xs font-semibold text-navy-700 hover:underline">
                       Editar
+                    </button>
+                  )}
+                  {v.foto_path && (
+                    <button
+                      onClick={() => handleVerFoto(v)}
+                      disabled={abrindoFotoId === v.id}
+                      className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                    >
+                      {abrindoFotoId === v.id ? "Abrindo..." : "Ver foto"}
                     </button>
                   )}
                   {podeExcluir && (

@@ -2897,3 +2897,262 @@ alter table public.modelos_comissionamento alter column percentual_equipe_grande
 -- transparência na tela de detalhe do vendedor, sem mudar o
 -- comportamento de quem já lê data_emancipacao.
 alter table public.vendedores add column if not exists emancipacao_automatica boolean not null default false;
+
+-- ============================================================================
+-- Cadastro de Pessoas e Controle de Acesso (evolução da Portaria)
+-- ============================================================================
+-- Não cria um módulo novo nem uma tabela "pessoas" única: reaproveita
+-- moradores (já existe) e cria só "visitantes" (quem não mora no
+-- condomínio, mas vale reconhecer da próxima vez que vier — o mesmo
+-- documento não deve gerar um cadastro novo a cada visita). A "pessoa" do
+-- prompt é, na prática, a UNIÃO dessas duas tabelas, buscada pelo
+-- documento (ver lib/pessoas.js). Reaproveita também o módulo de
+-- permissão "portaria" pra visitantes (não cria um módulo/permissão
+-- novo) e o trigger genérico de auditoria (registrar_auditoria_generica)
+-- que já existe e já está ligado em moradores/veiculos/portaria_registros.
+
+-- Morador ganha documento (pra ser encontrado na portaria sem duplicar
+-- cadastro) e foto opcional. Nunca obrigatório: ausência de documento ou
+-- foto nunca impede o cadastro nem o registro de acesso.
+alter table public.moradores add column if not exists documento_tipo text;
+alter table public.moradores add column if not exists documento_numero text;
+alter table public.moradores add column if not exists foto_path text;
+alter table public.moradores add column if not exists criado_por_id uuid references auth.users (id) on delete set null;
+
+alter table public.moradores drop constraint if exists moradores_documento_tipo_check;
+alter table public.moradores add constraint moradores_documento_tipo_check
+  check (documento_tipo is null or documento_tipo in ('cpf', 'rg', 'cnh', 'outro'));
+
+-- Impede duplicar o MESMO documento duas vezes no mesmo condomínio
+-- (índice parcial: só vale quando o documento foi informado).
+create unique index if not exists moradores_documento_unico_idx
+  on public.moradores (condominio_id, documento_tipo, documento_numero)
+  where documento_numero is not null and documento_numero <> '';
+
+-- Veículo ganha foto opcional (do veículo, não de pessoa) — mesma regra:
+-- nunca obrigatória, nunca impede registrar uma entrada a pé.
+alter table public.veiculos add column if not exists foto_path text;
+
+-- Visitantes: pessoa que não é moradora, mas que vale reconhecer da
+-- próxima vez (documento evita reconstruir o cadastro a cada visita).
+-- Mesmo padrão de moradores: nome é a única coisa obrigatória.
+create table if not exists public.visitantes (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  nome text not null,
+  documento_tipo text check (documento_tipo is null or documento_tipo in ('cpf', 'rg', 'cnh', 'outro')),
+  documento_numero text,
+  telefone text,
+  foto_path text,
+  observacoes text,
+  situacao text not null default 'ativo' check (situacao in ('ativo', 'inativo')),
+  criado_por_id uuid references auth.users (id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists visitantes_condominio_id_idx on public.visitantes (condominio_id);
+create unique index if not exists visitantes_documento_unico_idx
+  on public.visitantes (condominio_id, documento_tipo, documento_numero)
+  where documento_numero is not null and documento_numero <> '';
+
+alter table public.visitantes enable row level security;
+
+-- Reaproveita a permissão de "portaria" (não cria módulo/coluna de
+-- permissão novo) — quem registra entrada/saída já pesquisa/cadastra
+-- visitante como parte do mesmo fluxo.
+drop policy if exists "Members with portaria can view visitantes" on public.visitantes;
+create policy "Members with portaria can view visitantes"
+  on public.visitantes for select
+  using (public.membro_tem_modulo(condominio_id, 'portaria'));
+
+drop policy if exists "Members with portaria can insert visitantes" on public.visitantes;
+create policy "Members with portaria can insert visitantes"
+  on public.visitantes for insert
+  with check (public.membro_tem_permissao(condominio_id, 'portaria', 'criar'));
+
+drop policy if exists "Members with portaria can update visitantes" on public.visitantes;
+create policy "Members with portaria can update visitantes"
+  on public.visitantes for update
+  using (public.membro_tem_permissao(condominio_id, 'portaria', 'editar'));
+
+grant select, insert, update on public.visitantes to authenticated;
+grant all on public.visitantes to service_role;
+
+drop trigger if exists trg_auditoria_visitantes on public.visitantes;
+create trigger trg_auditoria_visitantes
+  after insert or update or delete on public.visitantes
+  for each row execute function public.registrar_auditoria_generica();
+
+-- Registro de portaria passa a poder ligar num morador/visitante/veículo
+-- já cadastrado (sem perder o texto livre de antes, usado quando é
+-- entregador/prestador/outro sem cadastro próprio). "on delete set null"
+-- em todos: apagar um morador/visitante/veículo nunca apaga o histórico
+-- de acessos já registrado.
+alter table public.portaria_registros add column if not exists visitante_id uuid references public.visitantes (id) on delete set null;
+alter table public.portaria_registros add column if not exists morador_id uuid references public.moradores (id) on delete set null;
+alter table public.portaria_registros add column if not exists veiculo_id uuid references public.veiculos (id) on delete set null;
+-- Cópia do documento no momento da entrada (não muda se o cadastro da
+-- pessoa for editado depois) — permite filtrar/pesquisar por documento
+-- direto na tela de histórico sem precisar de join.
+alter table public.portaria_registros add column if not exists documento_numero text;
+alter table public.portaria_registros add column if not exists responsavel_nome text;
+-- Lançamento manual = data/hora digitada por quem registrou, em vez do
+-- horário automático do servidor (ver trigger abaixo). "justificativa" é
+-- obrigatória sempre que é manual ou que corrige um horário já gravado.
+alter table public.portaria_registros add column if not exists entrada_manual boolean not null default false;
+alter table public.portaria_registros add column if not exists saida_manual boolean not null default false;
+alter table public.portaria_registros add column if not exists justificativa text;
+
+create index if not exists portaria_registros_visitante_id_idx on public.portaria_registros (visitante_id);
+create index if not exists portaria_registros_morador_id_idx on public.portaria_registros (morador_id);
+create index if not exists portaria_registros_veiculo_id_idx on public.portaria_registros (veiculo_id);
+create index if not exists portaria_registros_documento_idx on public.portaria_registros (condominio_id, documento_numero);
+
+-- Reforço no BANCO (não só esconder botão na tela) das regras de horário:
+--  1) horário automático sempre vem do servidor (now()), nunca do valor
+--     que o cliente mandou — o relógio do celular/computador de quem usa
+--     o sistema não manda no que fica gravado;
+--  2) lançamento manual (entrada_manual/saida_manual) exige a permissão
+--     "portaria":"corrigir" (síndico, ou quem ele conceder) + justificativa,
+--     e nunca pode ser no futuro;
+--  3) alterar um horário JÁ GRAVADO (seja entrada_em, seja um saida_em que
+--     já tinha valor) é sempre tratado como correção: mesma permissão +
+--     justificativa obrigatória, nunca silenciosa — e nunca inconsistente
+--     (saída não pode ficar antes da entrada).
+-- Isso vale mesmo que a policy de UPDATE (que só olha a permissão
+-- "editar") deixe passar — a trigger é a segunda trava, independente da
+-- RLS, exatamente o que o prompt pediu ("não é suficiente ocultar botão").
+create or replace function public.portaria_controlar_horarios()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_pode_corrigir boolean;
+begin
+  if TG_OP = 'INSERT' then
+    if coalesce(NEW.entrada_manual, false) then
+      v_pode_corrigir := public.is_condominio_owner(NEW.condominio_id)
+        or public.membro_tem_permissao(NEW.condominio_id, 'portaria', 'corrigir');
+      if not v_pode_corrigir then
+        raise exception 'Sem permissão para fazer um lançamento manual de horário.';
+      end if;
+      if NEW.entrada_em is null or NEW.entrada_em > now() then
+        raise exception 'Horário de entrada manual inválido: não pode ser vazio nem no futuro.';
+      end if;
+      if NEW.justificativa is null or btrim(NEW.justificativa) = '' then
+        raise exception 'Informe a justificativa do lançamento manual.';
+      end if;
+    else
+      NEW.entrada_em := now();
+    end if;
+    return NEW;
+  end if;
+
+  if TG_OP = 'UPDATE' then
+    -- Primeira saída (ainda não tinha nenhuma) no fluxo normal do
+    -- porteiro: trava no agora do servidor, sem exigir permissão extra —
+    -- a menos que já venha marcada como lançamento manual (ver abaixo).
+    if OLD.saida_em is null and NEW.saida_em is not null and not coalesce(NEW.saida_manual, false) then
+      NEW.saida_em := now();
+    end if;
+
+    -- Qualquer lançamento MARCADO como manual (entrada_manual/
+    -- saida_manual = true, vindo do formulário de correção — mesmo que
+    -- seja a primeira saída, nunca registrada antes) OU qualquer mudança
+    -- num horário que JÁ estava gravado (entrada_em sempre, ou uma
+    -- saida_em que já tinha valor) é tratado como correção: permissão +
+    -- justificativa sempre, nunca em silêncio.
+    if coalesce(NEW.entrada_manual, false)
+       or coalesce(NEW.saida_manual, false)
+       or NEW.entrada_em is distinct from OLD.entrada_em
+       or (OLD.saida_em is not null and NEW.saida_em is distinct from OLD.saida_em) then
+      v_pode_corrigir := public.is_condominio_owner(OLD.condominio_id)
+        or public.membro_tem_permissao(OLD.condominio_id, 'portaria', 'corrigir');
+      if not v_pode_corrigir then
+        raise exception 'Sem permissão para corrigir ou lançar manualmente um horário.';
+      end if;
+      if NEW.justificativa is null or btrim(NEW.justificativa) = '' then
+        raise exception 'Informe a justificativa.';
+      end if;
+      if NEW.entrada_em is distinct from OLD.entrada_em or coalesce(NEW.entrada_manual, false) then
+        NEW.entrada_manual := true;
+        if NEW.entrada_em is null or NEW.entrada_em > now() then
+          raise exception 'Horário de entrada inválido: não pode ser vazio nem no futuro.';
+        end if;
+      end if;
+      if NEW.saida_em is distinct from OLD.saida_em or coalesce(NEW.saida_manual, false) then
+        NEW.saida_manual := true;
+        if NEW.saida_em is not null and NEW.saida_em > now() then
+          raise exception 'Horário de saída inválido: não pode ser no futuro.';
+        end if;
+      end if;
+    end if;
+
+    if NEW.saida_em is not null and NEW.entrada_em is not null and NEW.saida_em < NEW.entrada_em then
+      raise exception 'Horário de saída não pode ser antes da entrada.';
+    end if;
+
+    return NEW;
+  end if;
+
+  return NEW;
+end;
+$$;
+
+drop trigger if exists trg_portaria_controlar_horarios on public.portaria_registros;
+create trigger trg_portaria_controlar_horarios
+  before insert or update on public.portaria_registros
+  for each row execute function public.portaria_controlar_horarios();
+
+-- Fotos de moradores/visitantes/veículos: um único bucket privado
+-- (nunca público — LGPD), caminho sempre <condominio_id>/<tabela>/<arquivo>.
+-- A 2ª pasta decide qual permissão de módulo vale pra aquele arquivo.
+insert into storage.buckets (id, name, public)
+values ('pessoas-fotos', 'pessoas-fotos', false)
+on conflict (id) do nothing;
+
+create or replace function public.pessoas_fotos_modulo(caminho text)
+returns text
+language sql
+stable
+as $$
+  select case (storage.foldername(caminho))[2]
+    when 'moradores' then 'moradores'
+    when 'veiculos' then 'veiculos'
+    else 'portaria'
+  end;
+$$;
+
+drop policy if exists "Members can view fotos de pessoas" on storage.objects;
+create policy "Members can view fotos de pessoas"
+  on storage.objects for select
+  using (
+    bucket_id = 'pessoas-fotos'
+    and public.membro_tem_modulo(((storage.foldername(name))[1])::uuid, public.pessoas_fotos_modulo(name))
+  );
+
+drop policy if exists "Members can upload fotos de pessoas" on storage.objects;
+create policy "Members can upload fotos de pessoas"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'pessoas-fotos'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, public.pessoas_fotos_modulo(name), 'criar')
+  );
+
+drop policy if exists "Members can update fotos de pessoas" on storage.objects;
+create policy "Members can update fotos de pessoas"
+  on storage.objects for update
+  using (
+    bucket_id = 'pessoas-fotos'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, public.pessoas_fotos_modulo(name), 'editar')
+  );
+
+drop policy if exists "Members can delete fotos de pessoas" on storage.objects;
+create policy "Members can delete fotos de pessoas"
+  on storage.objects for delete
+  using (
+    bucket_id = 'pessoas-fotos'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, public.pessoas_fotos_modulo(name), 'editar')
+  );

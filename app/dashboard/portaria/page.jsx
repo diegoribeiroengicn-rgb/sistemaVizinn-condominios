@@ -1,10 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
+import {
+  DOCUMENTO_TIPO_LABELS,
+  buscarPessoaPorDocumento,
+  mascararDocumento,
+  obterUrlFotoAssinada,
+} from "@/lib/pessoas";
+import {
+  formatarDataHoraBR,
+  dataBrasiliaYMD,
+  paraDatetimeLocalBrasilia,
+  datetimeLocalBrasiliaParaISO,
+} from "@/lib/datetime";
 
 const TIPO_LABELS = {
   visitante: "Visitante",
@@ -14,26 +26,43 @@ const TIPO_LABELS = {
   outro: "Outro",
 };
 
+// Só visitante/morador passam pela busca por documento (fazem sentido
+// reconhecer de uma visita pra outra); entregador/prestador/outro
+// continuam sendo um registro rápido, sem cadastro de pessoa por trás —
+// aproveita o que já existia pra esses casos, sem forçar documento onde
+// não ajuda em nada.
+const TIPOS_COM_BUSCA_DOCUMENTO = ["visitante", "morador"];
+
 const emptyForm = {
-  nomePessoa: "",
   tipoAcesso: "visitante",
+  documentoTipo: "cpf",
+  documentoNumero: "",
+  nomePessoa: "",
+  telefonePessoa: "",
   unidade: "",
+  responsavelNome: "",
   formaEntrada: "a_pe",
   placaVeiculo: "",
   observacoes: "",
+  lancamentoManual: false,
+  entradaManualLocal: "",
+  justificativaManual: "",
 };
 
 const emptyFiltro = {
   pessoa: "",
   unidade: "",
   placa: "",
+  documento: "",
   tipo: "",
   status: "",
   data: "",
 };
 
+const emptyCorrecao = { entradaLocal: "", saidaLocal: "", justificativa: "" };
+
 export default function PortariaPage() {
-  const { condominio, user, member, temPermissao } = useAuth();
+  const { condominio, user, member, temPermissao, role } = useAuth();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -43,8 +72,19 @@ export default function PortariaPage() {
   const [saindoId, setSaindoId] = useState(null);
   const [filtro, setFiltro] = useState(emptyFiltro);
 
+  const [buscando, setBuscando] = useState(false);
+  const [buscaFeita, setBuscaFeita] = useState(false);
+  const [pessoaEncontrada, setPessoaEncontrada] = useState(null);
+  const [fotoPessoaUrl, setFotoPessoaUrl] = useState(null);
+
+  const [corrigindoId, setCorrigindoId] = useState(null);
+  const [correcaoForm, setCorrecaoForm] = useState(emptyCorrecao);
+  const [salvandoCorrecao, setSalvandoCorrecao] = useState(false);
+  const [abrindoFotoId, setAbrindoFotoId] = useState(null);
+
   const podeCriar = temPermissao("portaria", "criar");
   const podeEditar = temPermissao("portaria", "editar");
+  const podeCorrigir = temPermissao("portaria", "corrigir") || role === "sindico";
   const registradoPor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
   const load = useCallback(async () => {
@@ -65,39 +105,147 @@ export default function PortariaPage() {
     load();
   }, [load]);
 
+  function resetForm() {
+    setForm(emptyForm);
+    setBuscaFeita(false);
+    setPessoaEncontrada(null);
+    setFotoPessoaUrl(null);
+  }
+
+  // Busca a pessoa (morador OU visitante, nas duas bases) pelo documento —
+  // se já existe, recupera os dados dela em vez de pedir cadastro de novo.
+  async function handleBuscarDocumento() {
+    if (!condominio?.id || !form.documentoNumero.trim()) return;
+    setBuscando(true);
+    setError("");
+    setFotoPessoaUrl(null);
+    const encontrada = await buscarPessoaPorDocumento(condominio.id, form.documentoTipo, form.documentoNumero.trim());
+    setPessoaEncontrada(encontrada);
+    setBuscaFeita(true);
+    setBuscando(false);
+    if (encontrada) {
+      setForm((f) => ({
+        ...f,
+        nomePessoa: encontrada.nome,
+        telefonePessoa: encontrada.telefone || "",
+        tipoAcesso: encontrada.origem === "morador" ? "morador" : "visitante",
+      }));
+      if (encontrada.foto_path) {
+        const url = await obterUrlFotoAssinada(encontrada.foto_path);
+        setFotoPessoaUrl(url);
+      }
+    } else {
+      setForm((f) => ({ ...f, nomePessoa: "", telefonePessoa: "" }));
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault();
-    if (!condominio?.id || !form.nomePessoa.trim()) return;
+    if (!condominio?.id) return;
+    if (!form.nomePessoa.trim()) {
+      setError("Informe o nome da pessoa (ou busque pelo documento).");
+      return;
+    }
     if (form.formaEntrada === "carro" && !form.placaVeiculo.trim()) {
       setError("Informe a placa do veículo.");
+      return;
+    }
+    if (form.lancamentoManual && (!form.entradaManualLocal || !form.justificativaManual.trim())) {
+      setError("Lançamento manual exige o horário de entrada e a justificativa.");
       return;
     }
 
     setSubmitting(true);
     setError("");
-    const { error: insertError } = await supabase.from("portaria_registros").insert({
+
+    const comBusca = TIPOS_COM_BUSCA_DOCUMENTO.includes(form.tipoAcesso);
+    let visitanteId = null;
+    let moradorId = null;
+    let documentoNumero = null;
+
+    if (comBusca && pessoaEncontrada) {
+      documentoNumero = pessoaEncontrada.documento_numero || null;
+      if (pessoaEncontrada.origem === "morador") moradorId = pessoaEncontrada.id;
+      else visitanteId = pessoaEncontrada.id;
+    } else if (form.tipoAcesso === "visitante" && form.documentoNumero.trim()) {
+      // Documento informado mas não encontrado: cadastro simplificado de
+      // visitante (só o que é necessário), pra reconhecer da próxima vez.
+      const { data: novoVisitante, error: visitanteError } = await supabase
+        .from("visitantes")
+        .insert({
+          condominio_id: condominio.id,
+          nome: form.nomePessoa.trim(),
+          documento_tipo: form.documentoTipo,
+          documento_numero: form.documentoNumero.trim(),
+          telefone: form.telefonePessoa.trim() || null,
+          criado_por_id: user?.id || null,
+        })
+        .select("id, documento_numero")
+        .single();
+      if (visitanteError) {
+        setSubmitting(false);
+        setError(`Erro ao cadastrar visitante: ${visitanteError.message}`);
+        return;
+      }
+      visitanteId = novoVisitante.id;
+      documentoNumero = novoVisitante.documento_numero;
+    }
+
+    // Placa de carro já cadastrado em Veículos (se bater, só linka — não
+    // obriga nada; placa de visitante sem cadastro continua indo como
+    // texto livre, igual já funcionava).
+    let veiculoId = null;
+    if (form.formaEntrada === "carro" && form.placaVeiculo.trim()) {
+      const { data: veiculoEncontrado } = await supabase
+        .from("veiculos")
+        .select("id")
+        .eq("condominio_id", condominio.id)
+        .eq("placa", form.placaVeiculo.trim().toUpperCase())
+        .maybeSingle();
+      if (veiculoEncontrado) veiculoId = veiculoEncontrado.id;
+    }
+
+    const payload = {
       condominio_id: condominio.id,
       nome_pessoa: form.nomePessoa.trim(),
       tipo_acesso: form.tipoAcesso,
       unidade: form.unidade.trim() || null,
+      responsavel_nome: form.responsavelNome.trim() || null,
       forma_entrada: form.formaEntrada,
       placa_veiculo: form.formaEntrada === "carro" ? form.placaVeiculo.trim().toUpperCase() : null,
       observacoes: form.observacoes.trim() || null,
       entrada_por: registradoPor,
       entrada_por_id: user?.id || null,
-    });
+      visitante_id: visitanteId,
+      morador_id: moradorId,
+      veiculo_id: veiculoId,
+      documento_numero: documentoNumero,
+      ...(form.lancamentoManual
+        ? {
+            entrada_manual: true,
+            entrada_em: datetimeLocalBrasiliaParaISO(form.entradaManualLocal),
+            justificativa: form.justificativaManual.trim(),
+          }
+        : {}),
+    };
+
+    const { error: insertError } = await supabase.from("portaria_registros").insert(payload);
     setSubmitting(false);
 
     if (insertError) {
       setError(insertError.message);
       return;
     }
-    setForm(emptyForm);
+    resetForm();
     load();
   }
 
   async function handleSaida(registro) {
     setSaindoId(registro.id);
+    // O valor exato não importa: a trigger portaria_controlar_horarios
+    // (ver supabase/schema.sql) sempre troca pelo horário do servidor
+    // quando não é um lançamento manual — nunca confia no relógio do
+    // navegador de quem está registrando.
     const { error: updateError } = await supabase
       .from("portaria_registros")
       .update({
@@ -111,6 +259,55 @@ export default function PortariaPage() {
     else load();
   }
 
+  function abrirCorrecao(registro) {
+    setCorrigindoId(registro.id);
+    setCorrecaoForm({
+      entradaLocal: paraDatetimeLocalBrasilia(registro.entrada_em),
+      saidaLocal: registro.saida_em ? paraDatetimeLocalBrasilia(registro.saida_em) : "",
+      justificativa: "",
+    });
+  }
+
+  async function handleSalvarCorrecao(registro) {
+    if (!correcaoForm.justificativa.trim()) {
+      setError("Informe a justificativa da correção.");
+      return;
+    }
+    setSalvandoCorrecao(true);
+    setError("");
+    const { error: updateError } = await supabase
+      .from("portaria_registros")
+      .update({
+        entrada_em: datetimeLocalBrasiliaParaISO(correcaoForm.entradaLocal),
+        saida_em: correcaoForm.saidaLocal ? datetimeLocalBrasiliaParaISO(correcaoForm.saidaLocal) : null,
+        entrada_manual: true,
+        saida_manual: true,
+        justificativa: correcaoForm.justificativa.trim(),
+      })
+      .eq("id", registro.id);
+    setSalvandoCorrecao(false);
+    if (updateError) {
+      // A trigger no banco recusa correção sem permissão/justificativa ou
+      // com horário futuro/inconsistente — a mensagem já vem pronta dali.
+      setError(updateError.message);
+      return;
+    }
+    setCorrigindoId(null);
+    load();
+  }
+
+  async function handleVerFotoPessoa(registro) {
+    if (!registro.visitante_id && !registro.morador_id) return;
+    setAbrindoFotoId(registro.id);
+    const tabela = registro.morador_id ? "moradores" : "visitantes";
+    const id = registro.morador_id || registro.visitante_id;
+    const { data } = await supabase.from(tabela).select("foto_path").eq("id", id).maybeSingle();
+    const url = data?.foto_path ? await obterUrlFotoAssinada(data.foto_path) : null;
+    setAbrindoFotoId(null);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else setError("Essa pessoa não tem foto cadastrada.");
+  }
+
   const registrosFiltrados = useMemo(() => {
     return registros.filter((r) => {
       if (filtro.pessoa && !r.nome_pessoa.toLowerCase().includes(filtro.pessoa.toLowerCase())) return false;
@@ -118,13 +315,16 @@ export default function PortariaPage() {
         return false;
       if (filtro.placa && !(r.placa_veiculo || "").toLowerCase().includes(filtro.placa.toLowerCase()))
         return false;
+      if (podeCorrigir && filtro.documento && !(r.documento_numero || "").includes(filtro.documento)) return false;
       if (filtro.tipo && r.tipo_acesso !== filtro.tipo) return false;
       if (filtro.status === "dentro" && r.saida_em) return false;
       if (filtro.status === "saiu" && !r.saida_em) return false;
-      if (filtro.data && !r.entrada_em.startsWith(filtro.data)) return false;
+      // Compara o dia em horário de Brasília, não o prefixo cru do ISO
+      // (em UTC), senão vira o dia errado perto da meia-noite.
+      if (filtro.data && dataBrasiliaYMD(r.entrada_em) !== filtro.data) return false;
       return true;
     });
-  }, [registros, filtro]);
+  }, [registros, filtro, podeCorrigir]);
 
   const dentroAgora = useMemo(() => registros.filter((r) => !r.saida_em).length, [registros]);
 
@@ -138,8 +338,8 @@ export default function PortariaPage() {
       <div>
         <h1 className="font-display text-xl font-bold text-navy-900">Portaria</h1>
         <p className="mt-1 text-sm text-navy-500">
-          Registro de entrada e saída de visitantes, entregas e prestadores.{" "}
-          <strong className="text-navy-700">{dentroAgora}</strong>{" "}
+          Registro de entrada e saída de visitantes, entregas e prestadores — todos os horários em
+          horário de Brasília.{" "} <strong className="text-navy-700">{dentroAgora}</strong>{" "}
           {dentroAgora === 1 ? "pessoa dentro" : "pessoas dentro"} agora.
         </p>
       </div>
@@ -147,77 +347,193 @@ export default function PortariaPage() {
       {podeCriar && (
         <div className="card">
           <h2 className="font-display text-lg font-bold text-navy-900">Registrar entrada</h2>
-          <form onSubmit={handleCreate} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="label-field">Nome da pessoa</label>
-              <input
-                className="input-field"
-                value={form.nomePessoa}
-                onChange={(e) => setForm((f) => ({ ...f, nomePessoa: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <label className="label-field">Unidade relacionada</label>
-              <input
-                className="input-field"
-                inputMode="numeric"
-                value={form.unidade}
-                onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-                placeholder="Ex: Apto 32"
-              />
-            </div>
-            <div>
-              <label className="label-field">Tipo de acesso</label>
-              <select
-                className="input-field"
-                value={form.tipoAcesso}
-                onChange={(e) => setForm((f) => ({ ...f, tipoAcesso: e.target.value }))}
-              >
-                {Object.entries(TIPO_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label-field">Forma de entrada</label>
-              <select
-                className="input-field"
-                value={form.formaEntrada}
-                onChange={(e) => setForm((f) => ({ ...f, formaEntrada: e.target.value }))}
-              >
-                <option value="a_pe">A pé</option>
-                <option value="carro">De carro</option>
-              </select>
-            </div>
-            {form.formaEntrada === "carro" && (
+          <form onSubmit={handleCreate} className="mt-4 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="label-field">Placa do veículo</label>
+                <label className="label-field">Tipo de acesso</label>
+                <select
+                  className="input-field"
+                  value={form.tipoAcesso}
+                  onChange={(e) => {
+                    resetForm();
+                    setForm((f) => ({ ...emptyForm, tipoAcesso: e.target.value }));
+                  }}
+                >
+                  {Object.entries(TIPO_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label-field">Unidade de destino</label>
                 <input
-                  className="input-field uppercase"
-                  value={form.placaVeiculo}
-                  onChange={(e) => setForm((f) => ({ ...f, placaVeiculo: e.target.value }))}
-                  placeholder="ABC1D23"
+                  className="input-field"
+                  inputMode="numeric"
+                  value={form.unidade}
+                  onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                  placeholder="Ex: Apto 32"
+                />
+              </div>
+            </div>
+
+            {TIPOS_COM_BUSCA_DOCUMENTO.includes(form.tipoAcesso) ? (
+              <div className="rounded-xl border border-navy-100 p-3">
+                <p className="text-sm font-medium text-navy-800">Buscar pelo documento</p>
+                <p className="mt-0.5 text-xs text-navy-500">
+                  Se a pessoa já tiver cadastro (morador ou visita anterior), os dados aparecem
+                  sozinhos — não precisa preencher tudo de novo.
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_auto]">
+                  <select
+                    className="input-field"
+                    value={form.documentoTipo}
+                    onChange={(e) => setForm((f) => ({ ...f, documentoTipo: e.target.value }))}
+                  >
+                    {Object.entries(DOCUMENTO_TIPO_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="input-field"
+                    value={form.documentoNumero}
+                    onChange={(e) => {
+                      setBuscaFeita(false);
+                      setPessoaEncontrada(null);
+                      setForm((f) => ({ ...f, documentoNumero: e.target.value }));
+                    }}
+                    placeholder="Número do documento"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBuscarDocumento}
+                    disabled={buscando || !form.documentoNumero.trim()}
+                    className="btn-secondary disabled:opacity-50"
+                  >
+                    {buscando ? "Buscando..." : "Buscar"}
+                  </button>
+                </div>
+
+                {buscaFeita && pessoaEncontrada && (
+                  <div className="mt-3 flex items-center gap-3 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">
+                    {fotoPessoaUrl && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={fotoPessoaUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                    )}
+                    <span>
+                      Encontrado: <strong>{pessoaEncontrada.nome}</strong>{" "}
+                      {pessoaEncontrada.origem === "morador"
+                        ? `(morador, unidade ${pessoaEncontrada.unidade})`
+                        : "(visitante já cadastrado)"}
+                    </span>
+                  </div>
+                )}
+                {buscaFeita && !pessoaEncontrada && (
+                  <p className="mt-3 text-sm text-amber-700">
+                    Documento não encontrado. Preencha o cadastro simplificado abaixo.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label-field">Nome da pessoa</label>
+                <input
+                  className="input-field"
+                  value={form.nomePessoa}
+                  onChange={(e) => setForm((f) => ({ ...f, nomePessoa: e.target.value }))}
+                  disabled={Boolean(pessoaEncontrada)}
                   required
                 />
               </div>
+              <div>
+                <label className="label-field">Responsável pela visita (opcional)</label>
+                <input
+                  className="input-field"
+                  value={form.responsavelNome}
+                  onChange={(e) => setForm((f) => ({ ...f, responsavelNome: e.target.value }))}
+                  placeholder="Quem na unidade autorizou/recebeu"
+                />
+              </div>
+              <div>
+                <label className="label-field">Forma de entrada</label>
+                <select
+                  className="input-field"
+                  value={form.formaEntrada}
+                  onChange={(e) => setForm((f) => ({ ...f, formaEntrada: e.target.value }))}
+                >
+                  <option value="a_pe">A pé</option>
+                  <option value="carro">De carro</option>
+                </select>
+              </div>
+              {form.formaEntrada === "carro" && (
+                <div>
+                  <label className="label-field">Placa do veículo</label>
+                  <input
+                    className="input-field uppercase"
+                    value={form.placaVeiculo}
+                    onChange={(e) => setForm((f) => ({ ...f, placaVeiculo: e.target.value }))}
+                    placeholder="ABC1D23"
+                    required
+                  />
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <label className="label-field">Observações (opcional)</label>
+                <textarea
+                  className="input-field"
+                  rows={2}
+                  value={form.observacoes}
+                  onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {podeCorrigir && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+                <label className="flex items-center gap-2 text-sm text-navy-700">
+                  <input
+                    type="checkbox"
+                    checked={form.lancamentoManual}
+                    onChange={(e) => setForm((f) => ({ ...f, lancamentoManual: e.target.checked }))}
+                  />
+                  Lançamento manual (regularizar um horário passado, não a agora)
+                </label>
+                {form.lancamentoManual && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="label-field">Horário real da entrada</label>
+                      <input
+                        type="datetime-local"
+                        className="input-field"
+                        value={form.entradaManualLocal}
+                        onChange={(e) => setForm((f) => ({ ...f, entradaManualLocal: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="label-field">Justificativa (obrigatória)</label>
+                      <textarea
+                        className="input-field"
+                        rows={2}
+                        value={form.justificativaManual}
+                        onChange={(e) => setForm((f) => ({ ...f, justificativaManual: e.target.value }))}
+                        placeholder="Ex: porteiro esqueceu de registrar na hora"
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-            <div className="sm:col-span-2">
-              <label className="label-field">Observações (opcional)</label>
-              <textarea
-                className="input-field"
-                rows={2}
-                value={form.observacoes}
-                onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <button type="submit" disabled={submitting} className="btn-primary">
-                {submitting ? "Registrando..." : "Registrar entrada"}
-              </button>
-            </div>
+
+            <button type="submit" disabled={submitting} className="btn-primary">
+              {submitting ? "Registrando..." : "Registrar entrada"}
+            </button>
           </form>
         </div>
       )}
@@ -226,7 +542,7 @@ export default function PortariaPage() {
 
       <div className="card">
         <h2 className="font-display text-lg font-bold text-navy-900">Histórico</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className={`mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 ${podeCorrigir ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
           <input
             className="input-field"
             placeholder="Pessoa"
@@ -245,6 +561,14 @@ export default function PortariaPage() {
             value={filtro.placa}
             onChange={(e) => setFiltro((f) => ({ ...f, placa: e.target.value }))}
           />
+          {podeCorrigir && (
+            <input
+              className="input-field"
+              placeholder="Documento"
+              value={filtro.documento}
+              onChange={(e) => setFiltro((f) => ({ ...f, documento: e.target.value }))}
+            />
+          )}
           <select
             className="input-field"
             value={filtro.tipo}
@@ -292,20 +616,27 @@ export default function PortariaPage() {
                         {r.unidade ? ` · Unidade ${r.unidade}` : ""}
                       </p>
                     </div>
-                    {!r.saida_em && (
-                      <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                        Dentro
-                      </span>
-                    )}
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {!r.saida_em && (
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                          Dentro
+                        </span>
+                      )}
+                      {(r.entrada_manual || r.saida_manual) && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                          Manual
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-navy-600">
                     <div>
                       <dt className="text-navy-400">Entrada</dt>
-                      <dd>{new Date(r.entrada_em).toLocaleString("pt-BR")}</dd>
+                      <dd>{formatarDataHoraBR(r.entrada_em)}</dd>
                     </div>
                     <div>
                       <dt className="text-navy-400">Saída</dt>
-                      <dd>{r.saida_em ? new Date(r.saida_em).toLocaleString("pt-BR") : "-"}</dd>
+                      <dd>{r.saida_em ? formatarDataHoraBR(r.saida_em) : "-"}</dd>
                     </div>
                     <div>
                       <dt className="text-navy-400">Veículo</dt>
@@ -315,19 +646,53 @@ export default function PortariaPage() {
                       <dt className="text-navy-400">Placa</dt>
                       <dd>{r.placa_veiculo || "-"}</dd>
                     </div>
+                    {podeCorrigir && (
+                      <div>
+                        <dt className="text-navy-400">Documento</dt>
+                        <dd>{r.documento_numero ? mascararDocumento(r.documento_numero) : "-"}</dd>
+                      </div>
+                    )}
                     <div className="col-span-2">
                       <dt className="text-navy-400">Registrado por</dt>
                       <dd>{r.entrada_por || "-"}</dd>
                     </div>
                   </dl>
-                  {podeEditar && !r.saida_em && (
-                    <button
-                      onClick={() => handleSaida(r)}
-                      disabled={saindoId === r.id}
-                      className="mt-2 text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                    >
-                      {saindoId === r.id ? "..." : "Registrar saída"}
-                    </button>
+                  <div className="mt-2 flex flex-wrap gap-3">
+                    {podeEditar && !r.saida_em && (
+                      <button
+                        onClick={() => handleSaida(r)}
+                        disabled={saindoId === r.id}
+                        className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                      >
+                        {saindoId === r.id ? "..." : "Registrar saída"}
+                      </button>
+                    )}
+                    {(r.visitante_id || r.morador_id) && (
+                      <button
+                        onClick={() => handleVerFotoPessoa(r)}
+                        disabled={abrindoFotoId === r.id}
+                        className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                      >
+                        {abrindoFotoId === r.id ? "Abrindo..." : "Ver foto"}
+                      </button>
+                    )}
+                    {podeCorrigir && (
+                      <button
+                        onClick={() => abrirCorrecao(r)}
+                        className="text-xs font-semibold text-navy-700 hover:underline"
+                      >
+                        Corrigir horários
+                      </button>
+                    )}
+                  </div>
+                  {corrigindoId === r.id && (
+                    <CorrecaoInline
+                      correcaoForm={correcaoForm}
+                      setCorrecaoForm={setCorrecaoForm}
+                      onCancelar={() => setCorrigindoId(null)}
+                      onSalvar={() => handleSalvarCorrecao(r)}
+                      salvando={salvandoCorrecao}
+                    />
                   )}
                 </div>
               ))}
@@ -345,47 +710,90 @@ export default function PortariaPage() {
                     <th className="px-3 py-2 font-medium">Tipo</th>
                     <th className="px-3 py-2 font-medium">Veículo</th>
                     <th className="px-3 py-2 font-medium">Placa</th>
+                    {podeCorrigir && <th className="px-3 py-2 font-medium">Documento</th>}
                     <th className="px-3 py-2 font-medium">Registrado por</th>
-                    {podeEditar && <th className="px-3 py-2 font-medium">Ações</th>}
+                    <th className="px-3 py-2 font-medium">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {registrosFiltrados.map((r) => (
-                    <tr key={r.id} className="border-b border-navy-50 last:border-0">
-                      <td className="px-3 py-2 font-medium text-navy-900">{r.nome_pessoa}</td>
-                      <td className="px-3 py-2 text-navy-600">{r.unidade || "-"}</td>
-                      <td className="px-3 py-2 text-navy-600">
-                        {new Date(r.entrada_em).toLocaleString("pt-BR")}
-                      </td>
-                      <td className="px-3 py-2 text-navy-600">
-                        {r.saida_em ? (
-                          new Date(r.saida_em).toLocaleString("pt-BR")
-                        ) : (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                            Dentro
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-navy-600">{TIPO_LABELS[r.tipo_acesso]}</td>
-                      <td className="px-3 py-2 text-navy-600">
-                        {r.forma_entrada === "carro" ? "Carro" : "A pé"}
-                      </td>
-                      <td className="px-3 py-2 text-navy-600">{r.placa_veiculo || "-"}</td>
-                      <td className="px-3 py-2 text-navy-600">{r.entrada_por || "-"}</td>
-                      {podeEditar && (
-                        <td className="px-3 py-2">
-                          {!r.saida_em && (
-                            <button
-                              onClick={() => handleSaida(r)}
-                              disabled={saindoId === r.id}
-                              className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
-                            >
-                              {saindoId === r.id ? "..." : "Registrar saída"}
-                            </button>
+                    <Fragment key={r.id}>
+                      <tr className="border-b border-navy-50 last:border-0">
+                        <td className="px-3 py-2 font-medium text-navy-900">
+                          {r.nome_pessoa}
+                          {(r.entrada_manual || r.saida_manual) && (
+                            <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                              Manual
+                            </span>
                           )}
                         </td>
+                        <td className="px-3 py-2 text-navy-600">{r.unidade || "-"}</td>
+                        <td className="px-3 py-2 text-navy-600">{formatarDataHoraBR(r.entrada_em)}</td>
+                        <td className="px-3 py-2 text-navy-600">
+                          {r.saida_em ? (
+                            formatarDataHoraBR(r.saida_em)
+                          ) : (
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              Dentro
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-navy-600">{TIPO_LABELS[r.tipo_acesso]}</td>
+                        <td className="px-3 py-2 text-navy-600">
+                          {r.forma_entrada === "carro" ? "Carro" : "A pé"}
+                        </td>
+                        <td className="px-3 py-2 text-navy-600">{r.placa_veiculo || "-"}</td>
+                        {podeCorrigir && (
+                          <td className="px-3 py-2 text-navy-600">
+                            {r.documento_numero ? mascararDocumento(r.documento_numero) : "-"}
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-navy-600">{r.entrada_por || "-"}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-2">
+                            {podeEditar && !r.saida_em && (
+                              <button
+                                onClick={() => handleSaida(r)}
+                                disabled={saindoId === r.id}
+                                className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                              >
+                                {saindoId === r.id ? "..." : "Saída"}
+                              </button>
+                            )}
+                            {(r.visitante_id || r.morador_id) && (
+                              <button
+                                onClick={() => handleVerFotoPessoa(r)}
+                                disabled={abrindoFotoId === r.id}
+                                className="text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                              >
+                                Foto
+                              </button>
+                            )}
+                            {podeCorrigir && (
+                              <button
+                                onClick={() => (corrigindoId === r.id ? setCorrigindoId(null) : abrirCorrecao(r))}
+                                className="text-xs font-semibold text-navy-700 hover:underline"
+                              >
+                                Corrigir
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {corrigindoId === r.id && (
+                        <tr className="border-b border-navy-50">
+                          <td colSpan={podeCorrigir ? 9 : 8} className="bg-navy-50/40 px-3 py-3">
+                            <CorrecaoInline
+                              correcaoForm={correcaoForm}
+                              setCorrecaoForm={setCorrecaoForm}
+                              onCancelar={() => setCorrigindoId(null)}
+                              onSalvar={() => handleSalvarCorrecao(r)}
+                              salvando={salvandoCorrecao}
+                            />
+                          </td>
+                        </tr>
                       )}
-                    </tr>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -395,5 +803,51 @@ export default function PortariaPage() {
       </div>
     </div>
     </ModuloGuard>
+  );
+}
+
+// Formulário inline de correção — entrada/saída já gravadas + justificativa
+// obrigatória. A validação "de verdade" (quem pode, se não é futuro, se não
+// fica inconsistente) é feita pela trigger no banco (ver schema.sql); isto
+// aqui é só a UX, não a segurança.
+function CorrecaoInline({ correcaoForm, setCorrecaoForm, onCancelar, onSalvar, salvando }) {
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div>
+        <label className="label-field">Entrada correta</label>
+        <input
+          type="datetime-local"
+          className="input-field"
+          value={correcaoForm.entradaLocal}
+          onChange={(e) => setCorrecaoForm((f) => ({ ...f, entradaLocal: e.target.value }))}
+        />
+      </div>
+      <div>
+        <label className="label-field">Saída correta (deixe em branco se ainda está dentro)</label>
+        <input
+          type="datetime-local"
+          className="input-field"
+          value={correcaoForm.saidaLocal}
+          onChange={(e) => setCorrecaoForm((f) => ({ ...f, saidaLocal: e.target.value }))}
+        />
+      </div>
+      <div>
+        <label className="label-field">Justificativa (obrigatória)</label>
+        <input
+          className="input-field"
+          value={correcaoForm.justificativa}
+          onChange={(e) => setCorrecaoForm((f) => ({ ...f, justificativa: e.target.value }))}
+          placeholder="Motivo da correção"
+        />
+      </div>
+      <div className="sm:col-span-3 flex gap-3">
+        <button type="button" onClick={onSalvar} disabled={salvando} className="btn-primary text-sm">
+          {salvando ? "Salvando..." : "Salvar correção"}
+        </button>
+        <button type="button" onClick={onCancelar} className="text-sm font-semibold text-navy-500 hover:underline">
+          Cancelar
+        </button>
+      </div>
+    </div>
   );
 }
