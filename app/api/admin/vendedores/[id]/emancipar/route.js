@@ -4,10 +4,13 @@ import { requireAdmin } from "@/lib/adminAuth";
 import { registrarAuditoriaAdmin } from "@/lib/adminAuditoria";
 import { emanciparVendedor } from "@/lib/comissoes";
 
-// Carrossel/emancipação (regras 15-17): o vendedor deixa de estar sob
-// o líder atual e passa a ser líder independente. Não apaga
-// indicador_original_id (histórico permanece) nem comissões já
-// geradas — só fecha o vínculo de liderança atual e registra a data.
+// Carrossel/emancipação manual (regras 15-17): o vendedor deixa de
+// estar sob o patrocinador atual e passa a ser patrocinador
+// independente. Não apaga indicador_original_id (histórico permanece)
+// nem comissões já geradas — só fecha o vínculo atual e registra a
+// data. (Existe também a emancipação automática — ver
+// verificarAutoEmancipacao em lib/comissoes.js — disparada sozinha
+// quando o vendedor recruta 5 diretos que já venderam.)
 export async function POST(request, { params }) {
   const auth = await requireAdmin(request, "vendedores");
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });

@@ -385,7 +385,7 @@ function PainelVendedor() {
 
         <div className="card">
           <h2 className="text-sm font-semibold text-navy-800">
-            Painel de progresso — liderança ({detalhe.painelProgresso.competencia})
+            Painel de progresso — patrocínio ({detalhe.painelProgresso.competencia})
           </h2>
           <p className="mt-1 text-sm text-navy-600">
             Minhas vendas no mês: <strong>{detalhe.painelProgresso.minhasVendas}</strong> / {detalhe.painelProgresso.metaLider}

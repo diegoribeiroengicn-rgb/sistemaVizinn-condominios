@@ -7,12 +7,11 @@ import { authedFetch } from "@/lib/adminFetch";
 const CAMPOS_NUMERICOS = [
   { key: "percentual_venda_propria", label: "Venda própria (%)" },
   { key: "percentual_indicacao", label: "Indicação — primeira venda (%)" },
-  { key: "percentual_lideranca", label: "Liderança (%)" },
-  { key: "meta_minima_lider", label: "Meta mínima do líder (vendas/mês)" },
-  { key: "meta_minima_equipe", label: "Meta mínima da equipe (vendas/mês)" },
-  { key: "limite_equipe_pequena", label: "Limite equipe pequena (até N diretos = 100%)" },
-  { key: "percentual_equipe_grande", label: "% da equipe grande que precisa da meta" },
-  { key: "meta_minima_secundaria", label: "Meta mínima dos demais (equipe grande)" },
+  { key: "percentual_lideranca", label: "Patrocínio (%)" },
+  { key: "meta_minima_lider", label: "Meta mínima do patrocinador (vendas/mês)" },
+  { key: "meta_minima_equipe", label: "Meta mínima por membro da equipe (vendas/mês)" },
+  { key: "limite_equipe_pequena", label: "Limite equipe pequena (até N diretos = 100% precisa da meta)" },
+  { key: "percentual_equipe_grande", label: "% mínimo da equipe grande com a meta (piso absoluto de 5)" },
 ];
 
 const emptyForm = {
@@ -21,11 +20,10 @@ const emptyForm = {
   percentual_venda_propria: 80,
   percentual_indicacao: 5,
   percentual_lideranca: 3,
-  meta_minima_lider: 3,
-  meta_minima_equipe: 3,
-  limite_equipe_pequena: 8,
-  percentual_equipe_grande: 80,
-  meta_minima_secundaria: 1,
+  meta_minima_lider: 2,
+  meta_minima_equipe: 1,
+  limite_equipe_pequena: 5,
+  percentual_equipe_grande: 20,
   permite_indicacao: true,
   permite_lideranca: true,
   permite_emancipacao: true,
@@ -163,7 +161,7 @@ export default function AdminModelosComissionamentoContent() {
                   {m.descricao && <p className="mt-1 text-sm text-navy-500">{m.descricao}</p>}
                   <p className="mt-2 text-xs text-navy-500">
                     Venda própria: <strong>{m.percentual_venda_propria}%</strong> · Indicação: <strong>{m.percentual_indicacao}%</strong> ·
-                    {" "}Liderança: <strong>{m.percentual_lideranca}%</strong> · {m.total_vendedores} vendedor{m.total_vendedores === 1 ? "" : "es"} vinculado{m.total_vendedores === 1 ? "" : "s"}
+                    {" "}Patrocínio: <strong>{m.percentual_lideranca}%</strong> · {m.total_vendedores} vendedor{m.total_vendedores === 1 ? "" : "es"} vinculado{m.total_vendedores === 1 ? "" : "s"}
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -214,7 +212,7 @@ export default function AdminModelosComissionamentoContent() {
               </div>
               <div className="flex items-center gap-2">
                 <input id="permite_lideranca" type="checkbox" checked={Boolean(form.permite_lideranca)} onChange={(e) => setForm((f) => ({ ...f, permite_lideranca: e.target.checked }))} />
-                <label htmlFor="permite_lideranca" className="text-sm text-navy-700">Permite bonificação de liderança</label>
+                <label htmlFor="permite_lideranca" className="text-sm text-navy-700">Permite bonificação de patrocínio</label>
               </div>
               <div className="flex items-center gap-2">
                 <input id="permite_emancipacao" type="checkbox" checked={Boolean(form.permite_emancipacao)} onChange={(e) => setForm((f) => ({ ...f, permite_emancipacao: e.target.checked }))} />

@@ -38,10 +38,36 @@ export async function POST(request) {
       const supabaseAdmin = getSupabaseAdmin();
 
       if (event.type === "customer.subscription.deleted") {
+        // Antes de marcar como cancelado, confere se esse condomínio
+        // nunca chegou a converter (ainda estava "trialing" quando
+        // cancelou) — se foi esse o caso, a comissão de venda que o
+        // vendedor recebeu nunca teve receita recorrente por trás, só
+        // a adesão única. Estorna o que ainda não foi pago (nunca mexe
+        // em comissão já paga) pra não deixar a empresa no prejuízo
+        // líquido numa venda que não gerou assinatura nenhuma.
+        const { data: condominioAtual } = await supabaseAdmin
+          .from("condominios")
+          .select("id, status")
+          .eq("stripe_subscription_id", subscription.id)
+          .maybeSingle();
+
         await supabaseAdmin
           .from("condominios")
           .update({ status: "canceled" })
           .eq("stripe_subscription_id", subscription.id);
+
+        if (condominioAtual?.status === "trialing") {
+          const { error: erroEstorno } = await supabaseAdmin
+            .from("comissoes")
+            .update({
+              status: "cancelada",
+              observacao: "Estornada: condomínio cancelou ainda no período de teste, sem converter em assinatura paga.",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("condominio_id", condominioAtual.id)
+            .in("status", ["pendente", "gerada", "aprovada"]);
+          if (erroEstorno) console.error("Erro ao estornar comissões de condomínio cancelado no trial:", erroEstorno.message);
+        }
       } else {
         const { data: existing } = await supabaseAdmin
           .from("condominios")

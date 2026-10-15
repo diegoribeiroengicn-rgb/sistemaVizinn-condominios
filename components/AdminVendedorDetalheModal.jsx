@@ -127,7 +127,7 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
   }
 
   async function emancipar() {
-    if (!confirm(`Emancipar "${detalhe.vendedor.nome}"? Ele deixa de ser vendedor direto do líder atual e vira líder independente. O histórico não é apagado.`)) {
+    if (!confirm(`Emancipar "${detalhe.vendedor.nome}"? Ele deixa de ser vendedor direto do patrocinador atual e vira patrocinador independente. O histórico não é apagado.`)) {
       return;
     }
     setEmancipando(true);
@@ -171,14 +171,16 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
                   <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Cadastro pendente</span>
                 )}
                 {detalhe.vendedor.data_emancipacao && (
-                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Líder independente</span>
+                  <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                    Patrocinador independente{detalhe.vendedor.emancipacao_automatica ? " (automática)" : ""}
+                  </span>
                 )}
               </div>
               <p className="mt-1 text-xs text-navy-400">
                 {[detalhe.vendedor.email, detalhe.vendedor.telefone].filter(Boolean).join(" · ")}
               </p>
               <p className="mt-2 text-xs text-navy-500">
-                Indicador original: <strong>{detalhe.vendedor.indicador_nome || "—"}</strong> · Líder atual:{" "}
+                Indicador original: <strong>{detalhe.vendedor.indicador_nome || "—"}</strong> · Patrocinador atual:{" "}
                 <strong>{detalhe.vendedor.lider_nome || "Independente"}</strong>
               </p>
               {linkVenda && (
@@ -267,7 +269,7 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
               <div className="mt-3 flex flex-wrap gap-4">
                 {detalhe.vendedor.lider_atual_id && (
                   <button onClick={emancipar} disabled={emancipando} className="text-xs font-semibold text-coral hover:underline disabled:opacity-50">
-                    {emancipando ? "Emancipando..." : "Emancipar (tornar líder independente)"}
+                    {emancipando ? "Emancipando..." : "Emancipar (tornar patrocinador independente)"}
                   </button>
                 )}
                 <button onClick={alternarAtivo} disabled={alternandoAtivo} className="text-xs font-semibold text-navy-500 hover:underline disabled:opacity-50">
@@ -295,13 +297,13 @@ export default function AdminVendedorDetalheModal({ vendedorId, onClose, onChang
                 <p className="text-xs text-navy-400">Por tipo</p>
                 <p className="text-xs text-navy-600">Venda própria: <ValorPrivado valor={formatBRL(detalhe.comissoes.vendaPropria)} /></p>
                 <p className="text-xs text-navy-600">Indicação: <ValorPrivado valor={formatBRL(detalhe.comissoes.indicacao)} /></p>
-                <p className="text-xs text-navy-600">Liderança: <ValorPrivado valor={formatBRL(detalhe.comissoes.lideranca)} /></p>
+                <p className="text-xs text-navy-600">Patrocínio: <ValorPrivado valor={formatBRL(detalhe.comissoes.lideranca)} /></p>
               </div>
             </div>
 
             <div className="card">
               <h3 className="text-sm font-semibold text-navy-800">
-                Painel de progresso — liderança ({detalhe.painelProgresso.competencia})
+                Painel de progresso — patrocínio ({detalhe.painelProgresso.competencia})
               </h3>
               <p className="mt-1 text-sm text-navy-600">
                 Minhas vendas no mês: <strong>{detalhe.painelProgresso.minhasVendas}</strong> / {detalhe.painelProgresso.metaLider}

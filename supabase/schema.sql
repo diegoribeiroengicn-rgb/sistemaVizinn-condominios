@@ -2865,3 +2865,35 @@ alter table public.lembretes add constraint lembretes_categoria_check
 alter table public.lembretes drop constraint if exists lembretes_origem_check;
 alter table public.lembretes add constraint lembretes_origem_check
   check (origem in ('manual', 'manutencao', 'avisos', 'ocorrencias', 'financeiro_pagar', 'financeiro_receber'));
+
+-- Revisão da Regra 2 de comissionamento (antes chamada "liderança" —
+-- sem subordinação de verdade, então o nome mudou só na interface; as
+-- colunas internas continuam as mesmas, não vale a pena migrar banco só
+-- por causa do nome). Patrocinador precisa de 2+ vendas no mês (era 3);
+-- equipe pequena (≤5 diretos, era ≤8) precisa de 100% com 1+ venda
+-- (era 3+); equipe grande usa piso de max(5, 20% da equipe) com 1+
+-- venda cada, sem mais exigir nada do resto da equipe (campo
+-- meta_minima_secundaria parou de ser usado, mas a coluna fica — não
+-- vale apagar dado por causa disso). Atualiza o modelo padrão já em
+-- uso; modelos novos herdam os defaults novos das colunas.
+update public.modelos_comissionamento
+  set meta_minima_lider = 2,
+      limite_equipe_pequena = 5,
+      meta_minima_equipe = 1,
+      percentual_equipe_grande = 20,
+      versao = versao + 1,
+      updated_at = now()
+  where padrao = true;
+
+alter table public.modelos_comissionamento alter column meta_minima_lider set default 2;
+alter table public.modelos_comissionamento alter column limite_equipe_pequena set default 5;
+alter table public.modelos_comissionamento alter column meta_minima_equipe set default 1;
+alter table public.modelos_comissionamento alter column percentual_equipe_grande set default 20;
+
+-- Desvinculação automática (ponto novo da Regra 2): um vendedor que já
+-- recrutou 5 diretos com pelo menos 1 venda cada vira patrocinador
+-- independente sozinho. Essa coluna só marca se a emancipação foi
+-- feita pelo sistema (automática) ou por um admin manualmente — pra
+-- transparência na tela de detalhe do vendedor, sem mudar o
+-- comportamento de quem já lê data_emancipacao.
+alter table public.vendedores add column if not exists emancipacao_automatica boolean not null default false;

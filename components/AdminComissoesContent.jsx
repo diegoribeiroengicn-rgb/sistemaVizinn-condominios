@@ -102,7 +102,7 @@ export default function AdminComissoesContent() {
         <div>
           <h1 className="font-display text-xl font-bold text-navy-900">Comissões</h1>
           <p className="mt-1 text-sm text-navy-500">
-            Toda comissão gerada por venda — venda própria, indicação e liderança, com rastreabilidade completa.
+            Toda comissão gerada por venda — venda própria, indicação e patrocínio, com rastreabilidade completa.
           </p>
         </div>
         <div className="flex items-center gap-3">

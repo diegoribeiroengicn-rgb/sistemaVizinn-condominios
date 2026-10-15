@@ -338,7 +338,7 @@ function PainelVendedores() {
             value={form.indicadorOriginalId}
             onChange={(e) => setForm((f) => ({ ...f, indicadorOriginalId: e.target.value }))}
           >
-            <option value="">Sem indicador (vendedor raiz / líder independente)</option>
+            <option value="">Sem indicador (vendedor raiz / patrocinador independente)</option>
             {vendedores.map((v) => (
               <option key={v.id} value={v.id}>Indicado por: {v.nome}</option>
             ))}
@@ -381,7 +381,7 @@ function PainelVendedores() {
                   <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Pendente</span>
                 )}
                 {v.emancipado && (
-                  <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Líder independente</span>
+                  <span className="ml-2 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">Patrocinador independente</span>
                 )}
               </p>
               <p className="text-xs text-navy-400">
