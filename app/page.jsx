@@ -79,9 +79,12 @@ export default function HomePage() {
       <RepresentanteComercial />
 
       <footer className="border-t border-navy-100 py-8 text-center text-sm text-navy-400">
-        <p>
+        <p className="flex items-center justify-center gap-4">
           <Link href="/blog" className="font-semibold text-navy-600 hover:underline">
             Blog
+          </Link>
+          <Link href="/#app" className="font-semibold text-navy-600 hover:underline">
+            App
           </Link>
         </p>
         <p className="mt-2">© {new Date().getFullYear()} AquiHabitto — Condomínio Inteligente</p>

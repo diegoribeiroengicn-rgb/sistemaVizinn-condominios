@@ -51,7 +51,7 @@ export default function InstalarApp() {
           <h2 className="font-display text-xl font-bold text-navy-900">Leve o AquiHabitto no bolso</h2>
           <p className="mt-1 text-sm text-navy-600">
             Instale o app no seu celular — sem loja, sem espaço ocupado, direto do navegador.
-            Acesso rápido a chamados, avisos e financeiro de onde você estiver.
+            Acesso rápido a chamados, avisos, portaria e financeiro de onde você estiver.
           </p>
         </div>
         <div className="flex-none">
