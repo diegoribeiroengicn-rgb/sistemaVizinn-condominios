@@ -4,12 +4,16 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import CapturaFoto from "@/components/CapturaFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   DOCUMENTO_TIPO_LABELS,
+  TIPO_PESSOA_LABELS,
   buscarPessoaPorDocumento,
+  buscarPessoasPorNome,
   mascararDocumento,
   obterUrlFotoAssinada,
+  enviarFotoPessoa,
 } from "@/lib/pessoas";
 import {
   formatarDataHoraBR,
@@ -18,20 +22,7 @@ import {
   datetimeLocalBrasiliaParaISO,
 } from "@/lib/datetime";
 
-const TIPO_LABELS = {
-  visitante: "Visitante",
-  entregador: "Entregador",
-  prestador_servico: "Prestador de serviço",
-  morador: "Morador",
-  outro: "Outro",
-};
-
-// Só visitante/morador passam pela busca por documento (fazem sentido
-// reconhecer de uma visita pra outra); entregador/prestador/outro
-// continuam sendo um registro rápido, sem cadastro de pessoa por trás —
-// aproveita o que já existia pra esses casos, sem forçar documento onde
-// não ajuda em nada.
-const TIPOS_COM_BUSCA_DOCUMENTO = ["visitante", "morador"];
+const TIPO_LABELS = TIPO_PESSOA_LABELS;
 
 const emptyForm = {
   tipoAcesso: "visitante",
@@ -76,11 +67,15 @@ export default function PortariaPage() {
   const [buscaFeita, setBuscaFeita] = useState(false);
   const [pessoaEncontrada, setPessoaEncontrada] = useState(null);
   const [fotoPessoaUrl, setFotoPessoaUrl] = useState(null);
+  const [buscandoNome, setBuscandoNome] = useState(false);
+  const [candidatosNome, setCandidatosNome] = useState([]);
 
   const [corrigindoId, setCorrigindoId] = useState(null);
   const [correcaoForm, setCorrecaoForm] = useState(emptyCorrecao);
   const [salvandoCorrecao, setSalvandoCorrecao] = useState(false);
   const [abrindoFotoId, setAbrindoFotoId] = useState(null);
+  const [fotoNovoVisitante, setFotoNovoVisitante] = useState(null);
+  const [enviandoFoto, setEnviandoFoto] = useState(false);
 
   const podeCriar = temPermissao("portaria", "criar");
   const podeEditar = temPermissao("portaria", "editar");
@@ -110,6 +105,29 @@ export default function PortariaPage() {
     setBuscaFeita(false);
     setPessoaEncontrada(null);
     setFotoPessoaUrl(null);
+    setFotoNovoVisitante(null);
+    setCandidatosNome([]);
+  }
+
+  // Preenche o formulário sozinho a partir de uma pessoa já encontrada
+  // (por documento ou por nome) — usado nos dois fluxos de busca abaixo.
+  async function aplicarPessoaEncontrada(encontrada) {
+    setPessoaEncontrada(encontrada);
+    setCandidatosNome([]);
+    setFotoPessoaUrl(null);
+    if (!encontrada) return;
+    setForm((f) => ({
+      ...f,
+      nomePessoa: encontrada.nome,
+      telefonePessoa: encontrada.telefone || "",
+      documentoTipo: encontrada.documento_tipo || f.documentoTipo,
+      documentoNumero: encontrada.documento_numero || "",
+      tipoAcesso: encontrada.origem === "morador" ? "morador" : encontrada.tipo || "visitante",
+    }));
+    if (encontrada.foto_path) {
+      const url = await obterUrlFotoAssinada(encontrada.foto_path);
+      setFotoPessoaUrl(url);
+    }
   }
 
   // Busca a pessoa (morador OU visitante, nas duas bases) pelo documento —
@@ -118,24 +136,31 @@ export default function PortariaPage() {
     if (!condominio?.id || !form.documentoNumero.trim()) return;
     setBuscando(true);
     setError("");
-    setFotoPessoaUrl(null);
     const encontrada = await buscarPessoaPorDocumento(condominio.id, form.documentoTipo, form.documentoNumero.trim());
-    setPessoaEncontrada(encontrada);
+    await aplicarPessoaEncontrada(encontrada);
     setBuscaFeita(true);
     setBuscando(false);
-    if (encontrada) {
-      setForm((f) => ({
-        ...f,
-        nomePessoa: encontrada.nome,
-        telefonePessoa: encontrada.telefone || "",
-        tipoAcesso: encontrada.origem === "morador" ? "morador" : "visitante",
-      }));
-      if (encontrada.foto_path) {
-        const url = await obterUrlFotoAssinada(encontrada.foto_path);
-        setFotoPessoaUrl(url);
-      }
+    if (!encontrada) setForm((f) => ({ ...f, nomePessoa: "", telefonePessoa: "" }));
+  }
+
+  // Alternativa pra quando não tem o documento em mãos: busca por nome
+  // (parcial) nas duas bases. Se achar mais de uma pessoa parecida,
+  // mostra os candidatos pra escolher — nunca presume qual é.
+  async function handleBuscarPorNome() {
+    if (!condominio?.id || !form.nomePessoa.trim()) return;
+    setBuscandoNome(true);
+    setError("");
+    const candidatos = await buscarPessoasPorNome(condominio.id, form.nomePessoa.trim());
+    setBuscandoNome(false);
+    if (candidatos.length === 1) {
+      await aplicarPessoaEncontrada(candidatos[0]);
+      setBuscaFeita(true);
+    } else if (candidatos.length > 1) {
+      setCandidatosNome(candidatos);
+      setPessoaEncontrada(null);
     } else {
-      setForm((f) => ({ ...f, nomePessoa: "", telefonePessoa: "" }));
+      setCandidatosNome([]);
+      setError("Ninguém com esse nome encontrado. Pode preencher o cadastro simplificado normalmente.");
     }
   }
 
@@ -158,37 +183,52 @@ export default function PortariaPage() {
     setSubmitting(true);
     setError("");
 
-    const comBusca = TIPOS_COM_BUSCA_DOCUMENTO.includes(form.tipoAcesso);
     let visitanteId = null;
     let moradorId = null;
     let documentoNumero = null;
 
-    if (comBusca && pessoaEncontrada) {
+    if (pessoaEncontrada) {
       documentoNumero = pessoaEncontrada.documento_numero || null;
       if (pessoaEncontrada.origem === "morador") moradorId = pessoaEncontrada.id;
       else visitanteId = pessoaEncontrada.id;
-    } else if (form.tipoAcesso === "visitante" && form.documentoNumero.trim()) {
-      // Documento informado mas não encontrado: cadastro simplificado de
-      // visitante (só o que é necessário), pra reconhecer da próxima vez.
-      const { data: novoVisitante, error: visitanteError } = await supabase
+    } else if (form.tipoAcesso !== "morador" && (form.documentoNumero.trim() || fotoNovoVisitante)) {
+      // Documento informado (ou pelo menos uma foto tirada) mas pessoa não
+      // encontrada: cadastro simplificado — visitante, entregador,
+      // prestador de serviço ou outro, pra reconhecer da próxima vez.
+      let fotoPath = null;
+      if (fotoNovoVisitante) {
+        setEnviandoFoto(true);
+        try {
+          fotoPath = await enviarFotoPessoa(condominio.id, "visitantes", fotoNovoVisitante);
+        } catch (uploadError) {
+          setSubmitting(false);
+          setEnviandoFoto(false);
+          setError(`Erro ao enviar a foto: ${uploadError.message}`);
+          return;
+        }
+        setEnviandoFoto(false);
+      }
+      const { data: novaPessoa, error: pessoaError } = await supabase
         .from("visitantes")
         .insert({
           condominio_id: condominio.id,
           nome: form.nomePessoa.trim(),
-          documento_tipo: form.documentoTipo,
-          documento_numero: form.documentoNumero.trim(),
+          tipo: form.tipoAcesso,
+          documento_tipo: form.documentoNumero.trim() ? form.documentoTipo : null,
+          documento_numero: form.documentoNumero.trim() || null,
           telefone: form.telefonePessoa.trim() || null,
+          foto_path: fotoPath,
           criado_por_id: user?.id || null,
         })
         .select("id, documento_numero")
         .single();
-      if (visitanteError) {
+      if (pessoaError) {
         setSubmitting(false);
-        setError(`Erro ao cadastrar visitante: ${visitanteError.message}`);
+        setError(`Erro ao cadastrar pessoa: ${pessoaError.message}`);
         return;
       }
-      visitanteId = novoVisitante.id;
-      documentoNumero = novoVisitante.documento_numero;
+      visitanteId = novaPessoa.id;
+      documentoNumero = novaPessoa.documento_numero;
     }
 
     // Placa de carro já cadastrado em Veículos (se bater, só linka — não
@@ -378,12 +418,11 @@ export default function PortariaPage() {
               </div>
             </div>
 
-            {TIPOS_COM_BUSCA_DOCUMENTO.includes(form.tipoAcesso) ? (
-              <div className="rounded-xl border border-navy-100 p-3">
+            <div className="rounded-xl border border-navy-100 p-3">
                 <p className="text-sm font-medium text-navy-800">Buscar pelo documento</p>
                 <p className="mt-0.5 text-xs text-navy-500">
-                  Se a pessoa já tiver cadastro (morador ou visita anterior), os dados aparecem
-                  sozinhos — não precisa preencher tudo de novo.
+                  Se a pessoa já tiver cadastro (morador ou visita anterior, de qualquer tipo), os
+                  dados aparecem sozinhos — não precisa preencher tudo de novo.
                 </p>
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_auto]">
                   <select
@@ -427,7 +466,7 @@ export default function PortariaPage() {
                       Encontrado: <strong>{pessoaEncontrada.nome}</strong>{" "}
                       {pessoaEncontrada.origem === "morador"
                         ? `(morador, unidade ${pessoaEncontrada.unidade})`
-                        : "(visitante já cadastrado)"}
+                        : `(${TIPO_LABELS[pessoaEncontrada.tipo] || "visitante"} já cadastrado)`}
                     </span>
                   </div>
                 )}
@@ -436,19 +475,51 @@ export default function PortariaPage() {
                     Documento não encontrado. Preencha o cadastro simplificado abaixo.
                   </p>
                 )}
-              </div>
-            ) : null}
+            </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="label-field">Nome da pessoa</label>
-                <input
-                  className="input-field"
-                  value={form.nomePessoa}
-                  onChange={(e) => setForm((f) => ({ ...f, nomePessoa: e.target.value }))}
-                  disabled={Boolean(pessoaEncontrada)}
-                  required
-                />
+                <div className="flex gap-2">
+                  <input
+                    className="input-field"
+                    value={form.nomePessoa}
+                    onChange={(e) => {
+                      setCandidatosNome([]);
+                      setForm((f) => ({ ...f, nomePessoa: e.target.value }));
+                    }}
+                    disabled={Boolean(pessoaEncontrada)}
+                    required
+                  />
+                  {!pessoaEncontrada && (
+                    <button
+                      type="button"
+                      onClick={handleBuscarPorNome}
+                      disabled={buscandoNome || form.nomePessoa.trim().length < 3}
+                      className="btn-secondary shrink-0 text-sm disabled:opacity-50"
+                    >
+                      {buscandoNome ? "..." : "Já veio aqui?"}
+                    </button>
+                  )}
+                </div>
+                {candidatosNome.length > 0 && (
+                  <div className="mt-2 space-y-1 rounded-lg border border-navy-100 p-2">
+                    <p className="text-xs text-navy-500">Encontrei mais de uma pessoa — qual é?</p>
+                    {candidatosNome.map((c) => (
+                      <button
+                        key={`${c.origem}-${c.id}`}
+                        type="button"
+                        onClick={() => aplicarPessoaEncontrada(c)}
+                        className="block w-full rounded-lg px-2 py-1 text-left text-sm text-navy-700 hover:bg-navy-50"
+                      >
+                        <strong>{c.nome}</strong>{" "}
+                        <span className="text-navy-400">
+                          {c.origem === "morador" ? `(morador, unidade ${c.unidade})` : `(${TIPO_LABELS[c.tipo] || "visitante"})`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="label-field">Responsável pela visita (opcional)</label>
@@ -459,6 +530,12 @@ export default function PortariaPage() {
                   placeholder="Quem na unidade autorizou/recebeu"
                 />
               </div>
+              {form.tipoAcesso !== "morador" && !pessoaEncontrada && (
+                <div className="sm:col-span-2">
+                  <label className="label-field">Foto (opcional)</label>
+                  <CapturaFoto onCapturar={setFotoNovoVisitante} />
+                </div>
+              )}
               <div>
                 <label className="label-field">Forma de entrada</label>
                 <select
@@ -782,7 +859,7 @@ export default function PortariaPage() {
                       </tr>
                       {corrigindoId === r.id && (
                         <tr className="border-b border-navy-50">
-                          <td colSpan={podeCorrigir ? 9 : 8} className="bg-navy-50/40 px-3 py-3">
+                          <td colSpan={podeCorrigir ? 10 : 9} className="bg-navy-50/40 px-3 py-3">
                             <CorrecaoInline
                               correcaoForm={correcaoForm}
                               setCorrecaoForm={setCorrecaoForm}

@@ -3156,3 +3156,12 @@ create policy "Members can delete fotos de pessoas"
     bucket_id = 'pessoas-fotos'
     and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, public.pessoas_fotos_modulo(name), 'editar')
   );
+
+-- "visitantes" deixa de ser só visitante: passa a cobrir também
+-- entregador/prestador de serviço/outro — um único cadastro reconhecível
+-- por documento pra qualquer tipo de pessoa que não é moradora (a tela
+-- de Cadastro de Pessoas usa essa coluna pra filtrar por tipo).
+alter table public.visitantes add column if not exists tipo text not null default 'visitante';
+alter table public.visitantes drop constraint if exists visitantes_tipo_check;
+alter table public.visitantes add constraint visitantes_tipo_check
+  check (tipo in ('visitante', 'entregador', 'prestador_servico', 'outro'));

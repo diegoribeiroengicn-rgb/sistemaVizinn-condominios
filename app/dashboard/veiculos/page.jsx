@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
+import CapturaFoto from "@/components/CapturaFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
   TIPO_VEICULO_LABELS,
@@ -548,15 +549,7 @@ export default function VeiculosPage() {
               </div>
               <div className="sm:col-span-2">
                 <label className="label-field">Foto do veículo (opcional)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="text-sm text-navy-600"
-                  onChange={(e) => setFotoArquivo(e.target.files?.[0] || null)}
-                />
-                <p className="mt-1 text-xs text-navy-400">
-                  {editingId && !fotoArquivo ? "Deixe em branco pra manter a foto atual." : ""}
-                </p>
+                <CapturaFoto onCapturar={setFotoArquivo} fotoAtualNome={editingId ? "foto atual" : null} />
               </div>
               <div className="sm:col-span-2">
                 <label className="label-field">Observações (opcional)</label>
