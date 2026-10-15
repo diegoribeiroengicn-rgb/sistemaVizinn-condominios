@@ -35,9 +35,6 @@ const emptyForm = {
   formaEntrada: "a_pe",
   placaVeiculo: "",
   observacoes: "",
-  lancamentoManual: false,
-  entradaManualLocal: "",
-  justificativaManual: "",
 };
 
 const emptyFiltro = {
@@ -204,12 +201,12 @@ export default function PortariaPage() {
       setError("Informe o nome da pessoa (ou busque pelo documento).");
       return;
     }
-    if (form.formaEntrada === "carro" && !form.placaVeiculo.trim()) {
-      setError("Informe a placa do veículo.");
+    if (form.tipoAcesso !== "morador" && !form.documentoNumero.trim()) {
+      setError("Documento é obrigatório — é o que permite reconhecer essa pessoa da próxima vez.");
       return;
     }
-    if (form.lancamentoManual && (!form.entradaManualLocal || !form.justificativaManual.trim())) {
-      setError("Lançamento manual exige o horário de entrada e a justificativa.");
+    if (form.formaEntrada === "carro" && !form.placaVeiculo.trim()) {
+      setError("Informe a placa do veículo.");
       return;
     }
 
@@ -293,13 +290,6 @@ export default function PortariaPage() {
       morador_id: moradorId,
       veiculo_id: veiculoId,
       documento_numero: documentoNumero,
-      ...(form.lancamentoManual
-        ? {
-            entrada_manual: true,
-            entrada_em: datetimeLocalBrasiliaParaISO(form.entradaManualLocal),
-            justificativa: form.justificativaManual.trim(),
-          }
-        : {}),
     };
 
     const { error: insertError } = await supabase.from("portaria_registros").insert(payload);
@@ -483,10 +473,13 @@ export default function PortariaPage() {
             </div>
 
             <div className="rounded-xl border border-navy-100 p-3">
-                <p className="text-sm font-medium text-navy-800">Buscar pelo documento</p>
+                <p className="text-sm font-medium text-navy-800">
+                  Buscar pelo documento{form.tipoAcesso !== "morador" ? " (obrigatório)" : ""}
+                </p>
                 <p className="mt-0.5 text-xs text-navy-500">
-                  Se a pessoa já tiver cadastro (morador ou visita anterior, de qualquer tipo), os
-                  dados aparecem sozinhos — não precisa preencher tudo de novo.
+                  {form.tipoAcesso !== "morador"
+                    ? "É o que permite reconhecer essa pessoa da próxima vez — sem documento não dá pra registrar."
+                    : "Se a pessoa já tiver cadastro, os dados aparecem sozinhos — não precisa preencher tudo de novo."}
                 </p>
                 <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[auto_1fr_auto]">
                   <select
@@ -509,6 +502,7 @@ export default function PortariaPage() {
                       setForm((f) => ({ ...f, documentoNumero: e.target.value }));
                     }}
                     placeholder="Número do documento"
+                    required={form.tipoAcesso !== "morador"}
                   />
                   <button
                     type="button"
@@ -667,44 +661,6 @@ export default function PortariaPage() {
                 />
               </div>
             </div>
-
-            {podeCorrigir && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
-                <label className="flex items-center gap-2 text-sm text-navy-700">
-                  <input
-                    type="checkbox"
-                    checked={form.lancamentoManual}
-                    onChange={(e) => setForm((f) => ({ ...f, lancamentoManual: e.target.checked }))}
-                  />
-                  Lançamento manual (regularizar um horário passado, não a agora)
-                </label>
-                {form.lancamentoManual && (
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <div>
-                      <label className="label-field">Horário real da entrada</label>
-                      <input
-                        type="datetime-local"
-                        className="input-field"
-                        value={form.entradaManualLocal}
-                        onChange={(e) => setForm((f) => ({ ...f, entradaManualLocal: e.target.value }))}
-                        required
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="label-field">Justificativa (obrigatória)</label>
-                      <textarea
-                        className="input-field"
-                        rows={2}
-                        value={form.justificativaManual}
-                        onChange={(e) => setForm((f) => ({ ...f, justificativaManual: e.target.value }))}
-                        placeholder="Ex: porteiro esqueceu de registrar na hora"
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
 
             <button type="submit" disabled={submitting} className="btn-primary">
               {submitting ? "Registrando..." : "Registrar entrada"}
