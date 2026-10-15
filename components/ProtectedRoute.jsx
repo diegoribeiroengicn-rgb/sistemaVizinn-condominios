@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
-// Redirects to the home page when there is no authenticated user.
+// Redirects to the login page when there is no authenticated user.
 // Renders a lightweight loading state while the session is resolved.
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/");
+      router.replace("/login");
     }
   }, [loading, user, router]);
 
