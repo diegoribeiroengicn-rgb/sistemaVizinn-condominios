@@ -9,6 +9,7 @@ import LandingHero from "@/components/LandingHero";
 import Features from "@/components/Features";
 import AcademiaDestaque from "@/components/AcademiaDestaque";
 import EcossistemaFornecedores from "@/components/EcossistemaFornecedores";
+import InstalarApp from "@/components/InstalarApp";
 import Pricing from "@/components/Pricing";
 import ContactSection from "@/components/ContactSection";
 import FinalCta from "@/components/FinalCta";
@@ -71,6 +72,7 @@ export default function HomePage() {
       <Features />
       <AcademiaDestaque onStart={() => openSignup("growth")} />
       <EcossistemaFornecedores onStart={() => openSignup("growth")} />
+      <InstalarApp />
       <Pricing onSelectPlan={openSignup} />
       <FinalCta onStart={() => openSignup("growth")} />
       <ContactSection />
