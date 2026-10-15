@@ -645,6 +645,7 @@ export default function MoradoresPage() {
                   <label className="label-field">Telefone / WhatsApp (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode="numeric"
                     value={form.telefone}
                     onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
                     placeholder="Ex: 11999998888"
@@ -678,6 +679,7 @@ export default function MoradoresPage() {
                   <label className="label-field">Número do documento (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode={form.documentoTipo === "outro" ? "text" : "numeric"}
                     value={form.documentoNumero}
                     onChange={(e) => setForm((f) => ({ ...f, documentoNumero: e.target.value }))}
                     placeholder="Usado pela portaria pra reconhecer essa pessoa"
@@ -843,6 +845,7 @@ export default function MoradoresPage() {
                   <label className="label-field">Telefone (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode="numeric"
                     value={formPessoa.telefone}
                     onChange={(e) => setFormPessoa((f) => ({ ...f, telefone: e.target.value }))}
                   />
@@ -865,6 +868,7 @@ export default function MoradoresPage() {
                   <label className="label-field">Número do documento (opcional)</label>
                   <input
                     className="input-field"
+                    inputMode={formPessoa.documentoTipo === "outro" ? "text" : "numeric"}
                     value={formPessoa.documentoNumero}
                     onChange={(e) => setFormPessoa((f) => ({ ...f, documentoNumero: e.target.value }))}
                     placeholder="Usado pra reconhecer da próxima vez"

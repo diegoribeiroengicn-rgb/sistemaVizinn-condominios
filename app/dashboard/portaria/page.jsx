@@ -497,6 +497,7 @@ export default function PortariaPage() {
                   </select>
                   <input
                     className="input-field"
+                    inputMode={form.documentoTipo === "outro" ? "text" : "numeric"}
                     value={form.documentoNumero}
                     onChange={(e) => {
                       setBuscaFeita(false);
@@ -519,14 +520,33 @@ export default function PortariaPage() {
                 {buscaFeita && pessoaEncontrada && (
                   <div className="mt-3 flex items-center gap-3 rounded-lg bg-emerald-50 p-2 text-sm text-emerald-800">
                     {fotoPessoaUrl && (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={fotoPessoaUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setFotoAmpliada(fotoPessoaUrl)}
+                        className="shrink-0"
+                        title="Ver foto ampliada — confira se é a mesma pessoa"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={fotoPessoaUrl} alt="" className="h-10 w-10 rounded-full object-cover hover:opacity-80" />
+                      </button>
                     )}
                     <span>
                       Encontrado: <strong>{pessoaEncontrada.nome}</strong>{" "}
                       {pessoaEncontrada.origem === "morador"
                         ? `(morador, unidade ${pessoaEncontrada.unidade})`
                         : `(${TIPO_LABELS[pessoaEncontrada.tipo] || "visitante"} já cadastrado)`}
+                      {fotoPessoaUrl && (
+                        <>
+                          {" — "}
+                          <button
+                            type="button"
+                            onClick={() => setFotoAmpliada(fotoPessoaUrl)}
+                            className="font-semibold underline hover:text-emerald-900"
+                          >
+                            ver foto maior
+                          </button>
+                        </>
+                      )}
                     </span>
                   </div>
                 )}
