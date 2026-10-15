@@ -76,6 +76,9 @@ export default function PortariaPage() {
   const [abrindoFotoId, setAbrindoFotoId] = useState(null);
   const [fotoNovoVisitante, setFotoNovoVisitante] = useState(null);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
+  const [unidadesDisponiveis, setUnidadesDisponiveis] = useState([]);
+  const [moradoresCompletos, setMoradoresCompletos] = useState([]);
+  const [responsavelModoOutro, setResponsavelModoOutro] = useState(false);
 
   const podeCriar = temPermissao("portaria", "criar");
   const podeEditar = temPermissao("portaria", "editar");
@@ -100,6 +103,32 @@ export default function PortariaPage() {
     load();
   }, [load]);
 
+  // Lista de unidades reais (de Moradores) pro campo "Unidade de destino"
+  // virar uma seleção em vez de texto livre — ninguém digita "qualquer
+  // coisa" na unidade de um registro de acesso. Guarda a lista completa
+  // (com nome) também, pra filtrar quem mora em cada unidade e oferecer
+  // como "Responsável pela visita".
+  useEffect(() => {
+    if (!condominio?.id) return;
+    supabase
+      .from("moradores")
+      .select("id, nome, unidade, bloco")
+      .eq("condominio_id", condominio.id)
+      .order("unidade", { ascending: true })
+      .then(({ data }) => {
+        setMoradoresCompletos(data || []);
+        const vistas = new Set();
+        const unicas = [];
+        for (const m of data || []) {
+          const rotulo = m.bloco ? `${m.unidade} (Bloco ${m.bloco})` : m.unidade;
+          if (vistas.has(m.unidade)) continue;
+          vistas.add(m.unidade);
+          unicas.push({ valor: m.unidade, rotulo });
+        }
+        setUnidadesDisponiveis(unicas);
+      });
+  }, [condominio?.id]);
+
   function resetForm() {
     setForm(emptyForm);
     setBuscaFeita(false);
@@ -107,6 +136,7 @@ export default function PortariaPage() {
     setFotoPessoaUrl(null);
     setFotoNovoVisitante(null);
     setCandidatosNome([]);
+    setResponsavelModoOutro(false);
   }
 
   // Preenche o formulário sozinho a partir de uma pessoa já encontrada
@@ -123,6 +153,9 @@ export default function PortariaPage() {
       documentoTipo: encontrada.documento_tipo || f.documentoTipo,
       documentoNumero: encontrada.documento_numero || "",
       tipoAcesso: encontrada.origem === "morador" ? "morador" : encontrada.tipo || "visitante",
+      // Se a pessoa encontrada É moradora, a unidade de destino já é a
+      // dela — não precisa escolher nada.
+      unidade: encontrada.origem === "morador" ? encontrada.unidade : f.unidade,
     }));
     if (encontrada.foto_path) {
       const url = await obterUrlFotoAssinada(encontrada.foto_path);
@@ -368,6 +401,14 @@ export default function PortariaPage() {
 
   const dentroAgora = useMemo(() => registros.filter((r) => !r.saida_em).length, [registros]);
 
+  // Moradores da unidade escolhida — vira a lista de "quem pode ser o
+  // responsável pela visita". Sem unidade escolhida (ou sem morador
+  // cadastrado nela), fica vazio e o campo cai pro texto livre.
+  const moradoresDaUnidade = useMemo(
+    () => (form.unidade ? moradoresCompletos.filter((m) => m.unidade === form.unidade) : []),
+    [moradoresCompletos, form.unidade]
+  );
+
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
   }
@@ -408,13 +449,36 @@ export default function PortariaPage() {
               </div>
               <div>
                 <label className="label-field">Unidade de destino</label>
-                <input
-                  className="input-field"
-                  inputMode="numeric"
-                  value={form.unidade}
-                  onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-                  placeholder="Ex: Apto 32"
-                />
+                {unidadesDisponiveis.length > 0 ? (
+                  <select
+                    className="input-field"
+                    value={form.unidade}
+                    onChange={(e) => {
+                      setResponsavelModoOutro(false);
+                      setForm((f) => ({ ...f, unidade: e.target.value, responsavelNome: "" }));
+                    }}
+                  >
+                    <option value="">Selecione a unidade</option>
+                    {unidadesDisponiveis.map((u) => (
+                      <option key={u.valor} value={u.valor}>
+                        {u.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <input
+                      className="input-field"
+                      inputMode="numeric"
+                      value={form.unidade}
+                      onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
+                      placeholder="Ex: Apto 32"
+                    />
+                    <p className="mt-1 text-xs text-navy-400">
+                      Cadastre as unidades em Moradores pra esse campo virar uma lista.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 
@@ -523,12 +587,46 @@ export default function PortariaPage() {
               </div>
               <div>
                 <label className="label-field">Responsável pela visita (opcional)</label>
-                <input
-                  className="input-field"
-                  value={form.responsavelNome}
-                  onChange={(e) => setForm((f) => ({ ...f, responsavelNome: e.target.value }))}
-                  placeholder="Quem na unidade autorizou/recebeu"
-                />
+                {moradoresDaUnidade.length > 0 && !responsavelModoOutro ? (
+                  <select
+                    className="input-field"
+                    value={form.responsavelNome}
+                    onChange={(e) => {
+                      if (e.target.value === "__outro__") {
+                        setResponsavelModoOutro(true);
+                        setForm((f) => ({ ...f, responsavelNome: "" }));
+                      } else {
+                        setForm((f) => ({ ...f, responsavelNome: e.target.value }));
+                      }
+                    }}
+                  >
+                    <option value="">Quem na unidade autorizou/recebeu</option>
+                    {moradoresDaUnidade.map((m) => (
+                      <option key={m.id} value={m.nome}>
+                        {m.nome}
+                      </option>
+                    ))}
+                    <option value="__outro__">Outro (digitar nome)</option>
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      className="input-field"
+                      value={form.responsavelNome}
+                      onChange={(e) => setForm((f) => ({ ...f, responsavelNome: e.target.value }))}
+                      placeholder="Quem na unidade autorizou/recebeu"
+                    />
+                    {moradoresDaUnidade.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setResponsavelModoOutro(false)}
+                        className="shrink-0 text-xs font-semibold text-navy-500 hover:underline"
+                      >
+                        Voltar pra lista
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               {form.tipoAcesso !== "morador" && !pessoaEncontrada && (
                 <div className="sm:col-span-2">
