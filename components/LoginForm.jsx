@@ -148,6 +148,7 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onClose }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="voce@email.com"
+            data-testid="login-email"
           />
         </div>
         <div>
@@ -160,6 +161,7 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onClose }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              data-testid="login-senha"
             />
             <button
               type="button"
@@ -184,7 +186,7 @@ export default function LoginForm({ onSuccess, onSwitchToSignup, onClose }) {
 
         {error && <p className="text-sm text-coral-700">{error}</p>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        <button type="submit" disabled={loading} className="btn-primary w-full" data-testid="login-submit">
           {loading ? "Entrando..." : "Entrar"}
         </button>
       </form>

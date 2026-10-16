@@ -506,6 +506,7 @@ export default function PortariaPage() {
                     }}
                     placeholder="Número do documento"
                     required={form.tipoAcesso !== "morador"}
+                    data-testid="portaria-documento"
                   />
                   <button
                     type="button"
@@ -570,6 +571,7 @@ export default function PortariaPage() {
                     }}
                     disabled={Boolean(pessoaEncontrada)}
                     required
+                    data-testid="portaria-nome"
                   />
                   {!pessoaEncontrada && (
                     <button
@@ -684,7 +686,7 @@ export default function PortariaPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={submitting} className="btn-primary">
+            <button type="submit" disabled={submitting} className="btn-primary" data-testid="portaria-submit">
               {submitting ? "Registrando..." : "Registrar entrada"}
             </button>
           </form>

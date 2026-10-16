@@ -728,6 +728,7 @@ export default function FinanceiroPage() {
                     value={formPagar.descricao}
                     onChange={(e) => setFormPagar((f) => ({ ...f, descricao: e.target.value }))}
                     required
+                    data-testid="financeiro-descricao"
                   />
                 </div>
                 <div>
@@ -821,6 +822,7 @@ export default function FinanceiroPage() {
                     value={formPagar.valor}
                     onChange={(e) => setFormPagar((f) => ({ ...f, valor: e.target.value }))}
                     required
+                    data-testid="financeiro-valor"
                   />
                 </div>
                 <div>
@@ -908,7 +910,7 @@ export default function FinanceiroPage() {
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <button type="submit" disabled={submittingPagar} className="btn-primary">
+                  <button type="submit" disabled={submittingPagar} className="btn-primary" data-testid="financeiro-submit">
                     {enviandoArquivo ? "Enviando documento..." : submittingPagar ? "Salvando..." : "Registrar conta a pagar"}
                   </button>
                 </div>

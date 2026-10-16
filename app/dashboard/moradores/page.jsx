@@ -621,6 +621,7 @@ export default function MoradoresPage() {
                     onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
                     placeholder="Ex: 101"
                     required
+                    data-testid="morador-unidade"
                   />
                 </div>
                 <div>
@@ -639,6 +640,7 @@ export default function MoradoresPage() {
                     value={form.nome}
                     onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                     required
+                    data-testid="morador-nome"
                   />
                 </div>
                 <div>
@@ -700,7 +702,7 @@ export default function MoradoresPage() {
                 </div>
 
                 <div className="sm:col-span-2 flex gap-3">
-                  <button type="submit" disabled={submitting} className="btn-primary">
+                  <button type="submit" disabled={submitting} className="btn-primary" data-testid="morador-submit">
                     {enviandoFoto ? "Enviando foto..." : submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar morador"}
                   </button>
                   {editingId && (
