@@ -7,9 +7,6 @@ import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import {
-  CATEGORIAS_DESPESA,
-  CATEGORIAS_RECEITA,
-  FORMAS_PAGAMENTO,
   STATUS_PAGAR_FINAIS,
   STATUS_PAGAR_LABELS,
   STATUS_PAGAR_ORDER,

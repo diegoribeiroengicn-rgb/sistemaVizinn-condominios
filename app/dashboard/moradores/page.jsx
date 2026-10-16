@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
-import CapturaFoto from "@/components/CapturaFoto";
 import VisualizadorFoto from "@/components/VisualizadorFoto";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { parseMoradoresCsv, parseMoradoresXlsx, gerarModeloMoradores, COLUNAS_RELATORIO } from "@/lib/moradores";
 import { baixarBlob } from "@/lib/xlsx";
 import { gerarPdf, gerarDocx } from "@/lib/relatorios";
 import { DOCUMENTO_TIPO_LABELS, TIPO_VISITANTE_LABELS, enviarFotoPessoa, obterUrlFotoAssinada } from "@/lib/pessoas";
+import MoradorForm from "@/components/moradores/MoradorForm";
+import PessoaForm from "@/components/moradores/PessoaForm";
 
 const emptyForm = {
   unidade: "",
@@ -607,112 +608,16 @@ export default function MoradoresPage() {
           )}
 
           {podeCriar && (
-            <div className="card">
-              <h2 className="font-display text-lg font-bold text-navy-900">
-                {editingId ? "Editar morador" : "Cadastrar manualmente"}
-              </h2>
-              <form onSubmit={handleSubmit} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label-field">Unidade</label>
-                  <input
-                    className="input-field"
-                    inputMode="numeric"
-                    value={form.unidade}
-                    onChange={(e) => setForm((f) => ({ ...f, unidade: e.target.value }))}
-                    placeholder="Ex: 101"
-                    required
-                    data-testid="morador-unidade"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Bloco (opcional)</label>
-                  <input
-                    className="input-field"
-                    value={form.bloco}
-                    onChange={(e) => setForm((f) => ({ ...f, bloco: e.target.value }))}
-                    placeholder="Ex: A"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Nome completo</label>
-                  <input
-                    className="input-field"
-                    value={form.nome}
-                    onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                    required
-                    data-testid="morador-nome"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Telefone / WhatsApp (opcional)</label>
-                  <input
-                    className="input-field"
-                    inputMode="numeric"
-                    value={form.telefone}
-                    onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))}
-                    placeholder="Ex: 11999998888"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">E-mail (opcional)</label>
-                  <input
-                    type="email"
-                    className="input-field"
-                    value={form.email}
-                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Tipo de documento (opcional)</label>
-                  <select
-                    className="input-field"
-                    value={form.documentoTipo}
-                    onChange={(e) => setForm((f) => ({ ...f, documentoTipo: e.target.value }))}
-                  >
-                    <option value="">Não informar</option>
-                    {Object.entries(DOCUMENTO_TIPO_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-field">Número do documento (opcional)</label>
-                  <input
-                    className="input-field"
-                    inputMode={form.documentoTipo === "outro" ? "text" : "numeric"}
-                    value={form.documentoNumero}
-                    onChange={(e) => setForm((f) => ({ ...f, documentoNumero: e.target.value }))}
-                    placeholder="Usado pela portaria pra reconhecer essa pessoa"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Foto (opcional)</label>
-                  <CapturaFoto onCapturar={setFotoArquivo} fotoAtualNome={editingId ? "foto atual" : null} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Observações (opcional)</label>
-                  <textarea
-                    className="input-field"
-                    rows={2}
-                    value={form.observacoes}
-                    onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
-                  />
-                </div>
-
-                <div className="sm:col-span-2 flex gap-3">
-                  <button type="submit" disabled={submitting} className="btn-primary" data-testid="morador-submit">
-                    {enviandoFoto ? "Enviando foto..." : submitting ? "Salvando..." : editingId ? "Salvar alterações" : "Cadastrar morador"}
-                  </button>
-                  {editingId && (
-                    <button type="button" onClick={resetForm} className="text-sm font-semibold text-navy-500 hover:underline">
-                      Cancelar edição
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
+            <MoradorForm
+              form={form}
+              setForm={setForm}
+              onSubmit={handleSubmit}
+              editingId={editingId}
+              submitting={submitting}
+              enviandoFoto={enviandoFoto}
+              onCapturarFoto={setFotoArquivo}
+              onCancelarEdicao={resetForm}
+            />
           )}
 
           {error && <p className="text-sm text-coral-700">{error}</p>}
@@ -811,103 +716,16 @@ export default function MoradoresPage() {
           </div>
 
           {podeCriarVisitante && (
-            <div className="card">
-              <h2 className="font-display text-lg font-bold text-navy-900">
-                {editingPessoaId ? "Editar cadastro" : "Cadastrar manualmente"}
-              </h2>
-              <p className="mt-1 text-sm text-navy-500">
-                O mesmo cadastro que a Portaria cria sozinha quando busca por documento e não acha
-                ninguém — aqui dá pra criar, corrigir ou desativar direto.
-              </p>
-              <form onSubmit={handleSubmitPessoa} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="label-field">Nome completo</label>
-                  <input
-                    className="input-field"
-                    value={formPessoa.nome}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, nome: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Tipo</label>
-                  <select
-                    className="input-field"
-                    value={formPessoa.tipo}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, tipo: e.target.value }))}
-                  >
-                    {Object.entries(TIPO_VISITANTE_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-field">Telefone (opcional)</label>
-                  <input
-                    className="input-field"
-                    inputMode="numeric"
-                    value={formPessoa.telefone}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, telefone: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Tipo de documento (opcional)</label>
-                  <select
-                    className="input-field"
-                    value={formPessoa.documentoTipo}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, documentoTipo: e.target.value }))}
-                  >
-                    {Object.entries(DOCUMENTO_TIPO_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-field">Número do documento (opcional)</label>
-                  <input
-                    className="input-field"
-                    inputMode={formPessoa.documentoTipo === "outro" ? "text" : "numeric"}
-                    value={formPessoa.documentoNumero}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, documentoNumero: e.target.value }))}
-                    placeholder="Usado pra reconhecer da próxima vez"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Foto (opcional)</label>
-                  <CapturaFoto onCapturar={setFotoPessoaArquivo} fotoAtualNome={editingPessoaId ? "foto atual" : null} />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Observações (opcional)</label>
-                  <textarea
-                    className="input-field"
-                    rows={2}
-                    value={formPessoa.observacoes}
-                    onChange={(e) => setFormPessoa((f) => ({ ...f, observacoes: e.target.value }))}
-                  />
-                </div>
-
-                <div className="sm:col-span-2 flex gap-3">
-                  <button type="submit" disabled={submittingPessoa} className="btn-primary">
-                    {enviandoFotoPessoa
-                      ? "Enviando foto..."
-                      : submittingPessoa
-                        ? "Salvando..."
-                        : editingPessoaId
-                          ? "Salvar alterações"
-                          : "Cadastrar"}
-                  </button>
-                  {editingPessoaId && (
-                    <button type="button" onClick={resetFormPessoa} className="text-sm font-semibold text-navy-500 hover:underline">
-                      Cancelar edição
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
+            <PessoaForm
+              form={formPessoa}
+              setForm={setFormPessoa}
+              onSubmit={handleSubmitPessoa}
+              editingId={editingPessoaId}
+              submitting={submittingPessoa}
+              enviandoFoto={enviandoFotoPessoa}
+              onCapturarFoto={setFotoPessoaArquivo}
+              onCancelarEdicao={resetFormPessoa}
+            />
           )}
 
           {errorPessoas && <p className="text-sm text-coral-700">{errorPessoas}</p>}
