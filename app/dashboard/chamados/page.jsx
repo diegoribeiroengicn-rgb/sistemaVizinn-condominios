@@ -72,6 +72,9 @@ export default function ChamadosPage() {
   const searchParams = useSearchParams();
 
   const [chamados, setChamados] = useState([]);
+  const [statsChamados, setStatsChamados] = useState([]);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [temMaisChamados, setTemMaisChamados] = useState(false);
   const [membros, setMembros] = useState([]);
   const [colaboradores, setColaboradores] = useState([]);
   const [moradoresDisponiveis, setMoradoresDisponiveis] = useState([]);
@@ -109,6 +112,15 @@ export default function ChamadosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Lista de chamados só cresce (fica tudo guardado) — buscar sem limite
+  // a cada abertura da tela fica mais lento conforme o histórico cresce.
+  // Mas o resumo gerencial (abertos, concluídos, nota média etc.) precisa
+  // ver TODO o histórico, não só a última página — por isso vai numa
+  // consulta separada e enxuta (só as colunas que o cálculo usa, sem
+  // título/descrição/resultado), enquanto a lista paginada busca "*" só
+  // da página atual.
+  const PAGINA_TAMANHO = 50;
+
   const load = useCallback(async () => {
     if (!condominio?.id) return;
     setLoading(true);
@@ -119,11 +131,16 @@ export default function ChamadosPage() {
         .from("chamados")
         .select("*")
         .eq("condominio_id", condominio.id)
-        .order("created_at", { ascending: false }),
+        .order("created_at", { ascending: false })
+        .range(0, PAGINA_TAMANHO - 1),
     };
 
     if (podeEditar) {
       queries.membros = supabase.from("membros").select("id, nome, papel, user_id").eq("condominio_id", condominio.id);
+      queries.statsChamados = supabase
+        .from("chamados")
+        .select("id, status, tipo, data_prevista, created_at, data_conclusao, avaliacao_nota, responsavel_id, responsavel_colaborador_id")
+        .eq("condominio_id", condominio.id);
     }
     if (podeEditar && temPermissao("manutencao", "visualizar")) {
       queries.manutencoes = supabase
@@ -149,9 +166,14 @@ export default function ChamadosPage() {
     });
 
     if (porChave.chamados.error) setError(porChave.chamados.error.message);
-    else setChamados(porChave.chamados.data || []);
+    else {
+      setChamados(porChave.chamados.data || []);
+      setTemMaisChamados((porChave.chamados.data || []).length === PAGINA_TAMANHO);
+    }
 
     if (porChave.membros && !porChave.membros.error) setMembros(porChave.membros.data || []);
+
+    if (porChave.statsChamados && !porChave.statsChamados.error) setStatsChamados(porChave.statsChamados.data || []);
 
     if (porChave.manutencoes && !porChave.manutencoes.error) {
       const mapa = {};
@@ -164,6 +186,23 @@ export default function ChamadosPage() {
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [condominio?.id, podeEditar]);
+
+  const carregarMaisChamados = useCallback(async () => {
+    if (!condominio?.id) return;
+    setCarregandoMais(true);
+    const { data, error: fetchError } = await supabase
+      .from("chamados")
+      .select("*")
+      .eq("condominio_id", condominio.id)
+      .order("created_at", { ascending: false })
+      .range(chamados.length, chamados.length + PAGINA_TAMANHO - 1);
+    if (fetchError) setError(fetchError.message);
+    else {
+      setChamados((atual) => [...atual, ...(data || [])]);
+      setTemMaisChamados((data || []).length === PAGINA_TAMANHO);
+    }
+    setCarregandoMais(false);
+  }, [condominio?.id, chamados.length]);
 
   useEffect(() => {
     load();
@@ -191,14 +230,17 @@ export default function ChamadosPage() {
     return lista;
   }, [membros, condominio?.owner_id]);
 
+  // statsChamados (não `chamados`, que agora é só a página carregada) —
+  // senão a carga por responsável subestimaria quem tem chamado antigo
+  // ainda aberto fora da primeira página.
   const cargaPorResponsavel = useMemo(() => {
     const mapa = {};
-    for (const c of chamados) {
+    for (const c of statsChamados) {
       if (STATUS_FINAIS.includes(c.status) || !c.responsavel_id) continue;
       mapa[c.responsavel_id] = (mapa[c.responsavel_id] || 0) + 1;
     }
     return mapa;
-  }, [chamados]);
+  }, [statsChamados]);
 
   const colaboradorPorId = useMemo(() => {
     const mapa = {};
@@ -215,7 +257,10 @@ export default function ChamadosPage() {
     if (!colaboradores.length) return null;
     const carga = {};
     for (const c of colaboradores) carga[c.id] = 0;
-    for (const c of chamados) {
+    // statsChamados, não `chamados` (só a página carregada) — a escolha
+    // de quem tem menos chamado em aberto precisa olhar o histórico
+    // inteiro, não só os mais recentes.
+    for (const c of statsChamados) {
       if (c.responsavel_colaborador_id && !STATUS_FINAIS.includes(c.status)) {
         carga[c.responsavel_colaborador_id] = (carga[c.responsavel_colaborador_id] || 0) + 1;
       }
@@ -447,13 +492,17 @@ export default function ChamadosPage() {
     });
   }, [chamados, filtro]);
 
+  // Usa statsChamados (consulta separada, sem paginação, só as colunas
+  // do cálculo) em vez de `chamados` (que agora é só a página carregada
+  // na tela) — senão o resumo ficaria errado pra quem tem mais chamados
+  // do que uma página.
   const resumo = useMemo(() => {
     if (!podeEditar) return null;
-    const abertos = chamados.filter((c) => !STATUS_FINAIS.includes(c.status));
+    const abertos = statsChamados.filter((c) => !STATUS_FINAIS.includes(c.status));
     const atrasados = abertos.filter((c) => calcularStatusPrazo(c.data_prevista, c.status)?.atrasado);
     const porStatus = {};
-    for (const c of chamados) porStatus[c.status] = (porStatus[c.status] || 0) + 1;
-    const concluidos = chamados.filter((c) => c.status === "concluido" && c.data_conclusao);
+    for (const c of statsChamados) porStatus[c.status] = (porStatus[c.status] || 0) + 1;
+    const concluidos = statsChamados.filter((c) => c.status === "concluido" && c.data_conclusao);
     const tempoMedioDias = concluidos.length
       ? (
           concluidos.reduce(
@@ -462,13 +511,13 @@ export default function ChamadosPage() {
           ) / concluidos.length
         ).toFixed(1)
       : null;
-    const avaliados = chamados.filter((c) => c.avaliacao_nota);
+    const avaliados = statsChamados.filter((c) => c.avaliacao_nota);
     const notaMedia = avaliados.length
       ? (avaliados.reduce((s, c) => s + c.avaliacao_nota, 0) / avaliados.length).toFixed(1)
       : null;
-    const internos = chamados.filter((c) => c.tipo === "interno").length;
+    const internos = statsChamados.filter((c) => c.tipo === "interno").length;
     const semResponsavel = abertos.filter((c) => !c.responsavel_id && !c.responsavel_colaborador_id);
-    const naoRespondidos = chamados.filter((c) => c.status === "aberto");
+    const naoRespondidos = statsChamados.filter((c) => c.status === "aberto");
 
     return {
       abertos: abertos.length,
@@ -480,7 +529,7 @@ export default function ChamadosPage() {
       notaMedia,
       internos,
     };
-  }, [chamados, podeEditar]);
+  }, [statsChamados, podeEditar]);
 
   if (!condominio) {
     return <p className="text-navy-500">Carregando condomínio...</p>;
@@ -868,6 +917,22 @@ export default function ChamadosPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {temMaisChamados && (
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={carregarMaisChamados}
+            disabled={carregandoMais}
+            className="btn-secondary text-sm disabled:opacity-50"
+          >
+            {carregandoMais ? "Carregando..." : "Carregar mais"}
+          </button>
+          <p className="mt-1 text-xs text-navy-400">
+            Mostrando os {chamados.length} mais recentes — os filtros acima procuram só entre eles.
+          </p>
         </div>
       )}
     </div>
