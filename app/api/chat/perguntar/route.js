@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { buscarMelhorResposta } from "@/lib/buscaConhecimento";
+import { limitarTaxa, respostaLimiteExcedido } from "@/lib/rateLimit";
 
 // Pública — atende tanto visitante (sem token) quanto usuário logado
 // (com token, opcional). Sem token: só conteúdo marcado como público.
@@ -12,6 +13,9 @@ import { buscarMelhorResposta } from "@/lib/buscaConhecimento";
 export const dynamic = "force-dynamic";
 
 export async function POST(request) {
+  const limite = limitarTaxa(request, { chave: "chat-perguntar", limite: 20, janelaMs: 5 * 60 * 1000 });
+  if (!limite.permitido) return respostaLimiteExcedido(limite.retryAfterSegundos);
+
   const { pergunta } = await request.json().catch(() => ({}));
   if (!pergunta?.trim()) {
     return NextResponse.json({ error: "Digite uma pergunta." }, { status: 400 });

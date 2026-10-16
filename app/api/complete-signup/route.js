@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlan, getStripePriceId, TRIAL_PERIOD_DAYS } from "@/lib/plans";
 import { cupomEstaValido } from "@/lib/cupons";
 import { gerarComissoesParaVenda } from "@/lib/comissoes";
+import { limitarTaxa, respostaLimiteExcedido } from "@/lib/rateLimit";
 
 // Finalizes signup after the adesão payment succeeded (or after a
 // 100%-off "isenção" coupon skipped payment entirely):
@@ -14,6 +15,9 @@ import { gerarComissoesParaVenda } from "@/lib/comissoes";
 // 4) creates the "condominios" row linked to that user, recording
 //    which cupom (if any) was used and how much adesão was paid
 export async function POST(request) {
+  const limite = limitarTaxa(request, { chave: "complete-signup", limite: 5, janelaMs: 10 * 60 * 1000 });
+  if (!limite.permitido) return respostaLimiteExcedido(limite.retryAfterSegundos);
+
   const body = await request.json();
   const {
     paymentIntentId,

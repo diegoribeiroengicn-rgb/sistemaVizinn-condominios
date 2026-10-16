@@ -3,6 +3,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlan, VALOR_MINIMO_COBRANCA_CENTAVOS } from "@/lib/plans";
 import { calcularAdesaoComCupom, cupomEstaValido } from "@/lib/cupons";
+import { limitarTaxa, respostaLimiteExcedido } from "@/lib/rateLimit";
 
 // Cria o PaymentIntent da taxa de adesão do plano escolhido (com
 // desconto de cupom, se houver) — substitui o antigo R$ 1,00 de
@@ -11,6 +12,9 @@ import { calcularAdesaoComCupom, cupomEstaValido } from "@/lib/cupons";
 // cadastro segue direto sem cobrança nenhuma agora (a assinatura
 // continua tendo os 14 dias de teste grátis normalmente).
 export async function POST(request) {
+  const limite = limitarTaxa(request, { chave: "create-payment-intent", limite: 10, janelaMs: 10 * 60 * 1000 });
+  if (!limite.permitido) return respostaLimiteExcedido(limite.retryAfterSegundos);
+
   try {
     const { planId, email, cupomCodigo } = await request.json();
     const plan = getPlan(planId);

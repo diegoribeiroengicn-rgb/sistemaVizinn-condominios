@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { enviarEmail } from "@/lib/notificacoes";
 import { parseEmailList } from "@/lib/emailList";
+import { limitarTaxa, respostaLimiteExcedido } from "@/lib/rateLimit";
 
 // Endpoint público do formulário "Fale Conosco" da landing page — sem
 // autenticação, envia direto pro e-mail do dono do sistema (CONTATO_EMAIL,
@@ -13,6 +14,9 @@ function escapeHtml(texto) {
 }
 
 export async function POST(request) {
+  const limite = limitarTaxa(request, { chave: "contato", limite: 5, janelaMs: 10 * 60 * 1000 });
+  if (!limite.permitido) return respostaLimiteExcedido(limite.retryAfterSegundos);
+
   const body = await request.json().catch(() => null);
   const nome = body?.nome?.trim();
   const email = body?.email?.trim();
