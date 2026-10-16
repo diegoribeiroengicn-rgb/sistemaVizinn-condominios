@@ -31,9 +31,17 @@ export default function AuditoriaPage() {
   const { condominio } = useAuth();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [temMaisRegistros, setTemMaisRegistros] = useState(false);
   const [error, setError] = useState("");
   const [filtro, setFiltro] = useState(emptyFiltro);
   const [abertoId, setAbertoId] = useState(null);
+
+  // Toda alteração relevante no sistema cai aqui via trigger — é a
+  // tabela que mais cresce. Antes buscava até 500 linhas de uma vez e
+  // parava ali sem aviso (registro mais antigo ficava invisível pra
+  // sempre); agora pagina de verdade com "Carregar mais".
+  const PAGINA_TAMANHO = 100;
 
   const load = useCallback(async () => {
     if (!condominio?.id) return;
@@ -44,11 +52,31 @@ export default function AuditoriaPage() {
       .select("*")
       .eq("condominio_id", condominio.id)
       .order("created_at", { ascending: false })
-      .limit(500);
+      .range(0, PAGINA_TAMANHO - 1);
     if (fetchError) setError(fetchError.message);
-    else setRegistros(data || []);
+    else {
+      setRegistros(data || []);
+      setTemMaisRegistros((data || []).length === PAGINA_TAMANHO);
+    }
     setLoading(false);
   }, [condominio?.id]);
+
+  const carregarMaisRegistros = useCallback(async () => {
+    if (!condominio?.id) return;
+    setCarregandoMais(true);
+    const { data, error: fetchError } = await supabase
+      .from("auditoria")
+      .select("*")
+      .eq("condominio_id", condominio.id)
+      .order("created_at", { ascending: false })
+      .range(registros.length, registros.length + PAGINA_TAMANHO - 1);
+    if (fetchError) setError(fetchError.message);
+    else {
+      setRegistros((atual) => [...atual, ...(data || [])]);
+      setTemMaisRegistros((data || []).length === PAGINA_TAMANHO);
+    }
+    setCarregandoMais(false);
+  }, [condominio?.id, registros.length]);
 
   useEffect(() => {
     load();
@@ -179,6 +207,22 @@ export default function AuditoriaPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {temMaisRegistros && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={carregarMaisRegistros}
+              disabled={carregandoMais}
+              className="btn-secondary text-sm disabled:opacity-50"
+            >
+              {carregandoMais ? "Carregando..." : "Carregar mais"}
+            </button>
+            <p className="mt-1 text-xs text-navy-400">
+              Mostrando os {registros.length} mais recentes — os filtros acima procuram só entre eles.
+            </p>
           </div>
         )}
       </div>

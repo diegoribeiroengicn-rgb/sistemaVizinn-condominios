@@ -54,6 +54,8 @@ export default function PortariaPage() {
   const { condominio, user, member, temPermissao, role } = useAuth();
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
+  const [temMaisRegistros, setTemMaisRegistros] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   useAvisoSaidaSemSalvar(form, emptyForm);
@@ -84,6 +86,12 @@ export default function PortariaPage() {
   const podeCorrigir = temPermissao("portaria", "corrigir") || role === "sindico";
   const registradoPor = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
+  // Histórico só cresce (toda entrada/saída fica aqui pra sempre) — sem
+  // paginação isso vira uma busca sem limite a cada abertura da tela,
+  // cada vez mais lenta pra condomínios antigos. Carrega só as primeiras
+  // PAGINA_TAMANHO linhas; "Carregar mais" busca o próximo bloco.
+  const PAGINA_TAMANHO = 50;
+
   const load = useCallback(async () => {
     if (!condominio?.id) return;
     setLoading(true);
@@ -92,11 +100,32 @@ export default function PortariaPage() {
       .from("portaria_registros")
       .select("*")
       .eq("condominio_id", condominio.id)
-      .order("entrada_em", { ascending: false });
+      .order("entrada_em", { ascending: false })
+      .range(0, PAGINA_TAMANHO - 1);
     if (fetchError) setError(fetchError.message);
-    else setRegistros(data || []);
+    else {
+      setRegistros(data || []);
+      setTemMaisRegistros((data || []).length === PAGINA_TAMANHO);
+    }
     setLoading(false);
   }, [condominio?.id]);
+
+  const carregarMaisRegistros = useCallback(async () => {
+    if (!condominio?.id) return;
+    setCarregandoMais(true);
+    const { data, error: fetchError } = await supabase
+      .from("portaria_registros")
+      .select("*")
+      .eq("condominio_id", condominio.id)
+      .order("entrada_em", { ascending: false })
+      .range(registros.length, registros.length + PAGINA_TAMANHO - 1);
+    if (fetchError) setError(fetchError.message);
+    else {
+      setRegistros((atual) => [...atual, ...(data || [])]);
+      setTemMaisRegistros((data || []).length === PAGINA_TAMANHO);
+    }
+    setCarregandoMais(false);
+  }, [condominio?.id, registros.length]);
 
   useEffect(() => {
     load();
@@ -953,6 +982,22 @@ export default function PortariaPage() {
                 </tbody>
               </table>
             </div>
+
+            {temMaisRegistros && (
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={carregarMaisRegistros}
+                  disabled={carregandoMais}
+                  className="btn-secondary text-sm disabled:opacity-50"
+                >
+                  {carregandoMais ? "Carregando..." : "Carregar mais"}
+                </button>
+                <p className="mt-1 text-xs text-navy-400">
+                  Mostrando os {registros.length} mais recentes — os filtros acima procuram só entre eles.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
