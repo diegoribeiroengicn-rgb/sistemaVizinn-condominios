@@ -30,6 +30,8 @@ import {
 } from "@/lib/financeiro";
 import { baixarBlob } from "@/lib/xlsx";
 import { nomeArquivoSeguro } from "@/lib/storage";
+import ContaPagarForm from "@/components/financeiro/ContaPagarForm";
+import ContaReceberForm from "@/components/financeiro/ContaReceberForm";
 
 const ABAS = [
   { id: "visao", label: "Visão financeira" },
@@ -718,204 +720,17 @@ export default function FinanceiroPage() {
           )}
 
           {podeCriar && (
-            <div className="card">
-              <h2 className="font-display text-lg font-bold text-navy-900">Nova conta a pagar</h2>
-              <form onSubmit={handleCreatePagar} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className="label-field">Descrição</label>
-                  <input
-                    className="input-field"
-                    value={formPagar.descricao}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, descricao: e.target.value }))}
-                    required
-                    data-testid="financeiro-descricao"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Categoria (opcional)</label>
-                  <input
-                    className="input-field"
-                    list="categorias-despesa"
-                    value={formPagar.categoria}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, categoria: e.target.value }))}
-                  />
-                  <datalist id="categorias-despesa">
-                    {CATEGORIAS_DESPESA.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                </div>
-                {fornecedores.length > 0 && (
-                  <div>
-                    <label className="label-field">Fornecedor (opcional)</label>
-                    <select
-                      className="input-field"
-                      value={formPagar.fornecedorId}
-                      onChange={(e) => setFormPagar((f) => ({ ...f, fornecedorId: e.target.value }))}
-                    >
-                      <option value="">Sem fornecedor</option>
-                      {fornecedores.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.razao_social}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="label-field">Nº do documento (opcional)</label>
-                  <input
-                    className="input-field"
-                    value={formPagar.documentoNumero}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, documentoNumero: e.target.value }))}
-                  />
-                </div>
-                {manutencoes.length > 0 && (
-                  <div>
-                    <label className="label-field">Manutenção vinculada (opcional)</label>
-                    <select
-                      className="input-field"
-                      value={formPagar.manutencaoId}
-                      onChange={(e) => setFormPagar((f) => ({ ...f, manutencaoId: e.target.value }))}
-                    >
-                      <option value="">Sem manutenção vinculada</option>
-                      {manutencoes.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.titulo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {chamados.length > 0 && (
-                  <div>
-                    <label className="label-field">Chamado vinculado (opcional)</label>
-                    <select
-                      className="input-field"
-                      value={formPagar.chamadoId}
-                      onChange={(e) => setFormPagar((f) => ({ ...f, chamadoId: e.target.value }))}
-                    >
-                      <option value="">Sem chamado vinculado</option>
-                      {chamados.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.titulo}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="sm:col-span-2">
-                  <label className="label-field">Nota fiscal / documento (opcional)</label>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png,.webp"
-                    className="input-field"
-                    onChange={(e) => setArquivoPagar(e.target.files?.[0] || null)}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Valor</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field"
-                    value={formPagar.valor}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, valor: e.target.value }))}
-                    required
-                    data-testid="financeiro-valor"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Competência (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formPagar.dataCompetencia}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, dataCompetencia: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Vencimento (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formPagar.dataVencimento}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, dataVencimento: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Pagamento (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formPagar.dataPagamento}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, dataPagamento: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Forma de pagamento (opcional)</label>
-                  <input
-                    className="input-field"
-                    list="formas-pagamento"
-                    value={formPagar.formaPagamento}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, formaPagamento: e.target.value }))}
-                  />
-                  <datalist id="formas-pagamento">
-                    {FORMAS_PAGAMENTO.map((f) => (
-                      <option key={f} value={f} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="label-field">Status</label>
-                  <select
-                    className="input-field"
-                    value={formPagar.status}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, status: e.target.value }))}
-                  >
-                    {STATUS_PAGAR_ORDER.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_PAGAR_LABELS[s]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label-field">Parcela (opcional)</label>
-                  <input
-                    type="number"
-                    className="input-field"
-                    value={formPagar.parcela}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, parcela: e.target.value }))}
-                    placeholder="Ex: 1"
-                  />
-                </div>
-                <div>
-                  <label className="label-field">De quantas parcelas (opcional)</label>
-                  <input
-                    type="number"
-                    className="input-field"
-                    value={formPagar.qtdParcelas}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, qtdParcelas: e.target.value }))}
-                    placeholder="Ex: 3"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Observações (opcional)</label>
-                  <textarea
-                    className="input-field"
-                    rows={2}
-                    value={formPagar.observacoes}
-                    onChange={(e) => setFormPagar((f) => ({ ...f, observacoes: e.target.value }))}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <button type="submit" disabled={submittingPagar} className="btn-primary" data-testid="financeiro-submit">
-                    {enviandoArquivo ? "Enviando documento..." : submittingPagar ? "Salvando..." : "Registrar conta a pagar"}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <ContaPagarForm
+              form={formPagar}
+              setForm={setFormPagar}
+              onSubmit={handleCreatePagar}
+              submitting={submittingPagar}
+              enviandoArquivo={enviandoArquivo}
+              fornecedores={fornecedores}
+              manutencoes={manutencoes}
+              chamados={chamados}
+              onArquivoChange={setArquivoPagar}
+            />
           )}
 
           <select className="input-field w-auto" value={filtroStatusPagar} onChange={(e) => setFiltroStatusPagar(e.target.value)}>
@@ -1085,161 +900,12 @@ export default function FinanceiroPage() {
           )}
 
           {podeCriar && (
-            <div className="card">
-              <h2 className="font-display text-lg font-bold text-navy-900">Nova conta a receber</h2>
-              <form onSubmit={handleCreateReceber} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label className="label-field">Descrição</label>
-                  <input
-                    className="input-field"
-                    value={formReceber.descricao}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, descricao: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Unidade (opcional)</label>
-                  <input
-                    className="input-field"
-                    inputMode="numeric"
-                    value={formReceber.unidade}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, unidade: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Morador/responsável (opcional)</label>
-                  <input
-                    className="input-field"
-                    value={formReceber.responsavelFinanceiro}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, responsavelFinanceiro: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Categoria (opcional)</label>
-                  <input
-                    className="input-field"
-                    list="categorias-receita"
-                    value={formReceber.categoria}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, categoria: e.target.value }))}
-                  />
-                  <datalist id="categorias-receita">
-                    {CATEGORIAS_RECEITA.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="label-field">Valor</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field"
-                    value={formReceber.valor}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, valor: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Competência (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formReceber.dataCompetencia}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, dataCompetencia: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Vencimento (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formReceber.dataVencimento}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, dataVencimento: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Recebimento (opcional)</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    value={formReceber.dataRecebimento}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, dataRecebimento: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Valor recebido (opcional)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field"
-                    value={formReceber.valorRecebido}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, valorRecebido: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Desconto (opcional)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field"
-                    value={formReceber.desconto}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, desconto: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Juros/multa (opcional)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input-field"
-                    value={formReceber.jurosMulta}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, jurosMulta: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <label className="label-field">Forma de pagamento (opcional)</label>
-                  <input
-                    className="input-field"
-                    list="formas-pagamento-receber"
-                    value={formReceber.formaPagamento}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, formaPagamento: e.target.value }))}
-                  />
-                  <datalist id="formas-pagamento-receber">
-                    {FORMAS_PAGAMENTO.map((f) => (
-                      <option key={f} value={f} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="label-field">Status</label>
-                  <select
-                    className="input-field"
-                    value={formReceber.status}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, status: e.target.value }))}
-                  >
-                    {STATUS_RECEBER_ORDER.map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_RECEBER_LABELS[s]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="label-field">Observações (opcional)</label>
-                  <textarea
-                    className="input-field"
-                    rows={2}
-                    value={formReceber.observacoes}
-                    onChange={(e) => setFormReceber((f) => ({ ...f, observacoes: e.target.value }))}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <button type="submit" disabled={submittingReceber} className="btn-primary">
-                    {submittingReceber ? "Salvando..." : "Registrar conta a receber"}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <ContaReceberForm
+              form={formReceber}
+              setForm={setFormReceber}
+              onSubmit={handleCreateReceber}
+              submitting={submittingReceber}
+            />
           )}
 
           <select className="input-field w-auto" value={filtroStatusReceber} onChange={(e) => setFiltroStatusReceber(e.target.value)}>
