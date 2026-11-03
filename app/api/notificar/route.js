@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireCondominioAccess } from "@/lib/memberAuth";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { notificarPessoa, normalizarTelefone, WHATSAPP_TEMPLATES } from "@/lib/notificacoes";
+import { notificarPessoa, normalizarTelefone } from "@/lib/notificacoes";
 
-// Dispara as notificações automáticas de e-mail/WhatsApp. Cada evento
-// segue o mesmo formato: valida acesso, busca destinatário(s), chama
-// notificarPessoa() — que tenta os dois canais disponíveis e nunca
-// lança erro pra quem chamou.
+// Dispara as notificações automáticas de e-mail. Cada evento segue o
+// mesmo formato: valida acesso, busca destinatário(s), chama
+// notificarPessoa() — que nunca lança erro pra quem chamou.
 export async function POST(request) {
   const body = await request.json();
   const { condominioId, evento } = body;
@@ -96,7 +95,6 @@ async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, un
   const nomeCondominio = condominio?.nome || "seu condomínio";
   const resultados = [];
   for (const morador of moradores) {
-    const whatsapp = normalizarTelefone({ telefone: morador.telefone });
     const mensagemTexto = descricao?.trim() || "Retire na portaria quando puder.";
     const r = await notificarPessoa(supabaseAdmin, {
       condominioId,
@@ -104,14 +102,11 @@ async function handleOcorrenciaEntrega(request, condominioId, { ocorrenciaId, un
       referenciaId: ocorrenciaId,
       nome: morador.nome,
       email: morador.email,
-      whatsapp,
-      template: WHATSAPP_TEMPLATES.encomenda_chegou,
       fromName: nomeCondominio,
       parametrosEmail: {
         subject: `📦 Chegou uma encomenda para você — ${nomeCondominio}`,
         html: `<p>Olá, ${morador.nome}!</p><p>Chegou uma encomenda para você em <strong>${nomeCondominio}</strong>.</p><p>${mensagemTexto}</p>`,
       },
-      parametrosWhatsapp: [morador.nome, nomeCondominio, mensagemTexto],
       canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });
@@ -177,21 +172,17 @@ async function handleOcorrenciaMorador(request, condominioId, { ocorrenciaId, un
   const mensagemFinal = descricao?.trim() || "";
   const resultados = [];
   for (const morador of moradores) {
-    const whatsapp = normalizarTelefone({ telefone: morador.telefone });
     const r = await notificarPessoa(supabaseAdmin, {
       condominioId,
       evento: "ocorrencia_morador",
       referenciaId: ocorrenciaId,
       nome: morador.nome,
       email: morador.email,
-      whatsapp,
-      template: WHATSAPP_TEMPLATES.ocorrencia_morador,
       fromName: nomeCondominio,
       parametrosEmail: {
         subject: `Ocorrência registrada em seu nome: ${tituloFinal} — ${nomeCondominio}`,
         html: `<p>Olá, ${morador.nome}!</p><p>Uma ocorrência foi registrada em seu nome: <strong>${tituloFinal}</strong></p>${mensagemFinal ? `<p>${mensagemFinal}</p>` : ""}`,
       },
-      parametrosWhatsapp: [morador.nome, tituloFinal, mensagemFinal],
       canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });
@@ -204,9 +195,9 @@ async function handleOcorrenciaMorador(request, condominioId, { ocorrenciaId, un
 // manda pra TODOS os moradores do condomínio, sem filtro de unidade.
 // `origem` decide o módulo/ação exigidos e o texto do e-mail.
 const AVISO_GERAL_CONFIG = {
-  ocorrencias: { modulo: "ocorrencias", acao: "criar", evento: "ocorrencia_aviso_geral", template: WHATSAPP_TEMPLATES.ocorrencia_aviso_geral, tituloPadrao: "Ocorrência registrada" },
-  manutencao: { modulo: "manutencao", acao: "criar", evento: "manutencao_aviso", template: WHATSAPP_TEMPLATES.manutencao_aviso, tituloPadrao: "Manutenção programada" },
-  avisos: { modulo: "avisos", acao: "criar", evento: "aviso_publicado", template: WHATSAPP_TEMPLATES.aviso_publicado, tituloPadrao: "Novo aviso" },
+  ocorrencias: { modulo: "ocorrencias", acao: "criar", evento: "ocorrencia_aviso_geral", tituloPadrao: "Ocorrência registrada" },
+  manutencao: { modulo: "manutencao", acao: "criar", evento: "manutencao_aviso", tituloPadrao: "Manutenção programada" },
+  avisos: { modulo: "avisos", acao: "criar", evento: "aviso_publicado", tituloPadrao: "Novo aviso" },
 };
 
 async function handleAvisoGeralMoradores(request, condominioId, { referenciaId, titulo, mensagem, canais }, origem) {
@@ -236,21 +227,17 @@ async function handleAvisoGeralMoradores(request, condominioId, { referenciaId, 
 
   const resultados = [];
   for (const morador of moradores) {
-    const whatsapp = normalizarTelefone({ telefone: morador.telefone });
     const r = await notificarPessoa(supabaseAdmin, {
       condominioId,
       evento: config.evento,
       referenciaId: referenciaId || null,
       nome: morador.nome,
       email: morador.email,
-      whatsapp,
-      template: config.template,
       fromName: nomeCondominio,
       parametrosEmail: {
         subject: `${tituloFinal} — ${nomeCondominio}`,
         html: `<p>Olá, ${morador.nome}!</p><p><strong>${tituloFinal}</strong></p>${mensagemFinal ? `<p>${mensagemFinal}</p>` : ""}`,
       },
-      parametrosWhatsapp: [morador.nome, tituloFinal, mensagemFinal],
       canais,
     });
     resultados.push({ morador: morador.nome, resultados: r });
@@ -269,30 +256,24 @@ async function handleChamadoAtribuido(request, condominioId, { chamadoId, titulo
   if (colaboradorId) {
     const { data: colaborador, error } = await supabaseAdmin
       .from("colaboradores")
-      .select("nome, email, whatsapp_ddi, whatsapp_ddd, whatsapp_numero, tem_whatsapp")
+      .select("nome, email")
       .eq("id", colaboradorId)
       .eq("condominio_id", condominioId)
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (colaborador) {
-      destinatario = {
-        nome: colaborador.nome,
-        email: colaborador.email,
-        whatsapp: colaborador.tem_whatsapp
-          ? normalizarTelefone({ ddi: colaborador.whatsapp_ddi, ddd: colaborador.whatsapp_ddd, numero: colaborador.whatsapp_numero })
-          : null,
-      };
+      destinatario = { nome: colaborador.nome, email: colaborador.email };
     }
   } else if (membroUserId) {
     const { data: membro, error } = await supabaseAdmin
       .from("membros")
-      .select("nome, email, telefone")
+      .select("nome, email")
       .eq("user_id", membroUserId)
       .eq("condominio_id", condominioId)
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (membro) {
-      destinatario = { nome: membro.nome, email: membro.email, whatsapp: normalizarTelefone({ telefone: membro.telefone }) };
+      destinatario = { nome: membro.nome, email: membro.email };
     }
   }
 
@@ -309,14 +290,11 @@ async function handleChamadoAtribuido(request, condominioId, { chamadoId, titulo
     referenciaId: chamadoId,
     nome: destinatario.nome,
     email: destinatario.email,
-    whatsapp: destinatario.whatsapp,
-    template: WHATSAPP_TEMPLATES.chamado_atribuido,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Novo chamado atribuído a você: ${titulo}`,
       html: `<p>Olá, ${destinatario.nome}!</p><p>Um novo chamado foi atribuído a você: <strong>${titulo}</strong> (prioridade: ${prioridade || "normal"}).</p>`,
     },
-    parametrosWhatsapp: [destinatario.nome, titulo, prioridade || "normal"],
   });
 
   return NextResponse.json({ success: true, notificado: true, resultados });
@@ -335,7 +313,7 @@ async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, 
 
   const { data: morador, error } = await supabaseAdmin
     .from("moradores")
-    .select("nome, email, telefone")
+    .select("nome, email")
     .eq("id", moradorId)
     .eq("condominio_id", condominioId)
     .maybeSingle();
@@ -351,14 +329,11 @@ async function handleChamadoMorador(request, condominioId, { chamadoId, titulo, 
     referenciaId: chamadoId,
     nome: morador.nome,
     email: morador.email,
-    whatsapp: normalizarTelefone({ telefone: morador.telefone }),
-    template: WHATSAPP_TEMPLATES.chamado_morador,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Chamado registrado: ${titulo}`,
       html: `<p>Olá, ${morador.nome}!</p><p>Um chamado foi registrado em seu nome: <strong>${titulo}</strong>. Você será avisado quando for concluído.</p>`,
     },
-    parametrosWhatsapp: [morador.nome, titulo],
     canais,
   });
 
@@ -381,22 +356,22 @@ async function handleChamadoConcluido(request, condominioId, { chamadoId, titulo
   if (moradorId) {
     const { data: morador, error } = await supabaseAdmin
       .from("moradores")
-      .select("nome, email, telefone")
+      .select("nome, email")
       .eq("id", moradorId)
       .eq("condominio_id", condominioId)
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (morador) destinatario = { nome: morador.nome, email: morador.email, whatsapp: normalizarTelefone({ telefone: morador.telefone }) };
+    if (morador) destinatario = { nome: morador.nome, email: morador.email };
   } else if (solicitanteId) {
     const { data: solicitante, error } = await supabaseAdmin
       .from("membros")
-      .select("nome, email, telefone")
+      .select("nome, email")
       .eq("user_id", solicitanteId)
       .eq("condominio_id", condominioId)
       .eq("papel", "condomino")
       .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (solicitante) destinatario = { nome: solicitante.nome, email: solicitante.email, whatsapp: normalizarTelefone({ telefone: solicitante.telefone }) };
+    if (solicitante) destinatario = { nome: solicitante.nome, email: solicitante.email };
   }
 
   if (!destinatario) {
@@ -413,14 +388,11 @@ async function handleChamadoConcluido(request, condominioId, { chamadoId, titulo
     referenciaId: chamadoId,
     nome: destinatario.nome,
     email: destinatario.email,
-    whatsapp: destinatario.whatsapp,
-    template: WHATSAPP_TEMPLATES.chamado_concluido,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Seu chamado foi concluído: ${titulo}`,
       html: `<p>Olá, ${destinatario.nome}!</p><p>O chamado <strong>${titulo}</strong> foi concluído.</p>${resultadoTexto ? `<p>${resultadoTexto}</p>` : ""}`,
     },
-    parametrosWhatsapp: [destinatario.nome, titulo, resultadoTexto],
   });
 
   return NextResponse.json({ success: true, notificado: true, resultados });
@@ -477,14 +449,11 @@ async function handleAcessoLogin(request, condominioId, { nome, papel }) {
     referenciaId: null,
     nome: "Síndico",
     email: condominio.owner_email,
-    whatsapp: null,
-    template: WHATSAPP_TEMPLATES.acesso_login,
     fromName: nomeCondominio,
     parametrosEmail: {
       subject: `Novo acesso ao sistema — ${nomeCondominio}`,
       html: `<p><strong>${nome || "Alguém"}</strong> (${papel || "membro"}) entrou no sistema em ${agora}.</p>`,
     },
-    parametrosWhatsapp: [nome || "Alguém", papel || "membro", agora],
   });
 
   return NextResponse.json({ success: true, notificado: true, resultados });

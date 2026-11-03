@@ -6,7 +6,7 @@ import {
   papelPodeRequererAprovacao,
   sanitizePermissoes,
 } from "@/lib/permissoes";
-import { notificarPessoa, normalizarTelefone, WHATSAPP_TEMPLATES } from "@/lib/notificacoes";
+import { notificarPessoa } from "@/lib/notificacoes";
 
 const VALID_PAPEIS = new Set([
   "condomino",
@@ -148,14 +148,11 @@ export async function POST(request) {
       referenciaId: userData.user.id,
       nome,
       email: email || null,
-      whatsapp: normalizarTelefone({ telefone }),
-      template: WHATSAPP_TEMPLATES.acesso_criado,
       fromName: nomeCondominio,
       parametrosEmail: {
         subject: `Seu acesso ao AquiHabitto foi criado — ${nomeCondominio}`,
         html: `<p>Olá, ${nome}!</p><p>Seu acesso ao sistema foi criado.</p><p><strong>Login:</strong> ${loginEmail}<br/><strong>Senha provisória:</strong> ${password}</p><p>Baixe o app direto do navegador em <a href="https://aquihabitto.com.br">aquihabitto.com.br</a> — no Android toque em "Baixar app", no iPhone use Compartilhar &gt; Adicionar à Tela de Início.</p><p>Recomendamos trocar a senha assim que possível.</p>`,
       },
-      parametrosWhatsapp: [nome],
     }).catch((err) => console.error("Erro ao notificar acesso criado:", err));
 
     await registrarAuditoria(supabaseAdmin, {

@@ -7,7 +7,7 @@ export default function manifest() {
     name: "AquiHabitto — Condomínio Inteligente",
     short_name: "AquiHabitto",
     description:
-      "Gestão condominial completa: chamados, avisos, financeiro, portaria e notificações automáticas por WhatsApp.",
+      "Gestão condominial completa: chamados, avisos, financeiro, portaria e notificações automáticas por e-mail.",
     start_url: "/login",
     display: "standalone",
     background_color: "#f5f0e8",

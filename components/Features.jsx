@@ -2,7 +2,7 @@ const features = [
   {
     icon: "📲",
     title: "Notificações automáticas",
-    text: "Avisos por WhatsApp e e-mail direto pro morador ou funcionário certo: encomenda chegou, chamado foi atribuído — sem ninguém precisar lembrar de avisar.",
+    text: "Avisos por e-mail direto pro morador ou funcionário certo: encomenda chegou, chamado foi atribuído — sem ninguém precisar lembrar de avisar.",
   },
   {
     icon: "🏢",
