@@ -3194,3 +3194,18 @@ alter table public.contas_receber add column if not exists asaas_customer_id tex
 alter table public.contas_receber add column if not exists asaas_charge_id text;
 alter table public.contas_receber add column if not exists boleto_url text;
 alter table public.contas_receber add column if not exists boleto_linha_digitavel text;
+
+-- Margem fixa da AquiHabitto por boleto pago (split automático no
+-- Asaas) — uma linha só, editável em /admin/pagamentos. Custo do Asaas
+-- em si (hoje ~R$1,99/boleto pago) não entra aqui, é descontado pelo
+-- próprio Asaas antes do split.
+create table if not exists public.config_boleto (
+  id uuid primary key default gen_random_uuid(),
+  margem_valor numeric(10,2) not null default 1.50,
+  updated_at timestamptz not null default now()
+);
+insert into public.config_boleto (margem_valor)
+  select 1.50 where not exists (select 1 from public.config_boleto);
+
+alter table public.config_boleto enable row level security;
+grant all on public.config_boleto to service_role;

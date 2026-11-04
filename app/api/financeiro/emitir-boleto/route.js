@@ -38,6 +38,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Ative a cobrança via boleto pra este condomínio antes de emitir." }, { status: 400 });
   }
 
+  const { data: config } = await supabaseAdmin.from("config_boleto").select("margem_valor").limit(1).maybeSingle();
+
   let customerId, boleto;
   try {
     customerId = await garantirClienteAsaas(subconta.api_key, {
@@ -50,6 +52,7 @@ export async function POST(request) {
       valor: conta.valor,
       vencimento: conta.data_vencimento,
       descricao: conta.descricao,
+      margemAquihabitto: config ? Number(config.margem_valor) : 0,
     });
   } catch (err) {
     return NextResponse.json({ error: `Asaas recusou a emissão do boleto: ${err.message}` }, { status: 502 });

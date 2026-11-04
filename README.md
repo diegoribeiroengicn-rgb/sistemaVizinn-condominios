@@ -213,6 +213,13 @@ pagamento do Asaas e marca a conta como "recebida" automaticamente;
 `/api/financeiro/saque` (só o síndico, nunca um membro delegado) transfere
 o saldo da subconta pra fora, via PIX ou conta bancária.
 
+**Margem da AquiHabitto por boleto**: ajustável em `/admin/pagamentos`
+(aba "Boleto") — é um valor fixo, separado automaticamente a cada boleto
+pago via split do Asaas (`config_boleto.margem_valor` no schema, lido em
+`/api/financeiro/emitir-boleto`). Precisa de `ASAAS_WALLET_ID` configurado
+(a wallet da conta-mãe) pra o split funcionar — sem isso, 100% do boleto
+vai pro condomínio, sem split nenhum.
+
 ### Configurar
 
 1. **Sandbox primeiro**: crie uma conta grátis em
