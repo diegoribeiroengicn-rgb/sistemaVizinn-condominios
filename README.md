@@ -205,8 +205,17 @@ Cada condomínio tem sua própria **subconta** no Asaas (`lib/asaas.js` +
 nunca numa conta da AquiHabitto. A mensalidade que o síndico paga pra
 AquiHabitto continua separada, pelo Stripe.
 
-Fluxo: `/api/financeiro/asaas-subconta` (POST) cria a subconta do
-condomínio; `/api/financeiro/emitir-boleto` (POST, precisa de
+A subconta é criada **automaticamente** assim que o condomínio é
+cadastrado (`ativarCobrancaBoleto()`, chamada no fim de
+`complete-signup` e `dev-signup`) — sem bloquear o cadastro se falhar
+(ex: condomínio ainda sem CNPJ, já que esse campo é opcional no
+formulário). Quando isso acontece, ou pra condomínios criados antes
+dessa automação existir, dá pra ativar manualmente depois: o botão
+"Ativar cobrança via boleto" em Financeiro (`/api/financeiro/asaas-subconta`,
+POST) chama a mesma função e é idempotente.
+
+Fluxo: `/api/financeiro/asaas-subconta` (POST, manual/fallback) cria a
+subconta do condomínio; `/api/financeiro/emitir-boleto` (POST, precisa de
 `pagador_cpf_cnpj` e `data_vencimento` preenchidos na conta a receber)
 emite o boleto de verdade; `/api/webhook-asaas` recebe a confirmação de
 pagamento do Asaas e marca a conta como "recebida" automaticamente;

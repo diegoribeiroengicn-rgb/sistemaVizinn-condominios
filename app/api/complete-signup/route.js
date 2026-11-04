@@ -5,6 +5,8 @@ import { getPlan, getStripePriceId, TRIAL_PERIOD_DAYS } from "@/lib/plans";
 import { cupomEstaValido } from "@/lib/cupons";
 import { gerarComissoesParaVenda } from "@/lib/comissoes";
 import { limitarTaxa, respostaLimiteExcedido } from "@/lib/rateLimit";
+import { ativarCobrancaBoleto } from "@/lib/asaas";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 // Finalizes signup after the adesão payment succeeded (or after a
 // 100%-off "isenção" coupon skipped payment entirely):
@@ -198,6 +200,29 @@ export async function POST(request) {
       await gerarComissoesParaVenda(supabaseAdmin, condoRow.id);
     } catch (comissaoErr) {
       console.error("Erro ao gerar comissões da venda:", comissaoErr);
+    }
+
+    // Ativa a cobrança via boleto automaticamente. Sem CNPJ (campo
+    // opcional no cadastro), fica pendente — o síndico ativa depois,
+    // manualmente, em Financeiro. Nunca deve impedir o cadastro de
+    // concluir.
+    try {
+      const resultadoAsaas = await ativarCobrancaBoleto(supabaseAdmin, condoRow.id);
+      if (resultadoAsaas.ok && !resultadoAsaas.jaAtiva) {
+        await registrarAuditoria(supabaseAdmin, {
+          condominioId: condoRow.id,
+          usuarioId: ownerId,
+          usuarioNome: "Sistema",
+          papel: "sistema",
+          acao: "ativar_boleto_automatico",
+          modulo: "financeiro",
+          dadosNovos: { account_id: resultadoAsaas.accountId },
+        });
+      } else if (!resultadoAsaas.ok) {
+        console.warn(`Boleto não ativado automaticamente pro condomínio ${condoRow.id}: ${resultadoAsaas.motivo}`);
+      }
+    } catch (asaasErr) {
+      console.error("Erro ao ativar boleto automaticamente:", asaasErr);
     }
 
     return NextResponse.json({ success: true, userId: ownerId });

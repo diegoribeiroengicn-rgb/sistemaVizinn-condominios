@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPlan } from "@/lib/plans";
+import { ativarCobrancaBoleto } from "@/lib/asaas";
 
 // Test-mode only: creates the Supabase user + condominio row WITHOUT
 // touching Stripe at all (no card, no charge, no subscription). Meant for
@@ -51,20 +52,24 @@ export async function POST(request) {
 
     const ownerId = userData.user.id;
 
-    const { error: condoError } = await supabaseAdmin.from("condominios").insert({
-      owner_id: ownerId,
-      owner_email: email,
-      nome: condominioNome,
-      cnpj: cnpj || null,
-      endereco: endereco || null,
-      responsavel_nome: fullName,
-      responsavel_telefone: phone || null,
-      plano: plan.id,
-      unidades_limite: plan.unitLimit,
-      stripe_customer_id: null,
-      stripe_subscription_id: null,
-      status: "trialing",
-    });
+    const { data: condoRow, error: condoError } = await supabaseAdmin
+      .from("condominios")
+      .insert({
+        owner_id: ownerId,
+        owner_email: email,
+        nome: condominioNome,
+        cnpj: cnpj || null,
+        endereco: endereco || null,
+        responsavel_nome: fullName,
+        responsavel_telefone: phone || null,
+        plano: plan.id,
+        unidades_limite: plan.unitLimit,
+        stripe_customer_id: null,
+        stripe_subscription_id: null,
+        status: "trialing",
+      })
+      .select("id")
+      .single();
 
     if (condoError) {
       console.error("Erro ao criar condomínio (teste):", condoError);
@@ -74,6 +79,17 @@ export async function POST(request) {
         },
         { status: 500 }
       );
+    }
+
+    // Mesmo comportamento best-effort do complete-signup — ver lá o
+    // porquê de nunca impedir o cadastro de concluir.
+    try {
+      const resultadoAsaas = await ativarCobrancaBoleto(supabaseAdmin, condoRow.id);
+      if (!resultadoAsaas.ok) {
+        console.warn(`Boleto não ativado automaticamente pro condomínio ${condoRow.id} (teste): ${resultadoAsaas.motivo}`);
+      }
+    } catch (asaasErr) {
+      console.error("Erro ao ativar boleto automaticamente (teste):", asaasErr);
     }
 
     return NextResponse.json({ success: true, userId: ownerId });
