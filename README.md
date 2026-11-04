@@ -45,9 +45,10 @@ Essas contas (tabela `membros`) apontam para o mesmo condomínio, mas nunca
 têm acesso a `/dashboard/acessos`, `/admin` ou aos dados de outro tenant —
 isso é garantido por Row Level Security no Postgres, não só pela interface.
 
-**Boletos**: a tela existe mas continua um placeholder — emitir boletos de
-verdade (código de barras/PIX) exige integração com um banco ou gateway de
-pagamento, que ainda não está configurada.
+**Boletos**: emissão de boleto de verdade (linha digitável, pago pelo
+morador) já existe via Asaas — ver seção "Cobrança via boleto (Asaas)"
+mais abaixo. Cada condomínio tem sua própria subconta; o dinheiro do
+morador cai direto nela, nunca numa conta da AquiHabitto.
 
 ## Painel do administrador (`/admin`)
 
@@ -196,6 +197,47 @@ acesso a Auditoria).
 3. Sem domínio próprio verificado, deixe `EMAIL_FROM=onboarding@resend.dev`
    (funciona pra testar, mas mostra "via resend.dev" pro destinatário —
    verifique seu domínio no Resend quando for pra produção).
+
+## Cobrança via boleto (Asaas)
+
+Cada condomínio tem sua própria **subconta** no Asaas (`lib/asaas.js` +
+`condominios_asaas` no schema) — o dinheiro do morador cai direto nela,
+nunca numa conta da AquiHabitto. A mensalidade que o síndico paga pra
+AquiHabitto continua separada, pelo Stripe.
+
+Fluxo: `/api/financeiro/asaas-subconta` (POST) cria a subconta do
+condomínio; `/api/financeiro/emitir-boleto` (POST, precisa de
+`pagador_cpf_cnpj` e `data_vencimento` preenchidos na conta a receber)
+emite o boleto de verdade; `/api/webhook-asaas` recebe a confirmação de
+pagamento do Asaas e marca a conta como "recebida" automaticamente;
+`/api/financeiro/saque` (só o síndico, nunca um membro delegado) transfere
+o saldo da subconta pra fora, via PIX ou conta bancária.
+
+### Configurar
+
+1. **Sandbox primeiro**: crie uma conta grátis em
+   [sandbox.asaas.com](https://sandbox.asaas.com) — é um ambiente
+   totalmente separado da produção, com boleto de teste (tem um botão
+   "Confirmar pagamento" pra simular o morador pagando, sem banco de
+   verdade). Gere a API key da conta-mãe ali e coloque em
+   `ASAAS_API_KEY`, com `ASAAS_ENV=sandbox`.
+2. Em Integrações → Webhooks (no painel do Asaas), cadastre
+   `https://SEU_DOMINIO/api/webhook-asaas`, escolha um token de 32+
+   caracteres (nunca a API key) e coloque o mesmo valor em
+   `ASAAS_WEBHOOK_TOKEN`.
+3. **Antes de trocar pra produção** (`ASAAS_ENV=production` + API key de
+   produção), é preciso resolver duas coisas direto com o Asaas, fora do
+   código:
+   - A conta-mãe precisa ser pessoa jurídica (CNPJ) — subconta via API
+     não funciona com conta pessoa física.
+   - Toda subconta criada via API nasce num **período de avaliação
+     regulatória** do Banco Central: limite de 10 subcontas, até
+     R$ 2.000 cobrados por subconta, e 60 dias — depois disso, a emissão
+     de boleto e a criação de subconta nova ficam bloqueadas até você
+     pedir a **homologação regulatória** com o Asaas. Pra um condomínio
+     de verdade cobrando mensalidade de vários moradores, esse limite
+     esgota rápido — comece essa conversa com o Asaas com antecedência,
+     não deixe pra última hora.
 
 ## Lembretes (`/dashboard/lembretes`)
 

@@ -3165,3 +3165,32 @@ alter table public.visitantes add column if not exists tipo text not null defaul
 alter table public.visitantes drop constraint if exists visitantes_tipo_check;
 alter table public.visitantes add constraint visitantes_tipo_check
   check (tipo in ('visitante', 'entregador', 'prestador_servico', 'outro'));
+
+-- Cobrança via boleto (Asaas) — cada condomínio tem sua própria subconta
+-- no Asaas; o dinheiro do morador cai direto nela, nunca numa conta da
+-- AquiHabitto. api_key dá acesso direto à conta de pagamento do
+-- condomínio, por isso essa tabela não tem policy pra "authenticated":
+-- só o backend (service_role, via supabaseAdmin) toca nela.
+create table if not exists public.condominios_asaas (
+  condominio_id uuid primary key references public.condominios (id) on delete cascade,
+  account_id text,
+  wallet_id text,
+  api_key text,
+  status text not null default 'pendente' check (status in ('pendente', 'ativa', 'bloqueada')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.condominios_asaas enable row level security;
+grant all on public.condominios_asaas to service_role;
+
+-- Dados do pagador (pra criar o "customer" no Asaas) e rastreio da
+-- cobrança emitida — `boleto_referencia` continua existindo pra quem
+-- preenche manualmente; estes campos são preenchidos quando o boleto é
+-- emitido de verdade pelo sistema.
+alter table public.contas_receber add column if not exists pagador_cpf_cnpj text;
+alter table public.contas_receber add column if not exists pagador_email text;
+alter table public.contas_receber add column if not exists asaas_customer_id text;
+alter table public.contas_receber add column if not exists asaas_charge_id text;
+alter table public.contas_receber add column if not exists boleto_url text;
+alter table public.contas_receber add column if not exists boleto_linha_digitavel text;
