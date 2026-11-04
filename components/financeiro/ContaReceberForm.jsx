@@ -37,6 +37,24 @@ export default function ContaReceberForm({ form, setForm, onSubmit, submitting }
           />
         </div>
         <div>
+          <label className="label-field">CPF/CNPJ do pagador (pra emitir boleto)</label>
+          <input
+            className="input-field"
+            value={form.pagadorCpfCnpj}
+            onChange={(e) => setForm((f) => ({ ...f, pagadorCpfCnpj: e.target.value }))}
+            placeholder="Só números — sem isso não dá pra emitir boleto"
+          />
+        </div>
+        <div>
+          <label className="label-field">E-mail do pagador (opcional)</label>
+          <input
+            type="email"
+            className="input-field"
+            value={form.pagadorEmail}
+            onChange={(e) => setForm((f) => ({ ...f, pagadorEmail: e.target.value }))}
+          />
+        </div>
+        <div>
           <label className="label-field">Categoria (opcional)</label>
           <input
             className="input-field"
