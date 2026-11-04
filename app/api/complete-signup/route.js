@@ -39,6 +39,12 @@ export async function POST(request) {
   if ((!paymentIntentId && !isento) || !email || !password || !condominioNome) {
     return NextResponse.json({ error: "Dados obrigatórios ausentes." }, { status: 400 });
   }
+  // CNPJ obrigatório pra ativar a cobrança via boleto automaticamente
+  // (ver ativarCobrancaBoleto mais abaixo) — o front já valida isso,
+  // mas o servidor nunca confia só nele.
+  if ((cnpj || "").replace(/\D/g, "").length !== 14) {
+    return NextResponse.json({ error: "Informe o CNPJ do condomínio (14 dígitos)." }, { status: 400 });
+  }
 
   const plan = getPlan(planId);
   let stripe;

@@ -207,12 +207,15 @@ AquiHabitto continua separada, pelo Stripe.
 
 A subconta é criada **automaticamente** assim que o condomínio é
 cadastrado (`ativarCobrancaBoleto()`, chamada no fim de
-`complete-signup` e `dev-signup`) — sem bloquear o cadastro se falhar
-(ex: condomínio ainda sem CNPJ, já que esse campo é opcional no
-formulário). Quando isso acontece, ou pra condomínios criados antes
-dessa automação existir, dá pra ativar manualmente depois: o botão
-"Ativar cobrança via boleto" em Financeiro (`/api/financeiro/asaas-subconta`,
-POST) chama a mesma função e é idempotente.
+`complete-signup` e `dev-signup`) — o CNPJ é **obrigatório** no
+formulário de cadastro (validado no front e também no servidor)
+justamente pra essa ativação nunca falhar por falta de dado. Mesmo
+assim, nunca bloqueia o cadastro se o Asaas recusar por outro motivo
+(fora do ar, dado rejeitado, etc.) — fica pendente pra ativação manual
+depois: o botão "Ativar cobrança via boleto" em Financeiro
+(`/api/financeiro/asaas-subconta`, POST) chama a mesma função e é
+idempotente. Também é o caminho pra condomínios criados antes dessa
+automação existir.
 
 Fluxo: `/api/financeiro/asaas-subconta` (POST, manual/fallback) cria a
 subconta do condomínio; `/api/financeiro/emitir-boleto` (POST, precisa de

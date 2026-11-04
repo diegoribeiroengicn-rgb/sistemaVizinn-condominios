@@ -126,6 +126,10 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
     if (form.password.length < 6) next.password = "A senha deve ter ao menos 6 caracteres.";
     if (!form.fullName.trim()) next.fullName = "Informe seu nome completo.";
     if (!form.condominioNome.trim()) next.condominioNome = "Informe o nome do condomínio.";
+    // Obrigatório pra ativar a cobrança via boleto (Asaas) automaticamente
+    // assim que o cadastro é concluído — ver ativarCobrancaBoleto em
+    // lib/asaas.js e o fim de complete-signup/dev-signup.
+    if (form.cnpj.replace(/\D/g, "").length !== 14) next.cnpj = "Informe o CNPJ do condomínio (14 dígitos).";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -325,7 +329,9 @@ export default function SignupForm({ initialPlan = "growth", onClose }) {
                   value={form.cnpj}
                   onChange={(e) => update("cnpj", e.target.value)}
                   placeholder="00.000.000/0000-00"
+                  required
                 />
+                {errors.cnpj && <p className="mt-1 text-xs text-coral-700">{errors.cnpj}</p>}
               </div>
               <div>
                 <label className="label-field">Endereço</label>

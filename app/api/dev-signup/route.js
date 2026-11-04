@@ -22,6 +22,11 @@ export async function POST(request) {
   if (!email || !password || !condominioNome) {
     return NextResponse.json({ error: "Dados obrigatórios ausentes." }, { status: 400 });
   }
+  // CNPJ obrigatório pra ativar a cobrança via boleto automaticamente —
+  // mesma regra de complete-signup, pro modo de teste ficar consistente.
+  if ((cnpj || "").replace(/\D/g, "").length !== 14) {
+    return NextResponse.json({ error: "Informe o CNPJ do condomínio (14 dígitos)." }, { status: 400 });
+  }
 
   const plan = getPlan(planId);
   let supabaseAdmin;
