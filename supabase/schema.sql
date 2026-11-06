@@ -3166,6 +3166,304 @@ alter table public.visitantes drop constraint if exists visitantes_tipo_check;
 alter table public.visitantes add constraint visitantes_tipo_check
   check (tipo in ('visitante', 'entregador', 'prestador_servico', 'outro'));
 
+-- Assembleia digital: o síndico cria a assembleia e as pautas; cada
+-- condômino logado vota uma vez por pauta (unique por pauta+usuário).
+-- Voto não é secreto (assembleia de condomínio não costuma ser) — todo
+-- mundo com acesso ao módulo vê a contagem e quem votou o quê.
+create table if not exists public.assembleias (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  data_encerramento date,
+  status text not null default 'aberta' check (status in ('aberta', 'encerrada')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists assembleias_condominio_id_idx on public.assembleias (condominio_id);
+alter table public.assembleias enable row level security;
+
+drop policy if exists "Members can view assembleias" on public.assembleias;
+create policy "Members can view assembleias"
+  on public.assembleias for select
+  using (public.membro_tem_modulo(condominio_id, 'assembleias'));
+
+drop policy if exists "Members can insert assembleias" on public.assembleias;
+create policy "Members can insert assembleias"
+  on public.assembleias for insert
+  with check (public.membro_tem_permissao(condominio_id, 'assembleias', 'criar'));
+
+drop policy if exists "Members can update assembleias" on public.assembleias;
+create policy "Members can update assembleias"
+  on public.assembleias for update
+  using (public.membro_tem_permissao(condominio_id, 'assembleias', 'editar'));
+
+drop policy if exists "Members can delete assembleias" on public.assembleias;
+create policy "Members can delete assembleias"
+  on public.assembleias for delete
+  using (public.membro_tem_permissao(condominio_id, 'assembleias', 'excluir'));
+
+grant select, insert, update, delete on public.assembleias to authenticated;
+
+create table if not exists public.assembleia_pautas (
+  id uuid primary key default gen_random_uuid(),
+  assembleia_id uuid not null references public.assembleias (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  titulo text not null,
+  descricao text,
+  opcoes jsonb not null default '["Aprovar", "Rejeitar", "Abster-se"]',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists assembleia_pautas_assembleia_id_idx on public.assembleia_pautas (assembleia_id);
+alter table public.assembleia_pautas enable row level security;
+
+drop policy if exists "Members can view pautas" on public.assembleia_pautas;
+create policy "Members can view pautas"
+  on public.assembleia_pautas for select
+  using (public.membro_tem_modulo(condominio_id, 'assembleias'));
+
+drop policy if exists "Members can insert pautas" on public.assembleia_pautas;
+create policy "Members can insert pautas"
+  on public.assembleia_pautas for insert
+  with check (public.membro_tem_permissao(condominio_id, 'assembleias', 'criar'));
+
+drop policy if exists "Members can delete pautas" on public.assembleia_pautas;
+create policy "Members can delete pautas"
+  on public.assembleia_pautas for delete
+  using (public.membro_tem_permissao(condominio_id, 'assembleias', 'excluir'));
+
+grant select, insert, delete on public.assembleia_pautas to authenticated;
+
+create table if not exists public.assembleia_votos (
+  id uuid primary key default gen_random_uuid(),
+  pauta_id uuid not null references public.assembleia_pautas (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  votante_nome text,
+  unidade text,
+  opcao text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists assembleia_votos_pauta_user_idx on public.assembleia_votos (pauta_id, user_id);
+alter table public.assembleia_votos enable row level security;
+
+drop policy if exists "Members can view votos" on public.assembleia_votos;
+create policy "Members can view votos"
+  on public.assembleia_votos for select
+  using (public.membro_tem_modulo(condominio_id, 'assembleias'));
+
+-- Vota por si mesmo: a linha tem que ser do próprio usuário autenticado
+-- (nunca em nome de outra pessoa) e ele precisa da permissão de "criar"
+-- em assembleias (síndico sempre tem; condômino ganha por padrão — ver
+-- DEFAULT_PERMISSOES_BY_PAPEL em lib/permissoes.js).
+drop policy if exists "Members can insert votos" on public.assembleia_votos;
+create policy "Members can insert votos"
+  on public.assembleia_votos for insert
+  with check (user_id = auth.uid() and public.membro_tem_permissao(condominio_id, 'assembleias', 'criar'));
+
+grant select, insert on public.assembleia_votos to authenticated;
+
+-- Reserva de áreas comuns: o síndico cadastra as áreas (salão, churrasqueira,
+-- etc.); qualquer condômino com acesso reserva um dia pra uma delas. Uma
+-- reserva por área por dia (índice único parcial, só entre as confirmadas
+-- — cancelar libera a data de novo).
+create table if not exists public.areas_comuns (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  nome text not null,
+  descricao text,
+  capacidade integer,
+  ativo boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists areas_comuns_condominio_id_idx on public.areas_comuns (condominio_id);
+alter table public.areas_comuns enable row level security;
+
+drop policy if exists "Members can view areas_comuns" on public.areas_comuns;
+create policy "Members can view areas_comuns"
+  on public.areas_comuns for select
+  using (public.membro_tem_modulo(condominio_id, 'areas_comuns'));
+
+drop policy if exists "Members can insert areas_comuns" on public.areas_comuns;
+create policy "Members can insert areas_comuns"
+  on public.areas_comuns for insert
+  with check (public.membro_tem_permissao(condominio_id, 'areas_comuns', 'criar'));
+
+drop policy if exists "Members can update areas_comuns" on public.areas_comuns;
+create policy "Members can update areas_comuns"
+  on public.areas_comuns for update
+  using (public.membro_tem_permissao(condominio_id, 'areas_comuns', 'editar'));
+
+drop policy if exists "Members can delete areas_comuns" on public.areas_comuns;
+create policy "Members can delete areas_comuns"
+  on public.areas_comuns for delete
+  using (public.membro_tem_permissao(condominio_id, 'areas_comuns', 'excluir'));
+
+grant select, insert, update, delete on public.areas_comuns to authenticated;
+
+create table if not exists public.reservas_areas (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  area_id uuid not null references public.areas_comuns (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  solicitante_nome text,
+  unidade text,
+  data date not null,
+  observacoes text,
+  status text not null default 'confirmada' check (status in ('confirmada', 'cancelada')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists reservas_areas_area_data_idx on public.reservas_areas (area_id, data);
+create unique index if not exists reservas_areas_area_data_ativa_idx
+  on public.reservas_areas (area_id, data) where status = 'confirmada';
+alter table public.reservas_areas enable row level security;
+
+drop policy if exists "Members can view reservas_areas" on public.reservas_areas;
+create policy "Members can view reservas_areas"
+  on public.reservas_areas for select
+  using (public.membro_tem_modulo(condominio_id, 'areas_comuns'));
+
+drop policy if exists "Members can insert reservas_areas" on public.reservas_areas;
+create policy "Members can insert reservas_areas"
+  on public.reservas_areas for insert
+  with check (user_id = auth.uid() and public.membro_tem_permissao(condominio_id, 'areas_comuns', 'criar'));
+
+-- Cancelar: o próprio morador cancela a reserva dele, ou quem tem
+-- "excluir" no módulo (síndico) cancela qualquer uma.
+drop policy if exists "Members can update reservas_areas" on public.reservas_areas;
+create policy "Members can update reservas_areas"
+  on public.reservas_areas for update
+  using (user_id = auth.uid() or public.membro_tem_permissao(condominio_id, 'areas_comuns', 'excluir'));
+
+grant select, insert, update on public.reservas_areas to authenticated;
+
+-- Enquetes rápidas: pergunta única de múltipla escolha, sem a estrutura
+-- formal de pautas da assembleia. Mesmo padrão de voto único por pessoa.
+create table if not exists public.enquetes (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  pergunta text not null,
+  opcoes jsonb not null,
+  data_limite date,
+  status text not null default 'aberta' check (status in ('aberta', 'encerrada')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists enquetes_condominio_id_idx on public.enquetes (condominio_id);
+alter table public.enquetes enable row level security;
+
+drop policy if exists "Members can view enquetes" on public.enquetes;
+create policy "Members can view enquetes"
+  on public.enquetes for select
+  using (public.membro_tem_modulo(condominio_id, 'enquetes'));
+
+drop policy if exists "Members can insert enquetes" on public.enquetes;
+create policy "Members can insert enquetes"
+  on public.enquetes for insert
+  with check (public.membro_tem_permissao(condominio_id, 'enquetes', 'criar'));
+
+drop policy if exists "Members can update enquetes" on public.enquetes;
+create policy "Members can update enquetes"
+  on public.enquetes for update
+  using (public.membro_tem_permissao(condominio_id, 'enquetes', 'editar'));
+
+drop policy if exists "Members can delete enquetes" on public.enquetes;
+create policy "Members can delete enquetes"
+  on public.enquetes for delete
+  using (public.membro_tem_permissao(condominio_id, 'enquetes', 'excluir'));
+
+grant select, insert, update, delete on public.enquetes to authenticated;
+
+create table if not exists public.enquete_votos (
+  id uuid primary key default gen_random_uuid(),
+  enquete_id uuid not null references public.enquetes (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  opcao text not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists enquete_votos_enquete_user_idx on public.enquete_votos (enquete_id, user_id);
+alter table public.enquete_votos enable row level security;
+
+drop policy if exists "Members can view enquete_votos" on public.enquete_votos;
+create policy "Members can view enquete_votos"
+  on public.enquete_votos for select
+  using (public.membro_tem_modulo(condominio_id, 'enquetes'));
+
+drop policy if exists "Members can insert enquete_votos" on public.enquete_votos;
+create policy "Members can insert enquete_votos"
+  on public.enquete_votos for insert
+  with check (user_id = auth.uid() and public.membro_tem_permissao(condominio_id, 'enquetes', 'criar'));
+
+grant select, insert on public.enquete_votos to authenticated;
+
+-- Livro de atas / documentos institucionais: arquivo (PDF em geral) com
+-- um tipo pra organizar. Mesmo padrão de bucket privado de
+-- financeiro-documentos, com política própria (módulo "documentos").
+create table if not exists public.documentos_institucionais (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  tipo text not null default 'outro' check (tipo in ('ata', 'convencao', 'regimento_interno', 'outro')),
+  titulo text not null,
+  descricao text,
+  arquivo_url text not null,
+  data_documento date,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists documentos_institucionais_condominio_id_idx on public.documentos_institucionais (condominio_id);
+alter table public.documentos_institucionais enable row level security;
+
+drop policy if exists "Members can view documentos_institucionais" on public.documentos_institucionais;
+create policy "Members can view documentos_institucionais"
+  on public.documentos_institucionais for select
+  using (public.membro_tem_modulo(condominio_id, 'documentos'));
+
+drop policy if exists "Members can insert documentos_institucionais" on public.documentos_institucionais;
+create policy "Members can insert documentos_institucionais"
+  on public.documentos_institucionais for insert
+  with check (public.membro_tem_permissao(condominio_id, 'documentos', 'criar'));
+
+drop policy if exists "Members can delete documentos_institucionais" on public.documentos_institucionais;
+create policy "Members can delete documentos_institucionais"
+  on public.documentos_institucionais for delete
+  using (public.membro_tem_permissao(condominio_id, 'documentos', 'excluir'));
+
+grant select, insert, delete on public.documentos_institucionais to authenticated;
+
+insert into storage.buckets (id, name, public)
+values ('documentos-institucionais', 'documentos-institucionais', false)
+on conflict (id) do nothing;
+
+drop policy if exists "Members with documentos can view arquivos" on storage.objects;
+create policy "Members with documentos can view arquivos"
+  on storage.objects for select
+  using (
+    bucket_id = 'documentos-institucionais'
+    and public.membro_tem_modulo(((storage.foldername(name))[1])::uuid, 'documentos')
+  );
+
+drop policy if exists "Members with documentos can upload arquivos" on storage.objects;
+create policy "Members with documentos can upload arquivos"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'documentos-institucionais'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'documentos', 'criar')
+  );
+
+drop policy if exists "Members with documentos can delete arquivos" on storage.objects;
+create policy "Members with documentos can delete arquivos"
+  on storage.objects for delete
+  using (
+    bucket_id = 'documentos-institucionais'
+    and public.membro_tem_permissao(((storage.foldername(name))[1])::uuid, 'documentos', 'excluir')
+  );
+
 -- Cobrança via boleto (Asaas) — cada condomínio tem sua própria subconta
 -- no Asaas; o dinheiro do morador cai direto nela, nunca numa conta da
 -- AquiHabitto. api_key dá acesso direto à conta de pagamento do
