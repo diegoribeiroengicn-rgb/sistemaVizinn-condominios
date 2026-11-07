@@ -30,10 +30,14 @@ export default function EnquetesPage() {
 
   const podeGerenciar = temPermissao("enquetes", "editar");
 
+  // Nunca mexe em `error` aqui: load() é chamada logo depois de um erro
+  // de voto ser registrado (ver handleVotar), e se ela limpasse o erro
+  // a mensagem desaparecia antes do React chegar a desenhar a tela —
+  // bug real que já aconteceu (voto "não fazia nada" porque o erro
+  // sumia na mesma fração de segundo em que era setado).
   const load = useCallback(async () => {
     if (!condominio?.id) return;
     setLoading(true);
-    setError("");
 
     const { data: enquetesData, error: enquetesError } = await supabase
       .from("enquetes")
@@ -134,24 +138,22 @@ export default function EnquetesPage() {
   async function handleVotar(enquete, opcao) {
     setVotando(enquete.id);
     setError("");
+    let mensagemErro = "";
     try {
       const { error: rpcError } = await supabase.rpc("votar_enquete", {
         p_enquete_id: enquete.id,
         p_opcao: opcao,
       });
       if (rpcError) {
-        if (rpcError.code === "23505") {
-          setError("Essa unidade já respondeu essa enquete.");
-        } else {
-          setError(`Não foi possível responder: ${rpcError.message}`);
-        }
+        mensagemErro =
+          rpcError.code === "23505" ? "Essa unidade já respondeu essa enquete." : `Não foi possível responder: ${rpcError.message}`;
       }
     } catch (err) {
-      setError(`Não foi possível responder: ${err.message || "erro desconhecido"}`);
-    } finally {
-      setVotando(null);
-      load();
+      mensagemErro = `Não foi possível responder: ${err.message || "erro desconhecido"}`;
     }
+    setVotando(null);
+    await load();
+    if (mensagemErro) setError(mensagemErro);
   }
 
   if (!condominio) return <p className="text-navy-500">Carregando condomínio...</p>;

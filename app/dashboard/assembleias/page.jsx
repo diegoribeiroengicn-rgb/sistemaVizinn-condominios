@@ -34,10 +34,12 @@ export default function AssembleiasPage() {
   const podeGerenciar = temPermissao("assembleias", "criar");
   const podeEditar = temPermissao("assembleias", "editar");
 
+  // Nunca mexe em `error` aqui: load() é chamada logo depois de um erro
+  // de voto ser registrado (ver handleVotar), e se ela limpasse o erro
+  // a mensagem desaparecia antes do React chegar a desenhar a tela.
   const load = useCallback(async () => {
     if (!condominio?.id) return;
     setLoading(true);
-    setError("");
 
     const [a, p] = await Promise.all([
       supabase.from("assembleias").select("*").eq("condominio_id", condominio.id).order("created_at", { ascending: false }),
@@ -138,24 +140,22 @@ export default function AssembleiasPage() {
   async function handleVotar(pauta, opcao) {
     setVotando(pauta.id);
     setError("");
+    let mensagemErro = "";
     try {
       const { error: rpcError } = await supabase.rpc("votar_pauta", {
         p_pauta_id: pauta.id,
         p_opcao: opcao,
       });
       if (rpcError) {
-        if (rpcError.code === "23505") {
-          setError("Essa unidade já votou nessa pauta.");
-        } else {
-          setError(`Não foi possível registrar o voto: ${rpcError.message}`);
-        }
+        mensagemErro =
+          rpcError.code === "23505" ? "Essa unidade já votou nessa pauta." : `Não foi possível registrar o voto: ${rpcError.message}`;
       }
     } catch (err) {
-      setError(`Não foi possível registrar o voto: ${err.message || "erro desconhecido"}`);
-    } finally {
-      setVotando(null);
-      load();
+      mensagemErro = `Não foi possível registrar o voto: ${err.message || "erro desconhecido"}`;
     }
+    setVotando(null);
+    await load();
+    if (mensagemErro) setError(mensagemErro);
   }
 
   if (!condominio) return <p className="text-navy-500">Carregando condomínio...</p>;
