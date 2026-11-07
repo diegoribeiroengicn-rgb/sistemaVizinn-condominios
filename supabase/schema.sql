@@ -3884,6 +3884,12 @@ alter table public.contas_receber add column if not exists asaas_customer_id tex
 alter table public.contas_receber add column if not exists asaas_charge_id text;
 alter table public.contas_receber add column if not exists boleto_url text;
 alter table public.contas_receber add column if not exists boleto_linha_digitavel text;
+-- Tarifa de cobrança que o síndico decide repassar ao condômino nesta
+-- cobrança específica (null = ainda não decidiu; 0 = decidiu não
+-- repassar nada). Editável até a emissão do boleto — ver
+-- lib/tarifaBoleto.js e boleto_tarifa_lancamentos pro registro
+-- congelado no momento da emissão.
+alter table public.contas_receber add column if not exists tarifa_cobranca numeric(10,2);
 
 -- Margem fixa da AquiHabitto por boleto pago (split automático no
 -- Asaas) — uma linha só, editável em /admin/pagamentos. Custo do Asaas
@@ -3892,10 +3898,42 @@ alter table public.contas_receber add column if not exists boleto_linha_digitave
 create table if not exists public.config_boleto (
   id uuid primary key default gen_random_uuid(),
   margem_valor numeric(10,2) not null default 1.50,
+  -- Estimativa do que o Asaas cobra por boleto pago (eles descontam
+  -- isso sozinhos antes do split, a gente nunca vê o valor exato por
+  -- cobrança) — junto com margem_valor forma o "custo operacional
+  -- total" que embasa a tarifa de cobrança sugerida (ver
+  -- lib/tarifaBoleto.js). Editável pelo admin porque o valor real do
+  -- Asaas muda por plano/negociação.
+  custo_asaas_estimado numeric(10,2) not null default 1.99,
   updated_at timestamptz not null default now()
 );
 insert into public.config_boleto (margem_valor)
   select 1.50 where not exists (select 1 from public.config_boleto);
 
+-- Safe to re-run: adds the column if this script already ran before
+-- custo_asaas_estimado existed here.
+alter table public.config_boleto add column if not exists custo_asaas_estimado numeric(10,2) not null default 1.99;
+
 alter table public.config_boleto enable row level security;
 grant all on public.config_boleto to service_role;
+
+-- Razão de crédito/débito da tarifa de cobrança: registrado uma vez
+-- por boleto EMITIDO (não por boleto pago — a tarifa é uma decisão de
+-- cobrança, não depende de recebimento) com a diferença entre o que
+-- foi cobrado do condômino e o custo operacional da operação. Nunca é
+-- recalculado depois (congela a condição vigente na hora da emissão,
+-- igual pedido no prompt original — "alterações futuras na
+-- configuração não podem modificar cobranças já emitidas").
+create table if not exists public.boleto_tarifa_lancamentos (
+  id uuid primary key default gen_random_uuid(),
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  conta_receber_id uuid not null references public.contas_receber (id) on delete cascade,
+  tarifa_cobrada numeric(10,2) not null,
+  custo_operacional numeric(10,2) not null,
+  diferenca numeric(10,2) not null, -- tarifa_cobrada - custo_operacional (positivo = crédito, negativo = débito)
+  created_at timestamptz not null default now()
+);
+
+create index if not exists boleto_tarifa_lancamentos_condominio_id_idx on public.boleto_tarifa_lancamentos (condominio_id);
+alter table public.boleto_tarifa_lancamentos enable row level security;
+grant all on public.boleto_tarifa_lancamentos to service_role;

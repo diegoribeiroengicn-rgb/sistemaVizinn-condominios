@@ -8,6 +8,7 @@ import { TIPO_CUPOM_LABELS } from "@/lib/cupons";
 import { STATUS_SOLICITACAO_LABELS, STATUS_SOLICITACAO_STYLES } from "@/lib/tetoAdesao";
 import ValorPrivado, { BotaoAlternarValores } from "@/components/ValorPrivado";
 import AdminVendedorDetalheModal from "@/components/AdminVendedorDetalheModal";
+import { calcularCustoOperacionalTotal } from "@/lib/tarifaBoleto";
 
 const ABAS = [
   { id: "taxas", label: "Taxas de adesão" },
@@ -239,7 +240,9 @@ function PainelTaxas() {
 
 function PainelBoleto() {
   const [margemAtual, setMargemAtual] = useState(null);
+  const [custoAsaasAtual, setCustoAsaasAtual] = useState(null);
   const [valor, setValor] = useState("");
+  const [custoAsaas, setCustoAsaas] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [error, setError] = useState("");
 
@@ -249,6 +252,8 @@ function PainelBoleto() {
     if (!res.ok) return setError(json.error);
     setMargemAtual(json.margemValor);
     setValor(String(json.margemValor));
+    setCustoAsaasAtual(json.custoAsaasEstimado);
+    setCustoAsaas(String(json.custoAsaasEstimado));
   }, []);
 
   useEffect(() => {
@@ -262,7 +267,7 @@ function PainelBoleto() {
       const res = await authedFetch("/api/admin/config-boleto", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ margemValor: Number(valor) }),
+        body: JSON.stringify({ margemValor: Number(valor), custoAsaasEstimado: Number(custoAsaas) }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -274,36 +279,57 @@ function PainelBoleto() {
     }
   }
 
+  const custoTotal = calcularCustoOperacionalTotal({ margemValor: Number(valor) || 0, custoAsaasEstimado: Number(custoAsaas) || 0 });
+  const semAlteracao = Number(valor) === margemAtual && Number(custoAsaas) === custoAsaasAtual;
+
   return (
     <div className="space-y-4">
-      <div className="card space-y-3">
+      <div className="card space-y-4">
         <div>
-          <p className="font-semibold text-navy-900">Margem por boleto pago</p>
+          <p className="font-semibold text-navy-900">Composição interna da tarifa de cobrança</p>
           <p className="mt-1 text-xs text-navy-500">
-            Separada automaticamente do boleto via split do Asaas — o resto cai inteiro na subconta do
-            condomínio. Não inclui a taxa que o próprio Asaas cobra (hoje ~R$1,99/boleto pago), essa é
-            descontada antes, pelo Asaas. Ainda assim, mesmo com sua margem, o condomínio continua pagando
-            bem menos que num banco tradicional (R$8-9/boleto).
+            Nunca aparece pro síndico/condômino assim — só o valor final da tarifa (sugerido = custo total
+            abaixo), editável por eles na emissão de cada boleto. Isso aqui é só pra você acompanhar os dois
+            componentes que formam esse sugerido.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-navy-500">R$</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            className="input-field w-28"
-            value={valor}
-            onChange={(e) => setValor(e.target.value)}
-          />
-          <button
-            onClick={salvar}
-            disabled={salvando || Number(valor) === margemAtual}
-            className="btn-secondary text-sm disabled:opacity-50"
-          >
-            {salvando ? "Salvando..." : "Salvar"}
-          </button>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label-field">Margem AquiHabitto (separada via split)</label>
+            <div className="flex items-center gap-2">
+              <span className="text-navy-500">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field w-28"
+                value={valor}
+                onChange={(e) => setValor(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="label-field">Custo Asaas estimado (eles descontam sozinhos)</label>
+            <div className="flex items-center gap-2">
+              <span className="text-navy-500">R$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input-field w-28"
+                value={custoAsaas}
+                onChange={(e) => setCustoAsaas(e.target.value)}
+              />
+            </div>
+          </div>
         </div>
+        <div className="rounded-lg bg-navy-50/50 px-3 py-2 text-sm">
+          <span className="text-navy-500">Custo operacional total (= tarifa sugerida): </span>
+          <strong className="text-navy-900">{formatBRL(custoTotal)}</strong>
+        </div>
+        <button onClick={salvar} disabled={salvando || semAlteracao} className="btn-secondary text-sm disabled:opacity-50">
+          {salvando ? "Salvando..." : "Salvar"}
+        </button>
         {error && <p className="text-sm text-coral-700">{error}</p>}
       </div>
     </div>
