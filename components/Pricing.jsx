@@ -7,19 +7,25 @@ export default function Pricing({ onSelectPlan }) {
   // Mesma fonte de dados do dashboard do síndico e do painel admin
   // (/admin/pagamentos → aba Multicondomínios) — nunca diverge do que
   // é cobrado de verdade.
-  const [precoInicialMulti, setPrecoInicialMulti] = useState(null);
+  const [faixasMulti, setFaixasMulti] = useState([]);
 
   useEffect(() => {
     fetch("/api/public/multicondominios-faixas")
       .then((res) => res.json())
       .then((json) => {
-        const faixas = json.faixas || [];
-        if (faixas.length === 0) return;
-        const maisBarata = faixas.reduce((menor, f) => (Number(f.mensalidade) < Number(menor.mensalidade) ? f : menor));
-        setPrecoInicialMulti(Number(maisBarata.mensalidade));
+        const faixas = (json.faixas || []).slice().sort((a, b) => a.ordem - b.ordem);
+        setFaixasMulti(faixas);
       })
       .catch(() => {});
   }, []);
+
+  function labelFaixa(f) {
+    const min = Number(f.equivalentes_min);
+    const max = f.equivalentes_max != null ? Number(f.equivalentes_max) : null;
+    if (max == null) return `A partir de ${min} condomínios`;
+    if (min === max) return `${min} condomínios`;
+    return `${min} a ${max} condomínios`;
+  }
 
   return (
     <section className="bg-navy-50/40 py-20" id="planos">
@@ -76,45 +82,64 @@ export default function Pricing({ onSelectPlan }) {
           ))}
         </div>
 
-        <div className="card mt-6 flex flex-col gap-6 border-navy-200 bg-white lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <span className="inline-block w-fit rounded-full bg-navy-100 px-3 py-1 text-xs font-semibold text-navy-600">
-              Teste grátis por 14 dias
-            </span>
-            <h3 className="mt-3 font-display text-xl font-bold text-navy-900">Plataforma Multicondomínios</h3>
-            <p className="mt-1 max-w-xl text-sm text-navy-500">
-              Pra administradoras e síndicos profissionais que gerenciam vários condomínios: um único login,
-              dashboard consolidado e gestão financeira centralizada — sem precisar de uma conta separada
-              pra cada prédio.
-            </p>
-            <p className="mt-3">
-              <span className="font-display text-2xl font-bold text-navy-900">
-                A partir de R$ {precoInicialMulti != null ? precoInicialMulti.toFixed(2).replace(".", ",") : "100,00"}
+        <div className="card mt-6 border-navy-200 bg-white">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <span className="inline-block w-fit rounded-full bg-navy-100 px-3 py-1 text-xs font-semibold text-navy-600">
+                Teste grátis por 14 dias
               </span>
-              <span className="text-navy-500">/mês</span>
-            </p>
-            <p className="text-xs text-navy-400">já inclui 2 condomínios de até 30 unidades cada</p>
-            <ul className="mt-4 space-y-2 text-sm text-navy-700">
-              <li className="flex items-center gap-2">
-                <span className="text-coral">✓</span> Gestão de vários condomínios numa única conta
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-coral">✓</span> Dashboard consolidado com indicadores de todos os condomínios
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-coral">✓</span> Troque de condomínio sem precisar sair e entrar de novo
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-coral">✓</span> Cadastro de novos condomínios direto pelo próprio dashboard
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-coral">✓</span> Mensalidade progressiva — quanto mais condomínios, menor o custo por unidade
-              </li>
-            </ul>
+              <h3 className="mt-3 font-display text-xl font-bold text-navy-900">Plataforma Multicondomínios</h3>
+              <p className="mt-1 max-w-xl text-sm text-navy-500">
+                Pra administradoras e síndicos profissionais que gerenciam vários condomínios: um único login,
+                dashboard consolidado e gestão financeira centralizada — sem precisar de uma conta separada
+                pra cada prédio.
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-navy-700">
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Gestão de vários condomínios numa única conta
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Dashboard consolidado com indicadores de todos os condomínios
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Troque de condomínio sem precisar sair e entrar de novo
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Cadastro de novos condomínios direto pelo próprio dashboard
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Mensalidade progressiva — quanto mais condomínios, menor o custo por unidade
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Pagamento via boleto ou cartão, como preferir
+                </li>
+              </ul>
+            </div>
+            <a href="#contato" className="btn-secondary flex-none text-center">
+              Solicitar proposta comercial
+            </a>
           </div>
-          <a href="#contato" className="btn-secondary flex-none text-center">
-            Solicitar proposta comercial
-          </a>
+
+          {faixasMulti.length > 0 && (
+            <div className="mt-6 border-t border-navy-100 pt-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Faixas de preço</p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                {faixasMulti.map((f) => (
+                  <div key={f.id} className="rounded-lg bg-navy-50/60 px-3 py-2 text-center">
+                    <p className="text-xs text-navy-500">{labelFaixa(f)}</p>
+                    <p className="font-display text-base font-bold text-navy-900">
+                      R$ {Number(f.mensalidade).toFixed(2).replace(".", ",")}
+                    </p>
+                    <p className="text-[11px] text-navy-400">/mês</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-navy-400">
+                Considerando condomínios de até 30 unidades cada. Prédios maiores contam como mais de uma unidade
+                equivalente — fale com a gente pra simular o seu caso.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>
