@@ -12,6 +12,7 @@ import AdminVendedorDetalheModal from "@/components/AdminVendedorDetalheModal";
 const ABAS = [
   { id: "taxas", label: "Taxas de adesão" },
   { id: "boleto", label: "Boleto" },
+  { id: "multicondominios", label: "Multicondomínios" },
   { id: "vendedores", label: "Vendedores" },
   { id: "cupons", label: "Cupons" },
 ];
@@ -305,6 +306,241 @@ function PainelBoleto() {
         </div>
         {error && <p className="text-sm text-coral-700">{error}</p>}
       </div>
+    </div>
+  );
+}
+
+const emptyFaixa = { equivalentesMin: "", equivalentesMax: "", mensalidade: "" };
+
+function PainelMulticondominios() {
+  const [faixas, setFaixas] = useState([]);
+  const [edicoes, setEdicoes] = useState({}); // { [id]: {equivalentesMin, equivalentesMax, mensalidade} }
+  const [nova, setNova] = useState(emptyFaixa);
+  const [salvandoId, setSalvandoId] = useState(null);
+  const [criando, setCriando] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/multicondominios-faixas");
+    const json = await res.json();
+    if (!res.ok) return setError(json.error);
+    setFaixas(json.faixas);
+    const mapa = {};
+    for (const f of json.faixas) {
+      mapa[f.id] = {
+        equivalentesMin: f.equivalentes_min,
+        equivalentesMax: f.equivalentes_max ?? "",
+        mensalidade: f.mensalidade,
+      };
+    }
+    setEdicoes(mapa);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function salvar(id) {
+    setSalvandoId(id);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/multicondominios-faixas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...edicoes[id] }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvandoId(null);
+    }
+  }
+
+  async function excluir(id) {
+    if (!confirm("Excluir esta faixa de preço?")) return;
+    setSalvandoId(id);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/multicondominios-faixas", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvandoId(null);
+    }
+  }
+
+  async function alternarAtivo(faixa) {
+    setSalvandoId(faixa.id);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/multicondominios-faixas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: faixa.id, ativo: !faixa.ativo }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvandoId(null);
+    }
+  }
+
+  async function criar(e) {
+    e.preventDefault();
+    setCriando(true);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/multicondominios-faixas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...nova, ordem: faixas.length }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setNova(emptyFaixa);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCriando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card">
+        <p className="text-sm text-navy-600">
+          Tabela progressiva do Pro+ Multicondomínios — mensalidade por faixa de &quot;equivalentes&quot; (porte
+          somado dos condomínios do dono, ver lib/multicondominios.js). É a mesma fonte de dados usada no
+          dashboard do síndico e, mais pra frente, na página de vendas.
+        </p>
+      </div>
+
+      {error && <p className="text-sm text-coral-700">{error}</p>}
+
+      <div className="card overflow-x-auto p-0">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-navy-50/50 text-left text-navy-500">
+            <tr>
+              <th className="px-3 py-2 font-medium">Equivalentes (min)</th>
+              <th className="px-3 py-2 font-medium">Equivalentes (max)</th>
+              <th className="px-3 py-2 font-medium">Mensalidade</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {faixas.map((f) => {
+              const ed = edicoes[f.id] || {};
+              return (
+                <tr key={f.id} className="border-t border-navy-50">
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      className="input-field w-24"
+                      value={ed.equivalentesMin ?? ""}
+                      onChange={(e) => setEdicoes((m) => ({ ...m, [f.id]: { ...m[f.id], equivalentesMin: e.target.value } }))}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      className="input-field w-24"
+                      placeholder="sem teto"
+                      value={ed.equivalentesMax ?? ""}
+                      onChange={(e) => setEdicoes((m) => ({ ...m, [f.id]: { ...m[f.id], equivalentesMax: e.target.value } }))}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-navy-500">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="input-field w-28"
+                        value={ed.mensalidade ?? ""}
+                        onChange={(e) => setEdicoes((m) => ({ ...m, [f.id]: { ...m[f.id], mensalidade: e.target.value } }))}
+                      />
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <button onClick={() => alternarAtivo(f)} className="text-xs font-semibold text-navy-500 hover:underline">
+                      {f.ativo ? "Ativa" : "Inativa"}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-3">
+                      <button
+                        onClick={() => salvar(f.id)}
+                        disabled={salvandoId === f.id}
+                        className="text-xs font-semibold text-coral hover:underline disabled:opacity-50"
+                      >
+                        {salvandoId === f.id ? "..." : "Salvar"}
+                      </button>
+                      <button
+                        onClick={() => excluir(f.id)}
+                        disabled={salvandoId === f.id}
+                        className="text-xs font-semibold text-navy-400 hover:underline disabled:opacity-50"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <form onSubmit={criar} className="card flex flex-wrap items-end gap-3">
+        <div>
+          <label className="label-field">Equivalentes (min)</label>
+          <input
+            type="number"
+            required
+            className="input-field w-28"
+            value={nova.equivalentesMin}
+            onChange={(e) => setNova((f) => ({ ...f, equivalentesMin: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="label-field">Equivalentes (max, opcional)</label>
+          <input
+            type="number"
+            className="input-field w-28"
+            value={nova.equivalentesMax}
+            onChange={(e) => setNova((f) => ({ ...f, equivalentesMax: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="label-field">Mensalidade</label>
+          <input
+            type="number"
+            step="0.01"
+            required
+            className="input-field w-28"
+            value={nova.mensalidade}
+            onChange={(e) => setNova((f) => ({ ...f, mensalidade: e.target.value }))}
+          />
+        </div>
+        <button type="submit" disabled={criando} className="btn-secondary text-sm disabled:opacity-50">
+          {criando ? "Adicionando..." : "+ Adicionar faixa"}
+        </button>
+      </form>
     </div>
   );
 }
@@ -681,6 +917,7 @@ export default function AdminPagamentosContent() {
 
       {aba === "taxas" && <PainelTaxas />}
       {aba === "boleto" && <PainelBoleto />}
+      {aba === "multicondominios" && <PainelMulticondominios />}
       {aba === "vendedores" && <PainelVendedores />}
       {aba === "cupons" && <PainelCupons />}
     </div>

@@ -11,6 +11,7 @@ import {
   formatarMoeda,
 } from "@/lib/financeiro";
 import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
+import { calcularEquivalenciaTotal, calcularMensalidade, diasRestantesTrial } from "@/lib/multicondominios";
 
 // Visão consolidada — Etapa 3 do upgrade Pro+ Multicondomínios. Só
 // agrega dados que o próprio RLS já deixa o dono ver (um `select ...
@@ -18,16 +19,28 @@ import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarI
 // só os condomínios que `is_condominio_owner()` aprova pra esse
 // usuário — não precisou de nenhuma policy nova pra isso).
 export default function MulticondominiosPage() {
-  const { role, condominio, condominiosDoDono, temProPlusMulticondominios, trocarCondominio } = useAuth();
+  const { role, condominio, condominiosDoDono, temProPlusMulticondominios, proPlusTrialFim, trocarCondominio } = useAuth();
   const router = useRouter();
   const [dados, setDados] = useState(null);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState("mes_atual");
   const [periodoPersonalizado, setPeriodoPersonalizado] = useState({ inicio: "", fim: "" });
   const [filtroCondominioId, setFiltroCondominioId] = useState("todos");
+  const [faixasPreco, setFaixasPreco] = useState([]);
 
   const condominioIds = useMemo(() => condominiosDoDono.map((c) => c.id), [condominiosDoDono]);
   const habilitado = role === "sindico" && temProPlusMulticondominios && condominioIds.length > 1;
+  const diasTrial = diasRestantesTrial(proPlusTrialFim);
+  const equivalenciaTotal = useMemo(() => calcularEquivalenciaTotal(condominiosDoDono), [condominiosDoDono]);
+  const mensalidadeEstimada = useMemo(() => calcularMensalidade(equivalenciaTotal, faixasPreco), [equivalenciaTotal, faixasPreco]);
+
+  useEffect(() => {
+    if (!habilitado) return;
+    fetch("/api/public/multicondominios-faixas")
+      .then((res) => res.json())
+      .then((json) => setFaixasPreco(json.faixas || []))
+      .catch(() => {});
+  }, [habilitado]);
 
   const load = useCallback(async () => {
     if (!habilitado) {
@@ -128,6 +141,23 @@ export default function MulticondominiosPage() {
       <div className="card">
         <h1 className="font-display text-xl font-bold text-navy-900">Plataforma Multicondomínios</h1>
         <p className="mt-1 text-sm text-navy-500">Visão consolidada de todos os condomínios vinculados à sua conta.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-navy-600">
+          <span>
+            Porte somado: <strong className="text-navy-900">{equivalenciaTotal} equivalente{equivalenciaTotal === 1 ? "" : "s"}</strong>
+          </span>
+          {mensalidadeEstimada != null && (
+            <span>
+              Mensalidade Pro+: <strong className="text-navy-900">{formatarMoeda(mensalidadeEstimada)}/mês</strong>
+            </span>
+          )}
+        </div>
+        {diasTrial != null && (
+          <p className={`mt-2 text-xs font-medium ${diasTrial === 0 ? "text-coral-700" : "text-emerald-700"}`}>
+            {diasTrial > 0
+              ? `Teste grátis Pro+ Multicondomínios — ${diasTrial} dia${diasTrial === 1 ? "" : "s"} restante${diasTrial === 1 ? "" : "s"}.`
+              : "Seu teste grátis do Pro+ Multicondomínios terminou — fale com o suporte pra continuar."}
+          </p>
+        )}
       </div>
 
       <div className="card flex flex-wrap items-center gap-3">

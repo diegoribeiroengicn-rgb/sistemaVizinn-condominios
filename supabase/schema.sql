@@ -1869,6 +1869,48 @@ create policy "Owner can view own conta_sindico"
 grant select on public.contas_sindico to authenticated;
 grant all on public.contas_sindico to service_role;
 
+-- Quando o Pro+ Multicondomínios é ativado pela primeira vez, ganha 14
+-- dias de teste grátis — ver /api/admin/toggle-pro-plus.
+alter table public.contas_sindico add column if not exists pro_plus_trial_fim date;
+
+-- Tabela de preços progressiva do Pro+ Multicondomínios: faixas de
+-- "equivalentes" (ver lib/multicondominios.js — porte de cada
+-- condomínio convertido num número, somado entre todos os condomínios
+-- do dono) pra mensalidade. Só o admin geral edita (ver
+-- /api/admin/multicondominios-faixas); leitura é pública (mesma regra
+-- de taxas_adesao) porque tanto o dashboard do síndico quanto a página
+-- de vendas precisam mostrar o valor sem estar logado como admin.
+create table if not exists public.multicondominios_faixas (
+  id uuid primary key default gen_random_uuid(),
+  equivalentes_min integer not null,
+  equivalentes_max integer, -- null = sem teto (faixa mais alta)
+  mensalidade numeric(10,2) not null,
+  ordem integer not null default 0,
+  ativo boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Seed com a tabela sugerida no prompt original — só insere se a
+-- tabela estiver vazia (não sobrescreve ajustes já feitos pelo admin).
+insert into public.multicondominios_faixas (equivalentes_min, equivalentes_max, mensalidade, ordem)
+select * from (values
+  (2, 2, 100.00, 1),
+  (3, 3, 139.00, 2),
+  (4, 5, 179.00, 3),
+  (6, 10, 299.00, 4),
+  (11, 20, 499.00, 5),
+  (21, 35, 749.00, 6),
+  (36, 50, 999.00, 7),
+  (51, 75, 1299.00, 8),
+  (76, 100, 1599.00, 9),
+  (101, null, 2000.00, 10)
+) as seed(equivalentes_min, equivalentes_max, mensalidade, ordem)
+where not exists (select 1 from public.multicondominios_faixas);
+
+alter table public.multicondominios_faixas enable row level security;
+grant all on public.multicondominios_faixas to service_role;
+
 -- ---------------------------------------------------------------------
 -- Termos de uso do módulo Fornecedores — aceite obrigatório na
 -- primeira vez que a pessoa acessa (ver TermosFornecedoresGate.jsx).

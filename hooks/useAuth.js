@@ -10,6 +10,7 @@ const AuthContext = createContext({
   condominio: null,
   condominiosDoDono: [],
   temProPlusMulticondominios: false,
+  proPlusTrialFim: null,
   trocarCondominio: () => {},
   member: null,
   role: null,
@@ -41,6 +42,7 @@ export function AuthProvider({ children }) {
   const [condominio, setCondominio] = useState(null);
   const [condominiosDoDono, setCondominiosDoDono] = useState([]);
   const [temProPlusMulticondominios, setTemProPlusMulticondominios] = useState(false);
+  const [proPlusTrialFim, setProPlusTrialFim] = useState(null);
   const [member, setMember] = useState(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [accessError, setAccessError] = useState(false);
@@ -87,16 +89,18 @@ export function AuthProvider({ children }) {
       // condomínio — só vale a pena buscar quando há mais de 1, já que
       // com 1 só o seletor nunca aparece de qualquer forma.
       let proPlus = false;
+      let proPlusTrialFim = null;
       if (lista.length > 1) {
         const { data: conta } = await supabase
           .from("contas_sindico")
-          .select("pro_plus_multicondominios")
+          .select("pro_plus_multicondominios, pro_plus_trial_fim")
           .eq("user_id", userId)
           .maybeSingle();
         proPlus = Boolean(conta?.pro_plus_multicondominios);
+        proPlusTrialFim = conta?.pro_plus_trial_fim || null;
       }
 
-      return { condominio: escolhido, condominios: lista, proPlus, member: null, erro: false };
+      return { condominio: escolhido, condominios: lista, proPlus, proPlusTrialFim, member: null, erro: false };
     }
 
     // Um síndico/dono nunca tem linha em "membros" — pra ele, essa busca
@@ -127,6 +131,7 @@ export function AuthProvider({ children }) {
     setCondominio(resultado.condominio);
     setCondominiosDoDono(resultado.condominios);
     setTemProPlusMulticondominios(resultado.proPlus);
+    setProPlusTrialFim(resultado.proPlusTrialFim || null);
     setMember(resultado.member);
     setAccessError(resultado.erro);
     if (resultado.condominio && typeof window !== "undefined") {
@@ -212,6 +217,7 @@ export function AuthProvider({ children }) {
         setCondominio(null);
         setCondominiosDoDono([]);
         setTemProPlusMulticondominios(false);
+        setProPlusTrialFim(null);
         setMember(null);
         setAccessError(false);
       }
@@ -230,6 +236,7 @@ export function AuthProvider({ children }) {
     setCondominio(null);
     setCondominiosDoDono([]);
     setTemProPlusMulticondominios(false);
+    setProPlusTrialFim(null);
     setMember(null);
   }, []);
 
@@ -296,6 +303,7 @@ export function AuthProvider({ children }) {
       condominio,
       condominiosDoDono,
       temProPlusMulticondominios,
+      proPlusTrialFim,
       trocarCondominio,
       member,
       role,
@@ -313,6 +321,7 @@ export function AuthProvider({ children }) {
       condominio,
       condominiosDoDono,
       temProPlusMulticondominios,
+      proPlusTrialFim,
       trocarCondominio,
       member,
       role,
