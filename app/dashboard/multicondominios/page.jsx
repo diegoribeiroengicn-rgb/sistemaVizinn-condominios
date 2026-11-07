@@ -1,0 +1,238 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+import {
+  STATUS_PAGAR_FINAIS,
+  STATUS_RECEBER_FINAIS,
+  calcularStatusVencimento,
+  formatarMoeda,
+} from "@/lib/financeiro";
+import { PERIODO_OPTIONS, calcularIntervaloPeriodo, dentroDoIntervalo, formatarIntervalo } from "@/lib/periodo";
+
+// Visão consolidada — Etapa 3 do upgrade Pro+ Multicondomínios. Só
+// agrega dados que o próprio RLS já deixa o dono ver (um `select ...
+// where condominio_id = any(...)` simplesmente retorna, linha a linha,
+// só os condomínios que `is_condominio_owner()` aprova pra esse
+// usuário — não precisou de nenhuma policy nova pra isso).
+export default function MulticondominiosPage() {
+  const { role, condominio, condominiosDoDono, temProPlusMulticondominios, trocarCondominio } = useAuth();
+  const router = useRouter();
+  const [dados, setDados] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [periodo, setPeriodo] = useState("mes_atual");
+  const [periodoPersonalizado, setPeriodoPersonalizado] = useState({ inicio: "", fim: "" });
+  const [filtroCondominioId, setFiltroCondominioId] = useState("todos");
+
+  const condominioIds = useMemo(() => condominiosDoDono.map((c) => c.id), [condominiosDoDono]);
+  const habilitado = role === "sindico" && temProPlusMulticondominios && condominioIds.length > 1;
+
+  const load = useCallback(async () => {
+    if (!habilitado) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
+    const [membros, contasReceber, contasPagar] = await Promise.all([
+      supabase.from("membros").select("condominio_id").in("condominio_id", condominioIds).eq("papel", "condomino"),
+      supabase
+        .from("contas_receber")
+        .select("condominio_id, status, valor, valor_recebido, data_vencimento, data_recebimento")
+        .in("condominio_id", condominioIds),
+      supabase
+        .from("contas_pagar")
+        .select("condominio_id, status, valor, data_vencimento, data_pagamento")
+        .in("condominio_id", condominioIds),
+    ]);
+
+    setDados({
+      membros: membros.data || [],
+      contasReceber: contasReceber.data || [],
+      contasPagar: contasPagar.data || [],
+    });
+    setLoading(false);
+  }, [habilitado, condominioIds]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const intervalo = calcularIntervaloPeriodo(periodo, periodoPersonalizado);
+
+  const porCondominio = useMemo(() => {
+    if (!dados) return [];
+    return condominiosDoDono
+      .filter((c) => filtroCondominioId === "todos" || c.id === filtroCondominioId)
+      .map((c) => {
+        const unidades = dados.membros.filter((m) => m.condominio_id === c.id).length;
+        const receberDoCondo = dados.contasReceber.filter((cr) => cr.condominio_id === c.id);
+        const pagarDoCondo = dados.contasPagar.filter((cp) => cp.condominio_id === c.id);
+        const receberAbertas = receberDoCondo.filter((cr) => !STATUS_RECEBER_FINAIS.includes(cr.status));
+        const receberVencidas = receberDoCondo.filter(
+          (cr) => calcularStatusVencimento(cr.data_vencimento, cr.status, STATUS_RECEBER_FINAIS)?.nivel === "vermelho"
+        );
+        const recebidoNoPeriodo = receberDoCondo
+          .filter((cr) => cr.status === "recebida" && dentroDoIntervalo(cr.data_recebimento, intervalo))
+          .reduce((s, cr) => s + Number(cr.valor_recebido ?? cr.valor ?? 0), 0);
+        const pagoNoPeriodo = pagarDoCondo
+          .filter((cp) => cp.status === "pago" && dentroDoIntervalo(cp.data_pagamento, intervalo))
+          .reduce((s, cp) => s + Number(cp.valor || 0), 0);
+        return {
+          id: c.id,
+          nome: c.nome,
+          unidades,
+          cobrancasAbertas: receberAbertas.length,
+          cobrancasVencidas: receberVencidas.length,
+          recebidoNoPeriodo,
+          pagoNoPeriodo,
+          saldoNoPeriodo: recebidoNoPeriodo - pagoNoPeriodo,
+        };
+      });
+  }, [dados, condominiosDoDono, filtroCondominioId, intervalo]);
+
+  const totais = useMemo(
+    () =>
+      porCondominio.reduce(
+        (acc, c) => ({
+          unidades: acc.unidades + c.unidades,
+          cobrancasAbertas: acc.cobrancasAbertas + c.cobrancasAbertas,
+          cobrancasVencidas: acc.cobrancasVencidas + c.cobrancasVencidas,
+          recebidoNoPeriodo: acc.recebidoNoPeriodo + c.recebidoNoPeriodo,
+          pagoNoPeriodo: acc.pagoNoPeriodo + c.pagoNoPeriodo,
+          saldoNoPeriodo: acc.saldoNoPeriodo + c.saldoNoPeriodo,
+        }),
+        { unidades: 0, cobrancasAbertas: 0, cobrancasVencidas: 0, recebidoNoPeriodo: 0, pagoNoPeriodo: 0, saldoNoPeriodo: 0 }
+      ),
+    [porCondominio]
+  );
+
+  function abrirCondominio(id) {
+    trocarCondominio(id);
+    router.push("/dashboard");
+  }
+
+  if (!habilitado) {
+    return (
+      <div className="card text-center text-navy-500">
+        A Plataforma Multicondomínios é um recurso Pro+, pra quem administra mais de um condomínio com a mesma
+        conta. Fale com o suporte da AquiHabitto se você administra vários condomínios e quer habilitar.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="card">
+        <h1 className="font-display text-xl font-bold text-navy-900">Plataforma Multicondomínios</h1>
+        <p className="mt-1 text-sm text-navy-500">Visão consolidada de todos os condomínios vinculados à sua conta.</p>
+      </div>
+
+      <div className="card flex flex-wrap items-center gap-3">
+        <p className="text-sm font-medium text-navy-600">Condomínio:</p>
+        <select className="input-field w-auto" value={filtroCondominioId} onChange={(e) => setFiltroCondominioId(e.target.value)}>
+          <option value="todos">Todos</option>
+          {condominiosDoDono.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+        <p className="text-sm font-medium text-navy-600">Período:</p>
+        <select className="input-field w-auto" value={periodo} onChange={(e) => setPeriodo(e.target.value)}>
+          {PERIODO_OPTIONS.map((opt) => (
+            <option key={opt.id} value={opt.id}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        {periodo === "personalizado" && (
+          <>
+            <input
+              type="date"
+              className="input-field w-auto"
+              value={periodoPersonalizado.inicio}
+              onChange={(e) => setPeriodoPersonalizado((p) => ({ ...p, inicio: e.target.value }))}
+            />
+            <span className="text-navy-400">até</span>
+            <input
+              type="date"
+              className="input-field w-auto"
+              value={periodoPersonalizado.fim}
+              onChange={(e) => setPeriodoPersonalizado((p) => ({ ...p, fim: e.target.value }))}
+            />
+          </>
+        )}
+        {intervalo && <p className="text-xs text-navy-400">{formatarIntervalo(intervalo)}</p>}
+      </div>
+
+      {loading ? (
+        <p className="text-navy-500">Carregando indicadores consolidados...</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="card">
+              <p className="text-xs text-navy-400">Condomínios</p>
+              <p className="mt-1 font-display text-xl font-bold text-navy-900">{condominiosDoDono.length}</p>
+            </div>
+            <div className="card">
+              <p className="text-xs text-navy-400">Unidades (total)</p>
+              <p className="mt-1 font-display text-xl font-bold text-navy-900">{totais.unidades}</p>
+            </div>
+            <div className="card">
+              <p className="text-xs text-navy-400">Cobranças em aberto</p>
+              <p className="mt-1 font-display text-xl font-bold text-navy-900">{totais.cobrancasAbertas}</p>
+            </div>
+            <div className="card">
+              <p className="text-xs text-navy-400">Cobranças vencidas</p>
+              <p className="mt-1 font-display text-xl font-bold text-coral-700">{totais.cobrancasVencidas}</p>
+            </div>
+            <div className="card">
+              <p className="text-xs text-navy-400">Recebido no período</p>
+              <p className="mt-1 font-display text-xl font-bold text-emerald-700">{formatarMoeda(totais.recebidoNoPeriodo)}</p>
+            </div>
+            <div className="card">
+              <p className="text-xs text-navy-400">Saldo no período</p>
+              <p className="mt-1 font-display text-xl font-bold text-navy-900">{formatarMoeda(totais.saldoNoPeriodo)}</p>
+            </div>
+          </div>
+
+          <div className="card overflow-x-auto p-0">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="bg-navy-50/50 text-left text-navy-500">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Condomínio</th>
+                  <th className="px-4 py-3 font-medium">Unidades</th>
+                  <th className="px-4 py-3 font-medium">Em aberto</th>
+                  <th className="px-4 py-3 font-medium">Vencidas</th>
+                  <th className="px-4 py-3 font-medium">Recebido no período</th>
+                  <th className="px-4 py-3 font-medium">Saldo no período</th>
+                  <th className="px-4 py-3 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {porCondominio.map((c) => (
+                  <tr key={c.id} className="border-t border-navy-50">
+                    <td className="px-4 py-3 font-medium text-navy-800">{c.nome}</td>
+                    <td className="px-4 py-3">{c.unidades}</td>
+                    <td className="px-4 py-3">{c.cobrancasAbertas}</td>
+                    <td className="px-4 py-3 text-coral-700">{c.cobrancasVencidas}</td>
+                    <td className="px-4 py-3 text-emerald-700">{formatarMoeda(c.recebidoNoPeriodo)}</td>
+                    <td className="px-4 py-3">{formatarMoeda(c.saldoNoPeriodo)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button onClick={() => abrirCondominio(c.id)} className="text-xs font-semibold text-coral hover:underline">
+                        {c.id === condominio?.id ? "Ativo" : "Abrir"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
