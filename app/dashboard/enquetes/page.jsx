@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 
-const emptyForm = { pergunta: "", opcoes: "", dataLimite: "" };
+const emptyForm = { pergunta: "", opcoes: ["", ""], dataLimite: "" };
 
 export default function EnquetesPage() {
   const { condominio, user, temPermissao } = useAuth();
@@ -38,11 +38,27 @@ export default function EnquetesPage() {
     load();
   }, [load]);
 
+  function handleOpcaoChange(index, valor) {
+    setForm((f) => {
+      const opcoes = [...f.opcoes];
+      opcoes[index] = valor;
+      return { ...f, opcoes };
+    });
+  }
+
+  function handleAddOpcao() {
+    setForm((f) => ({ ...f, opcoes: [...f.opcoes, ""] }));
+  }
+
+  function handleRemoveOpcao(index) {
+    setForm((f) => ({ ...f, opcoes: f.opcoes.filter((_, i) => i !== index) }));
+  }
+
   async function handleCreate(ev) {
     ev.preventDefault();
-    const opcoes = form.opcoes.split(",").map((o) => o.trim()).filter(Boolean);
+    const opcoes = form.opcoes.map((o) => o.trim()).filter(Boolean);
     if (!condominio?.id || !form.pergunta.trim() || opcoes.length < 2) {
-      setError("Informe a pergunta e pelo menos duas opções separadas por vírgula.");
+      setError("Informe a pergunta e pelo menos duas opções de resposta.");
       return;
     }
     setSubmitting(true);
@@ -103,14 +119,32 @@ export default function EnquetesPage() {
                 />
               </div>
               <div className="sm:col-span-2">
-                <label className="label-field">Opções (separadas por vírgula)</label>
-                <input
-                  className="input-field"
-                  value={form.opcoes}
-                  onChange={(e) => setForm((f) => ({ ...f, opcoes: e.target.value }))}
-                  placeholder="Ex: Branco, Cinza, Azul claro"
-                  required
-                />
+                <label className="label-field">Opções de resposta</label>
+                <div className="space-y-2">
+                  {form.opcoes.map((opcao, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        className="input-field"
+                        value={opcao}
+                        onChange={(e) => handleOpcaoChange(i, e.target.value)}
+                        placeholder={`Opção ${i + 1}`}
+                        required={i < 2}
+                      />
+                      {form.opcoes.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveOpcao(i)}
+                          className="flex-none text-xs font-semibold text-coral hover:underline"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={handleAddOpcao} className="mt-2 text-xs font-semibold text-navy-600 hover:underline">
+                  + Adicionar opção
+                </button>
               </div>
               <div>
                 <label className="label-field">Encerra em (opcional)</label>
