@@ -27,8 +27,10 @@ import {
 } from "@/lib/financeiro";
 import { baixarBlob } from "@/lib/xlsx";
 import { nomeArquivoSeguro } from "@/lib/storage";
+import { authedFetch } from "@/lib/adminFetch";
 import ContaPagarForm from "@/components/financeiro/ContaPagarForm";
 import ContaReceberForm from "@/components/financeiro/ContaReceberForm";
+import CobrancaBoletoPainel from "@/components/financeiro/CobrancaBoletoPainel";
 
 const ABAS = [
   { id: "visao", label: "Visão financeira" },
@@ -70,6 +72,8 @@ const emptyContaReceber = {
   status: "pendente",
   observacoes: "",
   boletoReferencia: "",
+  pagadorCpfCnpj: "",
+  pagadorEmail: "",
 };
 
 function inicioPeriodo(periodo, dataBase) {
@@ -106,7 +110,7 @@ function agruparPorCategoria(itens, campoValor) {
 }
 
 export default function FinanceiroPage() {
-  const { condominio, temPermissao } = useAuth();
+  const { condominio, temPermissao, user } = useAuth();
   const searchParams = useSearchParams();
   const [aba, setAba] = useState("visao");
   const [contasPagar, setContasPagar] = useState([]);
@@ -131,6 +135,7 @@ export default function FinanceiroPage() {
   const [submittingReceber, setSubmittingReceber] = useState(false);
   const [filtroStatusPagar, setFiltroStatusPagar] = useState("");
   const [filtroStatusReceber, setFiltroStatusReceber] = useState("");
+  const [emitindoBoletoId, setEmitindoBoletoId] = useState(null);
 
   const [previewPagar, setPreviewPagar] = useState(null);
   const [importandoPagar, setImportandoPagar] = useState(false);
@@ -348,6 +353,8 @@ export default function FinanceiroPage() {
       status: formReceber.status,
       observacoes: formReceber.observacoes.trim() || null,
       boleto_referencia: formReceber.boletoReferencia.trim() || null,
+      pagador_cpf_cnpj: formReceber.pagadorCpfCnpj.trim() || null,
+      pagador_email: formReceber.pagadorEmail.trim() || null,
     });
     setSubmittingReceber(false);
     if (insertError) {
@@ -440,6 +447,26 @@ export default function FinanceiroPage() {
     const { error: updateError } = await supabase.from("contas_receber").update(updates).eq("id", conta.id);
     if (updateError) setError(updateError.message);
     else load();
+  }
+
+  async function handleEmitirBoleto(conta) {
+    if (!condominio?.id) return;
+    setEmitindoBoletoId(conta.id);
+    setError("");
+    try {
+      const res = await authedFetch("/api/financeiro/emitir-boleto", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ condominioId: condominio.id, contaReceberId: conta.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao emitir boleto.");
+      load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setEmitindoBoletoId(null);
+    }
   }
 
   const { inicio, fim } = useMemo(() => {
@@ -796,6 +823,8 @@ export default function FinanceiroPage() {
 
       {!loading && aba === "receber" && (
         <div className="space-y-4">
+          <CobrancaBoletoPainel condominioId={condominio.id} isOwner={user?.id === condominio.owner_id} onError={setError} />
+
           {podeCriar && (
             <div className="card">
               <h2 className="font-display text-lg font-bold text-navy-900">Planilha</h2>
@@ -945,8 +974,31 @@ export default function FinanceiroPage() {
                     <div className="text-right">
                       <p className="text-lg font-bold text-navy-900">{formatarMoeda(c.valor)}</p>
                       {podeEditar && !STATUS_RECEBER_FINAIS.includes(c.status) && (
-                        <button onClick={() => handleStatusReceber(c, "recebida")} className="mt-1 text-xs font-semibold text-emerald-700 hover:underline">
+                        <button onClick={() => handleStatusReceber(c, "recebida")} className="mt-1 block text-xs font-semibold text-emerald-700 hover:underline">
                           Marcar como recebida
+                        </button>
+                      )}
+                      {podeEditar && !STATUS_RECEBER_FINAIS.includes(c.status) && !c.boleto_url && (
+                        <button
+                          onClick={() => handleEmitirBoleto(c)}
+                          disabled={emitindoBoletoId === c.id}
+                          className="mt-1 block text-xs font-semibold text-navy-700 hover:underline disabled:opacity-50"
+                          title={!c.pagador_cpf_cnpj ? "Preencha o CPF/CNPJ do pagador pra poder emitir" : ""}
+                        >
+                          {emitindoBoletoId === c.id ? "Emitindo..." : "Emitir boleto"}
+                        </button>
+                      )}
+                      {c.boleto_url && (
+                        <a href={c.boleto_url} target="_blank" rel="noopener noreferrer" className="mt-1 block text-xs font-semibold text-coral-700 hover:underline">
+                          Ver boleto →
+                        </a>
+                      )}
+                      {c.boleto_linha_digitavel && (
+                        <button
+                          onClick={() => navigator.clipboard.writeText(c.boleto_linha_digitavel)}
+                          className="mt-1 block text-xs text-navy-400 hover:underline"
+                        >
+                          Copiar linha digitável
                         </button>
                       )}
                     </div>

@@ -205,6 +205,45 @@ export function IconRelatorios(props) {
   );
 }
 
+export function IconAssembleia(props) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+      <path d="M8.5 11.5l2.5 2.5 4.5-4.5" />
+    </Icon>
+  );
+}
+
+export function IconAreasComuns(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="4.5" width="17" height="16" rx="2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M8 3v3M16 3v3" />
+      <circle cx="9" cy="14" r="1.3" />
+      <circle cx="15" cy="14" r="1.3" />
+    </Icon>
+  );
+}
+
+export function IconEnquetes(props) {
+  return (
+    <Icon {...props}>
+      <path d="M6 20V10M12 20V4M18 20v-7" />
+    </Icon>
+  );
+}
+
+export function IconDocumentos(props) {
+  return (
+    <Icon {...props}>
+      <path d="M7 2.5h7l5 5V20a1.3 1.3 0 0 1-1.3 1.3H7A1.3 1.3 0 0 1 5.7 20V3.8A1.3 1.3 0 0 1 7 2.5z" />
+      <path d="M14 2.5v5h5" />
+      <path d="M9 13h6M9 17h6" />
+    </Icon>
+  );
+}
+
 export function IconSol(props) {
   return (
     <Icon {...props}>

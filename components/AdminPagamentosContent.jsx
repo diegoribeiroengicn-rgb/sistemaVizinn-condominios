@@ -11,6 +11,7 @@ import AdminVendedorDetalheModal from "@/components/AdminVendedorDetalheModal";
 
 const ABAS = [
   { id: "taxas", label: "Taxas de adesão" },
+  { id: "boleto", label: "Boleto" },
   { id: "vendedores", label: "Vendedores" },
   { id: "cupons", label: "Cupons" },
 ];
@@ -230,6 +231,79 @@ function PainelTaxas() {
             </div>
           </details>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PainelBoleto() {
+  const [margemAtual, setMargemAtual] = useState(null);
+  const [valor, setValor] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/admin/config-boleto");
+    const json = await res.json();
+    if (!res.ok) return setError(json.error);
+    setMargemAtual(json.margemValor);
+    setValor(String(json.margemValor));
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function salvar() {
+    setSalvando(true);
+    setError("");
+    try {
+      const res = await authedFetch("/api/admin/config-boleto", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ margemValor: Number(valor) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card space-y-3">
+        <div>
+          <p className="font-semibold text-navy-900">Margem por boleto pago</p>
+          <p className="mt-1 text-xs text-navy-500">
+            Separada automaticamente do boleto via split do Asaas — o resto cai inteiro na subconta do
+            condomínio. Não inclui a taxa que o próprio Asaas cobra (hoje ~R$1,99/boleto pago), essa é
+            descontada antes, pelo Asaas. Ainda assim, mesmo com sua margem, o condomínio continua pagando
+            bem menos que num banco tradicional (R$8-9/boleto).
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-navy-500">R$</span>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            className="input-field w-28"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+          />
+          <button
+            onClick={salvar}
+            disabled={salvando || Number(valor) === margemAtual}
+            className="btn-secondary text-sm disabled:opacity-50"
+          >
+            {salvando ? "Salvando..." : "Salvar"}
+          </button>
+        </div>
+        {error && <p className="text-sm text-coral-700">{error}</p>}
       </div>
     </div>
   );
@@ -606,6 +680,7 @@ export default function AdminPagamentosContent() {
       </div>
 
       {aba === "taxas" && <PainelTaxas />}
+      {aba === "boleto" && <PainelBoleto />}
       {aba === "vendedores" && <PainelVendedores />}
       {aba === "cupons" && <PainelCupons />}
     </div>

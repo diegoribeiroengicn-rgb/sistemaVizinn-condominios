@@ -45,9 +45,10 @@ Essas contas (tabela `membros`) apontam para o mesmo condomínio, mas nunca
 têm acesso a `/dashboard/acessos`, `/admin` ou aos dados de outro tenant —
 isso é garantido por Row Level Security no Postgres, não só pela interface.
 
-**Boletos**: a tela existe mas continua um placeholder — emitir boletos de
-verdade (código de barras/PIX) exige integração com um banco ou gateway de
-pagamento, que ainda não está configurada.
+**Boletos**: emissão de boleto de verdade (linha digitável, pago pelo
+morador) já existe via Asaas — ver seção "Cobrança via boleto (Asaas)"
+mais abaixo. Cada condomínio tem sua própria subconta; o dinheiro do
+morador cai direto nela, nunca numa conta da AquiHabitto.
 
 ## Painel do administrador (`/admin`)
 
@@ -125,7 +126,6 @@ cp .env.example .env.local
 | `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_GROWTH` / `STRIPE_PRICE_PRO` | Stripe → Product catalog (crie um Price recorrente mensal para cada plano) |
 | `ADMIN_EMAILS` / `NEXT_PUBLIC_ADMIN_EMAILS` | E-mail(s) com acesso ao painel `/admin` (defina os dois com o mesmo valor) |
 | `RESEND_API_KEY` / `EMAIL_FROM` | [resend.com](https://resend.com) → API Keys (plano grátis, 3 mil e-mails/mês) |
-| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | [developers.facebook.com/apps](https://developers.facebook.com/apps) → seu app → WhatsApp → API Setup |
 | `ALLOW_TEST_SIGNUP` / `NEXT_PUBLIC_TEST_MODE` | `true` para liberar o cadastro sem Stripe (ver seção acima) — **desligue em produção** |
 
 ### 3. Banco de dados
@@ -160,10 +160,12 @@ que o sistema consulta para avisar o morador quando chega uma encomenda em
 Ocorrências — sem cadastro aqui (ou um login com papel "Condômino" e a
 mesma unidade), a notificação não tem para quem ir.
 
-## Notificações automáticas (e-mail + WhatsApp)
+## Notificações automáticas (e-mail)
 
-`lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) e WhatsApp
-(Meta Cloud API) para dez eventos hoje:
+`lib/notificacoes.js` + `/api/notificar` disparam e-mail (Resend) para dez
+eventos hoje. (WhatsApp já foi um canal aqui — removido por custo/complexidade
+de manter os templates aprovados na Meta para o volume baixo de um
+condomínio; dá pra ver como era no histórico do git deste arquivo.)
 
 - **Acesso criado**: ao criar um acesso em Acessos (sem exigir aprovação
   de síndico), a pessoa recebe login e senha provisória automaticamente.
@@ -196,71 +198,65 @@ acesso a Auditoria).
    (funciona pra testar, mas mostra "via resend.dev" pro destinatário —
    verifique seu domínio no Resend quando for pra produção).
 
-### Configurar o WhatsApp (Meta Cloud API)
+## Cobrança via boleto (Asaas)
 
-1. Crie um app em [developers.facebook.com/apps](https://developers.facebook.com/apps),
-   adicione o produto "WhatsApp".
-2. Em "API Setup", copie o **Temporary access token** (ou gere um permanente
-   depois) e o **Phone number ID** — vão em `WHATSAPP_TOKEN` e
-   `WHATSAPP_PHONE_NUMBER_ID`.
-3. No modo de desenvolvimento, a Meta libera um número de teste grátis e até
-   5 números de destino verificados — dá pra testar tudo sem pagar nada.
-4. **Crie os nove templates de mensagem** em WhatsApp Manager → Message
-   Templates (categoria "Utility", idioma Português (BR)), com estes textos
-   exatos — o nome do template tem que ser idêntico ao `WHATSAPP_TEMPLATES`
-   de `lib/notificacoes.js`. A Meta exige variáveis **nomeadas** (não mais
-   numeradas tipo `{{1}}`) — os nomes abaixo têm que bater exatamente com
-   `WHATSAPP_TEMPLATE_PARAMS` no mesmo arquivo, na mesma ordem. A Meta
-   também recusa variável logo no início/fim do corpo e exige uma
-   proporção mínima de palavras fixas por variável (regra não documentada
-   oficialmente, na prática ~3 palavras fixas por variável) — por isso os
-   textos abaixo são mais longos do que o mínimo necessário, com folga:
+Cada condomínio tem sua própria **subconta** no Asaas (`lib/asaas.js` +
+`condominios_asaas` no schema) — o dinheiro do morador cai direto nela,
+nunca numa conta da AquiHabitto. A mensalidade que o síndico paga pra
+AquiHabitto continua separada, pelo Stripe.
 
-   - **Nome:** `encomenda_chegou`
-     **Corpo:** `Olá {{nome_morador}}, uma encomenda acabou de chegar para você no condomínio {{nome_condominio}}. Detalhes: {{mensagem}} — Mensagem automática do AquiHabitto`
+A subconta é criada **automaticamente** assim que o condomínio é
+cadastrado (`ativarCobrancaBoleto()`, chamada no fim de
+`complete-signup` e `dev-signup`) — o CNPJ é **obrigatório** no
+formulário de cadastro (validado no front e também no servidor)
+justamente pra essa ativação nunca falhar por falta de dado. Mesmo
+assim, nunca bloqueia o cadastro se o Asaas recusar por outro motivo
+(fora do ar, dado rejeitado, etc.) — fica pendente pra ativação manual
+depois: o botão "Ativar cobrança via boleto" em Financeiro
+(`/api/financeiro/asaas-subconta`, POST) chama a mesma função e é
+idempotente. Também é o caminho pra condomínios criados antes dessa
+automação existir.
 
-   - **Nome:** `ocorrencia_morador`
-     **Corpo:** `Olá {{nome_morador}}, uma ocorrência foi registrada em seu nome no condomínio: {{titulo}}. Detalhes: {{mensagem}} — Mensagem automática do AquiHabitto`
+Fluxo: `/api/financeiro/asaas-subconta` (POST, manual/fallback) cria a
+subconta do condomínio; `/api/financeiro/emitir-boleto` (POST, precisa de
+`pagador_cpf_cnpj` e `data_vencimento` preenchidos na conta a receber)
+emite o boleto de verdade; `/api/webhook-asaas` recebe a confirmação de
+pagamento do Asaas e marca a conta como "recebida" automaticamente;
+`/api/financeiro/saque` (só o síndico, nunca um membro delegado) transfere
+o saldo da subconta pra fora, via PIX ou conta bancária.
 
-   - **Nome:** `chamado_atribuido`
-     **Corpo:** `Olá {{nome}}, um novo chamado de manutenção foi atribuído a você: {{titulo_chamado}} — prioridade {{prioridade}}. Confira os detalhes no sistema AquiHabitto.`
+**Margem da AquiHabitto por boleto**: ajustável em `/admin/pagamentos`
+(aba "Boleto") — é um valor fixo, separado automaticamente a cada boleto
+pago via split do Asaas (`config_boleto.margem_valor` no schema, lido em
+`/api/financeiro/emitir-boleto`). Precisa de `ASAAS_WALLET_ID` configurado
+(a wallet da conta-mãe) pra o split funcionar — sem isso, 100% do boleto
+vai pro condomínio, sem split nenhum.
 
-   - **Nome:** `chamado_morador`
-     **Corpo:** `Olá {{nome_morador}}, um chamado foi registrado em seu nome: {{titulo_chamado}}. Você será avisado por aqui quando for concluído.`
+### Configurar
 
-   - **Nome:** `chamado_concluido`
-     **Corpo:** `Olá {{nome}}, o chamado {{titulo_chamado}} foi concluído. Resultado: {{resultado}} — Mensagem automática do AquiHabitto`
-
-   - **Nome:** `ocorrencia_aviso_geral`
-     **Corpo:** `Olá {{nome_morador}}, segue um aviso do condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
-
-   - **Nome:** `manutencao_aviso`
-     **Corpo:** `Olá {{nome_morador}}, segue um aviso de manutenção programada: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
-
-   - **Nome:** `aviso_publicado`
-     **Corpo:** `Olá {{nome_morador}}, foi publicado um novo aviso no condomínio: {{titulo}}. {{mensagem}} — Mensagem automática do AquiHabitto`
-
-   - **Nome:** `acesso_criado__` (a Meta não deixou reusar `acesso_criado` depois
-     de uma versão anterior reprovada — se for criar do zero, pode tentar
-     `acesso_criado` primeiro; se recusar, ajuste `WHATSAPP_TEMPLATES.acesso_criado`
-     em `lib/notificacoes.js` pro nome real que a Meta aceitar)
-     **Corpo:** `Olá {{nome}}, seu acesso ao sistema AquiHabitto foi criado! Fale com o síndico para saber como acessar sua conta. Baixe o app direto do navegador em aquihabitto.com.br: no Android toque em "Baixar app", no iPhone use Compartilhar > Adicionar à Tela de Início.`
-
-   (Categoria **Utilidade**, não Autenticação — login e senha não vão no
-   texto do WhatsApp de propósito, nem a palavra "login"/"senha": a Meta
-   rejeitou uma primeira versão que citava isso, provavelmente por
-   interpretar como envio de credencial. A senha continua indo só por
-   e-mail, que não passa por essa validação.)
-
-   (`acesso_login` — alerta ao síndico sobre login de outro membro — não
-   precisa de template porque hoje só dispara por e-mail, nunca por
-   WhatsApp.)
-
-   A aprovação da Meta costuma levar de minutos a cerca de um dia. Enquanto
-   não estiver aprovado, o envio de WhatsApp falha (fica registrado como
-   "erro" em `notificacoes_log`) — o e-mail continua funcionando normalmente.
-5. Pra produção (enviar pra qualquer número, não só os 5 de teste), é
-   preciso verificar a empresa no Meta Business Manager.
+1. **Sandbox primeiro**: crie uma conta grátis em
+   [sandbox.asaas.com](https://sandbox.asaas.com) — é um ambiente
+   totalmente separado da produção, com boleto de teste (tem um botão
+   "Confirmar pagamento" pra simular o morador pagando, sem banco de
+   verdade). Gere a API key da conta-mãe ali e coloque em
+   `ASAAS_API_KEY`, com `ASAAS_ENV=sandbox`.
+2. Em Integrações → Webhooks (no painel do Asaas), cadastre
+   `https://SEU_DOMINIO/api/webhook-asaas`, escolha um token de 32+
+   caracteres (nunca a API key) e coloque o mesmo valor em
+   `ASAAS_WEBHOOK_TOKEN`.
+3. **Antes de trocar pra produção** (`ASAAS_ENV=production` + API key de
+   produção), é preciso resolver duas coisas direto com o Asaas, fora do
+   código:
+   - A conta-mãe precisa ser pessoa jurídica (CNPJ) — subconta via API
+     não funciona com conta pessoa física.
+   - Toda subconta criada via API nasce num **período de avaliação
+     regulatória** do Banco Central: limite de 10 subcontas, até
+     R$ 2.000 cobrados por subconta, e 60 dias — depois disso, a emissão
+     de boleto e a criação de subconta nova ficam bloqueadas até você
+     pedir a **homologação regulatória** com o Asaas. Pra um condomínio
+     de verdade cobrando mensalidade de vários moradores, esse limite
+     esgota rápido — comece essa conversa com o Asaas com antecedência,
+     não deixe pra última hora.
 
 ## Lembretes (`/dashboard/lembretes`)
 
@@ -289,8 +285,8 @@ linha nem notificação nova.
   `editar`, `excluir` em Acessos) — ninguém além do síndico vê por padrão.
 - **E-mail**: o cron manda e-mail pro síndico (`condominios.owner_email`)
   em cada estágio configurado, e uma cutucada semanal (não diária) pra
-  lembrete vencido ainda pendente. Não há canal WhatsApp pra lembretes
-  ainda (evita precisar aprovar mais um template na Meta agora).
+  lembrete vencido ainda pendente. É o único canal — não há WhatsApp no
+  sistema (ver seção de Notificações).
 - **Push no app mobile (celular com app fechado)**: infraestrutura
   preparada mas **não implementada** — falta criar um projeto Firebase
   (FCM), instalar `@capacitor/push-notifications` e recompilar o app

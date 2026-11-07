@@ -23,6 +23,10 @@ import {
   IconMoradores,
   IconVeiculos,
   IconObras,
+  IconAssembleia,
+  IconAreasComuns,
+  IconEnquetes,
+  IconDocumentos,
   IconAcademia,
   IconRelatorios,
   IconLembretes,
@@ -55,6 +59,10 @@ const SINDICO_NAV = [
   { href: "/dashboard/veiculos", label: "Veículos", Icon: IconVeiculos },
   { href: "/dashboard/obras", label: "Obras e Melhorias", Icon: IconObras },
   { href: "/dashboard/lembretes", label: "Lembretes", Icon: IconLembretes },
+  { href: "/dashboard/assembleias", label: "Assembleias", Icon: IconAssembleia },
+  { href: "/dashboard/areas-comuns", label: "Áreas Comuns", Icon: IconAreasComuns },
+  { href: "/dashboard/enquetes", label: "Enquetes", Icon: IconEnquetes },
+  { href: "/dashboard/documentos", label: "Documentos", Icon: IconDocumentos },
   { href: "/dashboard/academia", label: "Academia AquiHabitto", Icon: IconAcademia },
   { href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios },
   { href: "/dashboard/configuracoes", label: "Configurações", Icon: IconConfiguracoes },
@@ -82,6 +90,10 @@ const ICON_BY_MODULO = {
   veiculos: IconVeiculos,
   obras: IconObras,
   lembretes: IconLembretes,
+  assembleias: IconAssembleia,
+  areas_comuns: IconAreasComuns,
+  enquetes: IconEnquetes,
+  documentos: IconDocumentos,
 };
 
 const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
@@ -156,6 +168,14 @@ export default function DashboardSidebar() {
           // assinatura) — por isso aparece pra qualquer pessoa logada,
           // sem depender de permissão concedida em Acessos.
           { href: "/dashboard/academia", label: "Academia AquiHabitto", Icon: IconAcademia },
+          // "Meu Financeiro" é a própria unidade do condômino vendo o que
+          // já existe em contas_receber (2ª via de boleto, extrato) — não
+          // é o módulo "financeiro" (que dá acesso ao financeiro inteiro
+          // do condomínio), por isso não é concedível em Acessos: aparece
+          // direto pra quem tem papel "condomino".
+          ...(role === "condomino"
+            ? [{ href: "/dashboard/meu-financeiro", label: "Meu Financeiro", Icon: IconFinanceiro }]
+            : []),
           ...(MODULOS_COM_RELATORIO.some((m) => temPermissao(m, "visualizar"))
             ? [{ href: "/dashboard/relatorios", label: "Relatórios", Icon: IconRelatorios }]
             : []),

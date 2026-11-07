@@ -1,7 +1,7 @@
 "use client";
 
 const bullets = [
-  "Notificações automáticas por WhatsApp e e-mail",
+  "Notificações automáticas por e-mail",
   "Portal do condômino 24/7",
   "Relatórios em PDF e Word",
   "Inteligência Financeira",
