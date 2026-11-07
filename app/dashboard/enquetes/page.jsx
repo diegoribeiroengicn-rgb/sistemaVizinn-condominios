@@ -15,11 +15,14 @@ export default function EnquetesPage() {
   const [resultados, setResultados] = useState({});
   // "Quem votou" (nunca tem a opção se a enquete for secreta): { [enqueteId]: linhas de enquete_participantes }
   const [participantes, setParticipantes] = useState({});
-  // Só preenchido pra quem tem "editar" (síndico/subsíndico) — o voto
-  // em si, pra cruzar com participantes e mostrar "quem votou o quê"
-  // numa enquete NÃO secreta. Numa enquete secreta, a RLS garante que
-  // essas linhas vêm sem user_id/unidade (ver schema), então o cruzamento
-  // abaixo nunca encontra nada pra elas.
+  // O voto em si. A RLS decide sozinha o que cada um vê: quem tem
+  // "editar" (síndico/subsíndico) recebe tudo, pra cruzar com
+  // participantes e auditar quem votou o quê; um condômino comum só
+  // recebe a própria linha (se a enquete não for secreta) — é o que
+  // permite destacar/trocar o próprio voto. Numa enquete secreta essas
+  // linhas nunca têm user_id/unidade (ver schema), então nem o cruzamento
+  // de auditoria nem o "meu voto" encontram nada pra elas — por isso o
+  // voto secreto não pode ser trocado (ver votar_enquete no schema).
   const [votosDetalhados, setVotosDetalhados] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -62,9 +65,11 @@ export default function EnquetesPage() {
         })
       ),
       supabase.from("enquete_participantes").select("*").eq("condominio_id", condominio.id),
-      podeGerenciar
-        ? supabase.from("enquete_votos").select("*").eq("condominio_id", condominio.id)
-        : Promise.resolve({ data: [], error: null }),
+      // RLS já restringe sozinha: quem não tem "editar" só recebe a
+      // própria linha (se a enquete não for secreta) — é exatamente o
+      // que precisamos pra destacar/trocar o próprio voto, sem dar
+      // acesso a mais nada.
+      supabase.from("enquete_votos").select("*").eq("condominio_id", condominio.id),
     ]);
     setResultados(Object.fromEntries(resultadosPorEnquete));
 
@@ -261,6 +266,19 @@ export default function EnquetesPage() {
               const meuParticipante = participantesDaEnquete.find(
                 (p) => p.user_id === user?.id || (member?.unidade && p.unidade === member.unidade)
               );
+              const souEuQueRespondi = meuParticipante?.user_id === user?.id;
+              // Meu voto atual (só existe se a enquete não for secreta —
+              // numa secreta, a RLS nunca devolve essa linha pra mim).
+              const meuVoto = (votosDetalhados[enq.id] || []).find((v) => v.user_id === user?.id);
+              // Secreta: trava assim que qualquer um da unidade participou
+              // (não dá pra trocar de jeito nenhum). Não secreta: só trava
+              // se foi OUTRO morador da mesma unidade que respondeu — eu
+              // mesmo posso clicar de novo pra trocar minha escolha.
+              const bloqueado = enq.secreto ? Boolean(meuParticipante) : Boolean(meuParticipante) && !souEuQueRespondi;
+              // resultado_enquete() já devolve vazio nesse caso (trava no
+              // banco, não só aqui) — isso só decide COMO mostrar: "(0)"
+              // de verdade vs. escondido de propósito.
+              const resultadosOcultos = enq.secreto && enq.status === "aberta";
               return (
                 <div key={enq.id} className="card space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -305,25 +323,40 @@ export default function EnquetesPage() {
                       ? "🔒 Voto secreto — sua resposta não fica vinculada ao seu usuário em nenhum lugar do sistema. Nem o síndico consegue ver o que você escolheu, só que você (ou sua unidade) já participou."
                       : "Voto não secreto — o síndico pode ver, na auditoria, quem votou em cada opção."}
                   </p>
+                  {resultadosOcultos && (
+                    <p className="text-xs text-navy-400">
+                      Resultados ficam ocultos enquanto a enquete está aberta — isso evita que alguém descubra como
+                      você votou observando o placar mudar em tempo real. Tudo aparece assim que o síndico encerrar.
+                    </p>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {(enq.opcoes || []).map((opcao) => {
                       const qtd = contagem[opcao] || 0;
+                      const escolhaAtual = meuVoto?.opcao === opcao;
                       return (
                         <button
                           key={opcao}
                           onClick={() => handleVotar(enq, opcao)}
-                          disabled={Boolean(meuParticipante) || votando === enq.id || enq.status !== "aberta"}
-                          className="rounded-full border border-navy-200 px-3 py-1.5 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={bloqueado || votando === enq.id || enq.status !== "aberta"}
+                          className={`rounded-full border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed ${
+                            escolhaAtual
+                              ? "border-coral bg-coral text-white"
+                              : "border-navy-200 text-navy-700 hover:bg-navy-50 disabled:opacity-60"
+                          }`}
                         >
-                          {opcao} <span className="opacity-70">({qtd})</span>
+                          {opcao} {!resultadosOcultos && <span className="opacity-70">({qtd})</span>}
                         </button>
                       );
                     })}
                   </div>
                   {meuParticipante && (
                     <p className="text-xs text-navy-400">
-                      {meuParticipante.user_id === user?.id ? "Você" : "Sua unidade"} já respondeu essa enquete.
+                      {enq.secreto
+                        ? `${souEuQueRespondi ? "Você" : "Sua unidade"} já respondeu essa enquete — voto secreto não pode ser alterado.`
+                        : souEuQueRespondi
+                          ? "Você já respondeu — pode clicar numa opção diferente pra trocar sua escolha, até a enquete fechar."
+                          : "Sua unidade já respondeu essa enquete."}
                     </p>
                   )}
 
