@@ -232,6 +232,23 @@ as $$
   select public.membro_tem_permissao(p_condominio_id, p_modulo, 'visualizar');
 $$;
 
+-- Atalho: unidade do próprio usuário autenticado num condomínio (síndico
+-- não tem linha em membros, então retorna null pra ele — esperado, ele
+-- não representa uma unidade). Usado nas policies de
+-- assembleia_participantes/enquete_participantes pra "essa unidade já
+-- votou", mesmo quando foi outro morador da unidade que votou.
+create or replace function public.minha_unidade(p_condominio_id uuid)
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select unidade from public.membros
+  where condominio_id = p_condominio_id and user_id = auth.uid()
+  limit 1;
+$$;
+
 -- Subsíndico/administrador com permissão em "acessos" também enxerga a
 -- lista de acessos (a tela de Acessos em si). Criação/edição continuam
 -- passando só pelas API routes (service role), então não precisam de
@@ -3167,18 +3184,28 @@ alter table public.visitantes add constraint visitantes_tipo_check
   check (tipo in ('visitante', 'entregador', 'prestador_servico', 'outro'));
 
 -- Assembleia digital: o síndico cria a assembleia e as pautas; cada
--- condômino logado vota uma vez por pauta (unique por pauta+usuário).
--- Voto não é secreto (assembleia de condomínio não costuma ser) — todo
--- mundo com acesso ao módulo vê a contagem e quem votou o quê.
+-- condômino logado vota uma vez por pauta, uma vez por UNIDADE (não
+-- por login — ver assembleia_participantes abaixo).
+--
+-- "secreto" vale pra assembleia inteira (todas as pautas dela), é
+-- escolhido na criação e nunca muda depois — mesma regra de
+-- enquetes.secreto (ver o comentário detalhado lá): não secreto grava
+-- identidade junto do voto (auditoria do síndico mostra quem votou o
+-- quê); secreto nunca grava essa ligação em lugar nenhum do banco.
 create table if not exists public.assembleias (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
   titulo text not null,
   descricao text,
+  secreto boolean not null default false,
   data_encerramento date,
   status text not null default 'aberta' check (status in ('aberta', 'encerrada')),
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if this script already ran before
+-- "secreto" existed here.
+alter table public.assembleias add column if not exists secreto boolean not null default false;
 
 create index if not exists assembleias_condominio_id_idx on public.assembleias (condominio_id);
 alter table public.assembleias enable row level security;
@@ -3235,35 +3262,170 @@ create policy "Members can delete pautas"
 
 grant select, insert, delete on public.assembleia_pautas to authenticated;
 
+-- user_id/unidade/votante_nome ficam NULL quando a assembleia é secreta
+-- (ver votar_pauta() abaixo).
 create table if not exists public.assembleia_votos (
   id uuid primary key default gen_random_uuid(),
   pauta_id uuid not null references public.assembleia_pautas (id) on delete cascade,
   condominio_id uuid not null references public.condominios (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid references auth.users (id) on delete cascade,
   votante_nome text,
   unidade text,
   opcao text not null,
   created_at timestamptz not null default now()
 );
 
+-- Safe to re-run: relaxes the not-null constraint if this script
+-- already ran before voto secreto existed (quando todo voto tinha
+-- identidade obrigatória).
+alter table public.assembleia_votos alter column user_id drop not null;
+
 create unique index if not exists assembleia_votos_pauta_user_idx on public.assembleia_votos (pauta_id, user_id);
+-- Redundante com assembleia_participantes abaixo (que é quem realmente
+-- garante "uma vez por unidade"), mas inofensivo: pra voto secreto,
+-- user_id/unidade são NULL aqui e nunca disparam nenhum dos dois
+-- índices (coluna nula nunca conflita em índice único no Postgres).
+create unique index if not exists assembleia_votos_pauta_unidade_idx
+  on public.assembleia_votos (pauta_id, unidade) where unidade is not null;
 alter table public.assembleia_votos enable row level security;
 
+-- Visão própria (seu voto, só quando não secreto) ou do síndico/
+-- subsíndico com "editar" em assembleias (auditoria: em voto secreto
+-- essa mesma linha não tem user_id/unidade, então mostra só a opção,
+-- nunca em quem).
 drop policy if exists "Members can view votos" on public.assembleia_votos;
 create policy "Members can view votos"
   on public.assembleia_votos for select
-  using (public.membro_tem_modulo(condominio_id, 'assembleias'));
+  using (user_id = auth.uid() or public.membro_tem_permissao(condominio_id, 'assembleias', 'editar'));
 
--- Vota por si mesmo: a linha tem que ser do próprio usuário autenticado
--- (nunca em nome de outra pessoa) e ele precisa da permissão de "criar"
--- em assembleias (síndico sempre tem; condômino ganha por padrão — ver
--- DEFAULT_PERMISSOES_BY_PAPEL em lib/permissoes.js).
+-- Sem policy nem grant de insert: todo voto passa por votar_pauta()
+-- (security definer), que decide se grava identidade (não secreto) ou
+-- não (secreto) — não dá pra inserir direto pelo cliente.
 drop policy if exists "Members can insert votos" on public.assembleia_votos;
-create policy "Members can insert votos"
-  on public.assembleia_votos for insert
-  with check (user_id = auth.uid() and public.membro_tem_permissao(condominio_id, 'assembleias', 'criar'));
+revoke insert on public.assembleia_votos from authenticated;
 
-grant select, insert on public.assembleia_votos to authenticated;
+grant select on public.assembleia_votos to authenticated;
+
+-- "Quem votou" nessa pauta — existe pra TODA pauta (assembleia secreta
+-- ou não), nunca tem a opção escolhida (fica só em assembleia_votos).
+-- Permite ao síndico auditar participação numa assembleia secreta
+-- ("fulano votou nessa pauta") sem nunca conseguir ligar isso ao voto
+-- em si. Reaproveita public.minha_unidade(), já criada junto de
+-- enquete_participantes.
+create table if not exists public.assembleia_participantes (
+  id uuid primary key default gen_random_uuid(),
+  pauta_id uuid not null references public.assembleia_pautas (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  unidade text,
+  nome text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists assembleia_participantes_pauta_user_idx on public.assembleia_participantes (pauta_id, user_id);
+create unique index if not exists assembleia_participantes_pauta_unidade_idx
+  on public.assembleia_participantes (pauta_id, unidade) where unidade is not null;
+alter table public.assembleia_participantes enable row level security;
+
+-- Vê a própria linha, a de quem mora na mesma unidade (pra saber
+-- "minha unidade já votou nessa pauta" mesmo quando foi outro morador
+-- que votou), ou tudo se tiver "editar" em assembleias (auditoria do
+-- síndico/subsíndico).
+drop policy if exists "Members can view assembleia_participantes" on public.assembleia_participantes;
+create policy "Members can view assembleia_participantes"
+  on public.assembleia_participantes for select
+  using (
+    user_id = auth.uid()
+    or (unidade is not null and unidade = public.minha_unidade(condominio_id))
+    or public.membro_tem_permissao(condominio_id, 'assembleias', 'editar')
+  );
+
+-- Sem grant de insert: só votar_pauta() grava aqui.
+grant select on public.assembleia_participantes to authenticated;
+
+-- Contagem por opção de uma pauta — qualquer um com "visualizar" em
+-- assembleias pode chamar, inclusive numa assembleia secreta (ela não
+-- expõe identidade nenhuma, só o total por opção).
+create or replace function public.resultado_pauta(p_pauta_id uuid)
+returns table(opcao text, quantidade bigint)
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+declare
+  v_condominio_id uuid;
+begin
+  select condominio_id into v_condominio_id from public.assembleia_pautas where id = p_pauta_id;
+  if v_condominio_id is null or not public.membro_tem_modulo(v_condominio_id, 'assembleias') then
+    raise exception 'Sem acesso a esta pauta.';
+  end if;
+  return query
+    select v.opcao, count(*) as quantidade
+    from public.assembleia_votos v
+    where v.pauta_id = p_pauta_id
+    group by v.opcao;
+end;
+$$;
+grant execute on function public.resultado_pauta(uuid) to authenticated;
+
+-- Único caminho pra registrar um voto numa pauta — decide se a
+-- assembleia é secreta (lido de assembleias.secreto, não confia em
+-- nada que o cliente mande) e grava assembleia_votos com ou sem
+-- identidade de acordo. Sempre grava em assembleia_participantes (com
+-- identidade), pra permitir auditoria de quem votou mesmo numa
+-- assembleia secreta. Os dois inserts acontecem dentro da mesma
+-- função — nunca existe um estado "votou mas não registrou
+-- participação" ou vice-versa.
+create or replace function public.votar_pauta(p_pauta_id uuid, p_opcao text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_condominio_id uuid;
+  v_secreto boolean;
+  v_status text;
+  v_unidade text;
+  v_nome text;
+begin
+  select a.condominio_id, a.secreto, a.status
+  into v_condominio_id, v_secreto, v_status
+  from public.assembleia_pautas p
+  join public.assembleias a on a.id = p.assembleia_id
+  where p.id = p_pauta_id;
+
+  if v_condominio_id is null then
+    raise exception 'Pauta não encontrada.';
+  end if;
+  if v_status <> 'aberta' then
+    raise exception 'Essa assembleia não está mais aberta.';
+  end if;
+  if not public.membro_tem_permissao(v_condominio_id, 'assembleias', 'criar') then
+    raise exception 'Você não tem permissão para votar em assembleias.';
+  end if;
+  if coalesce(p_opcao, '') = '' then
+    raise exception 'Opção inválida.';
+  end if;
+
+  select unidade, nome into v_unidade, v_nome
+  from public.membros
+  where condominio_id = v_condominio_id and user_id = auth.uid();
+
+  insert into public.assembleia_participantes (pauta_id, condominio_id, user_id, unidade, nome)
+  values (p_pauta_id, v_condominio_id, auth.uid(), v_unidade, v_nome);
+
+  if v_secreto then
+    insert into public.assembleia_votos (pauta_id, condominio_id, opcao)
+    values (p_pauta_id, v_condominio_id, p_opcao);
+  else
+    insert into public.assembleia_votos (pauta_id, condominio_id, user_id, votante_nome, unidade, opcao)
+    values (p_pauta_id, v_condominio_id, auth.uid(), v_nome, v_unidade, p_opcao);
+  end if;
+end;
+$$;
+grant execute on function public.votar_pauta(uuid, text) to authenticated;
 
 -- Reserva de áreas comuns: o síndico cadastra as áreas (salão, churrasqueira,
 -- etc.); qualquer condômino com acesso reserva um dia pra uma delas. Uma
@@ -3441,24 +3603,6 @@ drop policy if exists "Members can insert enquete_votos" on public.enquete_votos
 revoke insert on public.enquete_votos from authenticated;
 
 grant select on public.enquete_votos to authenticated;
-
--- Atalho: unidade do próprio usuário autenticado num condomínio (síndico
--- não tem linha em membros, então retorna null pra ele — esperado, ele
--- não representa uma unidade). Usado só pra "essa unidade já votou"
--- nas políticas de enquete_participantes — precisa vir ANTES da tabela
--- abaixo, que referencia essa função numa policy (mesma regra de
--- ordenação explicada no topo do arquivo).
-create or replace function public.minha_unidade(p_condominio_id uuid)
-returns text
-language sql
-security definer
-set search_path = public
-stable
-as $$
-  select unidade from public.membros
-  where condominio_id = p_condominio_id and user_id = auth.uid()
-  limit 1;
-$$;
 
 -- "Quem votou" — existe pra TODA enquete (secreta ou não), nunca tem a
 -- opção escolhida (fica só em enquete_votos). É o que permite ao
