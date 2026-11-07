@@ -226,6 +226,16 @@ export function IconAreasComuns(props) {
   );
 }
 
+export function IconMulticondominios(props) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="9" width="7" height="12" rx="1" />
+      <rect x="14" y="3" width="7" height="18" rx="1" />
+      <path d="M5.5 12.5h2M5.5 15.5h2M5.5 18.5h2M16.5 6.5h2M16.5 9.5h2M16.5 12.5h2M16.5 15.5h2" />
+    </Icon>
+  );
+}
+
 export function IconEnquetes(props) {
   return (
     <Icon {...props}>

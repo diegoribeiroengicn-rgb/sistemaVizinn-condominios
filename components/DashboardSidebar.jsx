@@ -38,6 +38,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconSair,
+  IconMulticondominios,
 } from "@/components/icons";
 
 // Menu fixo do síndico (todos os módulos, inclui Configurações que não é
@@ -151,7 +152,15 @@ export default function DashboardSidebar() {
 
   const navItems =
     role === "sindico"
-      ? SINDICO_NAV
+      ? [
+          ...SINDICO_NAV,
+          // Só aparece pra quem tem o Pro+ Multicondomínios ativo e mais
+          // de 1 condomínio vinculado à conta — ver contas_sindico no
+          // schema e o seletor logo acima no topo da barra lateral.
+          ...(temProPlusMulticondominios && condominiosDoDono.length > 1
+            ? [{ href: "/dashboard/multicondominios", label: "Multicondomínios", Icon: IconMulticondominios }]
+            : []),
+        ]
       : [
           // "propostas" é uma permissão concedível mas não tem página
           // própria (ver nota em lib/permissoes.js) — filtra qualquer
