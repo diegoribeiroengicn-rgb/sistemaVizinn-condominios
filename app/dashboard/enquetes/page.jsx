@@ -6,17 +6,27 @@ import { supabase } from "@/lib/supabase";
 import ModuloGuard from "@/components/ModuloGuard";
 import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 
-const emptyForm = { pergunta: "", opcoes: ["", ""], dataLimite: "" };
+const emptyForm = { pergunta: "", opcoes: ["", ""], dataLimite: "", secreto: false };
 
 export default function EnquetesPage() {
   const { condominio, user, member, temPermissao } = useAuth();
   const [enquetes, setEnquetes] = useState([]);
-  const [votos, setVotos] = useState([]);
+  // Contagem por enquete: { [enqueteId]: { [opcao]: quantidade } }
+  const [resultados, setResultados] = useState({});
+  // "Quem votou" (nunca tem a opção se a enquete for secreta): { [enqueteId]: linhas de enquete_participantes }
+  const [participantes, setParticipantes] = useState({});
+  // Só preenchido pra quem tem "editar" (síndico/subsíndico) — o voto
+  // em si, pra cruzar com participantes e mostrar "quem votou o quê"
+  // numa enquete NÃO secreta. Numa enquete secreta, a RLS garante que
+  // essas linhas vêm sem user_id/unidade (ver schema), então o cruzamento
+  // abaixo nunca encontra nada pra elas.
+  const [votosDetalhados, setVotosDetalhados] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [votando, setVotando] = useState(null);
+  const [auditoriaAbertaId, setAuditoriaAbertaId] = useState(null);
 
   const podeGerenciar = temPermissao("enquetes", "editar");
 
@@ -24,13 +34,52 @@ export default function EnquetesPage() {
     if (!condominio?.id) return;
     setLoading(true);
     setError("");
-    const [e, v] = await Promise.all([
-      supabase.from("enquetes").select("*").eq("condominio_id", condominio.id).order("created_at", { ascending: false }),
-      supabase.from("enquete_votos").select("*").eq("condominio_id", condominio.id),
+
+    const { data: enquetesData, error: enquetesError } = await supabase
+      .from("enquetes")
+      .select("*")
+      .eq("condominio_id", condominio.id)
+      .order("created_at", { ascending: false });
+    if (enquetesError) {
+      setError(enquetesError.message);
+      setLoading(false);
+      return;
+    }
+    setEnquetes(enquetesData || []);
+
+    const [resultadosPorEnquete, participantesData, votosData] = await Promise.all([
+      Promise.all(
+        (enquetesData || []).map(async (enq) => {
+          const { data, error: rpcError } = await supabase.rpc("resultado_enquete", { p_enquete_id: enq.id });
+          if (rpcError) return [enq.id, {}];
+          const mapa = {};
+          for (const row of data || []) mapa[row.opcao] = Number(row.quantidade);
+          return [enq.id, mapa];
+        })
+      ),
+      supabase.from("enquete_participantes").select("*").eq("condominio_id", condominio.id),
+      podeGerenciar
+        ? supabase.from("enquete_votos").select("*").eq("condominio_id", condominio.id)
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    if (e.error) setError(e.error.message);
-    else setEnquetes(e.data || []);
-    if (!v.error) setVotos(v.data || []);
+    setResultados(Object.fromEntries(resultadosPorEnquete));
+
+    if (!participantesData.error) {
+      const porEnquete = {};
+      for (const p of participantesData.data || []) {
+        (porEnquete[p.enquete_id] ||= []).push(p);
+      }
+      setParticipantes(porEnquete);
+    }
+
+    if (!votosData.error) {
+      const porEnquete = {};
+      for (const v of votosData.data || []) {
+        (porEnquete[v.enquete_id] ||= []).push(v);
+      }
+      setVotosDetalhados(porEnquete);
+    }
+
     setLoading(false);
   }, [condominio?.id]);
 
@@ -67,6 +116,7 @@ export default function EnquetesPage() {
       condominio_id: condominio.id,
       pergunta: form.pergunta.trim(),
       opcoes,
+      secreto: form.secreto,
       data_limite: form.dataLimite || null,
     });
     setSubmitting(false);
@@ -84,21 +134,16 @@ export default function EnquetesPage() {
   async function handleVotar(enquete, opcao) {
     setVotando(enquete.id);
     setError("");
-    const { error: insertError } = await supabase.from("enquete_votos").insert({
-      enquete_id: enquete.id,
-      condominio_id: condominio.id,
-      user_id: user.id,
-      unidade: member?.unidade || null,
-      opcao,
+    const { error: rpcError } = await supabase.rpc("votar_enquete", {
+      p_enquete_id: enquete.id,
+      p_opcao: opcao,
     });
     setVotando(null);
-    if (insertError) {
-      if (insertError.code === "23505") {
+    if (rpcError) {
+      if (rpcError.code === "23505") {
         setError("Essa unidade já respondeu essa enquete.");
-      } else if (insertError.code === "42501") {
-        setError("Você não tem permissão para responder enquetes — fale com o síndico.");
       } else {
-        setError(`Não foi possível responder: ${insertError.message}`);
+        setError(`Não foi possível responder: ${rpcError.message}`);
       }
       load();
       return;
@@ -166,6 +211,24 @@ export default function EnquetesPage() {
                   onChange={(e) => setForm((f) => ({ ...f, dataLimite: e.target.value }))}
                 />
               </div>
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-2 text-sm text-navy-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.secreto}
+                    onChange={(e) => setForm((f) => ({ ...f, secreto: e.target.checked }))}
+                  />
+                  <span>
+                    Voto secreto
+                    <span className="block text-xs text-navy-400">
+                      {form.secreto
+                        ? "Ninguém, nem você, vai conseguir ver quem votou em quê — nem no banco de dados existe esse vínculo. Só dá pra ver o total de cada opção e quem participou."
+                        : "Você vai poder ver, na auditoria, quem votou em cada opção. Isso não muda depois de criada."}
+                    </span>
+                  </span>
+                </label>
+              </div>
               <div className="flex items-end sm:col-span-2">
                 <button type="submit" disabled={submitting} className="btn-primary">
                   {submitting ? "Criando..." : "Criar enquete"}
@@ -184,11 +247,14 @@ export default function EnquetesPage() {
         ) : (
           <div className="space-y-3">
             {enquetes.map((enq) => {
-              const votosDaEnquete = votos.filter((v) => v.enquete_id === enq.id);
-              // "Meu voto" cobre tanto o próprio login quanto qualquer outro
-              // morador da mesma unidade — a unidade só responde uma vez.
-              const meuVoto = votosDaEnquete.find(
-                (v) => v.user_id === user?.id || (member?.unidade && v.unidade === member.unidade)
+              const contagem = resultados[enq.id] || {};
+              const participantesDaEnquete = participantes[enq.id] || [];
+              // "Já votei" cobre o próprio login e qualquer outro morador
+              // da mesma unidade — a unidade só responde uma vez. Vem de
+              // enquete_participantes (existe mesmo em enquete secreta,
+              // só nunca tem a opção escolhida).
+              const meuParticipante = participantesDaEnquete.find(
+                (p) => p.user_id === user?.id || (member?.unidade && p.unidade === member.unidade)
               );
               return (
                 <div key={enq.id} className="card space-y-3">
@@ -201,6 +267,13 @@ export default function EnquetesPage() {
                         }`}
                       >
                         {enq.status === "aberta" ? "Aberta" : "Encerrada"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          enq.secreto ? "bg-navy-800 text-white" : "bg-navy-100 text-navy-500"
+                        }`}
+                      >
+                        {enq.secreto ? "🔒 Voto secreto" : "Voto não secreto"}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
@@ -222,30 +295,62 @@ export default function EnquetesPage() {
                     </div>
                   </div>
 
+                  <p className="text-xs text-navy-400">
+                    {enq.secreto
+                      ? "🔒 Voto secreto — sua resposta não fica vinculada ao seu usuário em nenhum lugar do sistema. Nem o síndico consegue ver o que você escolheu, só que você (ou sua unidade) já participou."
+                      : "Voto não secreto — o síndico pode ver, na auditoria, quem votou em cada opção."}
+                  </p>
+
                   <div className="flex flex-wrap gap-2">
                     {(enq.opcoes || []).map((opcao) => {
-                      const qtd = votosDaEnquete.filter((v) => v.opcao === opcao).length;
-                      const jaVotouNessa = meuVoto?.opcao === opcao;
+                      const qtd = contagem[opcao] || 0;
                       return (
                         <button
                           key={opcao}
                           onClick={() => handleVotar(enq, opcao)}
-                          disabled={Boolean(meuVoto) || votando === enq.id || enq.status !== "aberta"}
-                          className={`rounded-full border px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed ${
-                            jaVotouNessa
-                              ? "border-coral bg-coral text-white"
-                              : "border-navy-200 text-navy-700 hover:bg-navy-50 disabled:opacity-60"
-                          }`}
+                          disabled={Boolean(meuParticipante) || votando === enq.id || enq.status !== "aberta"}
+                          className="rounded-full border border-navy-200 px-3 py-1.5 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {opcao} <span className="opacity-70">({qtd})</span>
                         </button>
                       );
                     })}
                   </div>
-                  {meuVoto && (
+                  {meuParticipante && (
                     <p className="text-xs text-navy-400">
-                      {meuVoto.user_id === user?.id ? "Você" : "Sua unidade"} respondeu: {meuVoto.opcao}
+                      {meuParticipante.user_id === user?.id ? "Você" : "Sua unidade"} já respondeu essa enquete.
                     </p>
+                  )}
+
+                  {podeGerenciar && (
+                    <div className="border-t border-navy-100 pt-2">
+                      <button
+                        onClick={() => setAuditoriaAbertaId((id) => (id === enq.id ? null : enq.id))}
+                        className="text-xs font-semibold text-navy-600 hover:underline"
+                      >
+                        {auditoriaAbertaId === enq.id ? "Ocultar" : "Ver"} quem votou ({participantesDaEnquete.length})
+                      </button>
+                      {auditoriaAbertaId === enq.id && (
+                        <ul className="mt-2 space-y-1 text-xs text-navy-600">
+                          {participantesDaEnquete.length === 0 ? (
+                            <li className="text-navy-400">Ninguém votou ainda.</li>
+                          ) : (
+                            participantesDaEnquete.map((p) => {
+                              const votoDaPessoa = !enq.secreto
+                                ? (votosDetalhados[enq.id] || []).find((v) => v.user_id === p.user_id)
+                                : null;
+                              return (
+                                <li key={p.id}>
+                                  {p.nome || "Síndico"}
+                                  {p.unidade ? ` (unid. ${p.unidade})` : ""}
+                                  {votoDaPessoa ? ` — votou: ${votoDaPessoa.opcao}` : enq.secreto ? " — voto secreto" : ""}
+                                </li>
+                              );
+                            })
+                          )}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
               );

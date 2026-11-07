@@ -3343,15 +3343,33 @@ grant select, insert, update on public.reservas_areas to authenticated;
 
 -- Enquetes rápidas: pergunta única de múltipla escolha, sem a estrutura
 -- formal de pautas da assembleia. Mesmo padrão de voto único por pessoa.
+--
+-- "secreto" é escolhido pelo síndico na criação e nunca muda depois (não
+-- há UI de editar enquete) — decide COMO o voto é gravado, não é um
+-- rótulo cosmético:
+--   - não secreto: enquete_votos guarda user_id/unidade junto da opção,
+--     então o síndico vê no detalhe quem votou o quê (auditoria).
+--   - secreto: enquete_votos NUNCA recebe user_id/unidade (só opção),
+--     e quem votou fica registrado numa tabela separada
+--     (enquete_participantes) sem a opção. As duas tabelas nunca se
+--     cruzam por pessoa quando secreto=true — o vínculo voto↔pessoa
+--     simplesmente não existe em lugar nenhum do banco, uma garantia
+--     mais forte que criptografia (não tem chave pra "quebrar" porque
+--     nunca houve link pra reverter).
 create table if not exists public.enquetes (
   id uuid primary key default gen_random_uuid(),
   condominio_id uuid not null references public.condominios (id) on delete cascade,
   pergunta text not null,
   opcoes jsonb not null,
+  secreto boolean not null default false,
   data_limite date,
   status text not null default 'aberta' check (status in ('aberta', 'encerrada')),
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if this script already ran before
+-- "secreto" existed here.
+alter table public.enquetes add column if not exists secreto boolean not null default false;
 
 create index if not exists enquetes_condominio_id_idx on public.enquetes (condominio_id);
 alter table public.enquetes enable row level security;
@@ -3378,40 +3396,183 @@ create policy "Members can delete enquetes"
 
 grant select, insert, update, delete on public.enquetes to authenticated;
 
+-- user_id/unidade ficam NULL quando a enquete é secreta (ver
+-- votar_enquete() abaixo) — por isso são nullable, diferente do padrão
+-- usado em assembleia_votos/reservas_areas.
 create table if not exists public.enquete_votos (
   id uuid primary key default gen_random_uuid(),
   enquete_id uuid not null references public.enquetes (id) on delete cascade,
   condominio_id uuid not null references public.condominios (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid references auth.users (id) on delete cascade,
   unidade text,
   opcao text not null,
   created_at timestamptz not null default now()
 );
 
--- Safe to re-run: adds the column if this script already ran before
--- "unidade" existed here.
+-- Safe to re-run: adds the "unidade" column and relaxes user_id's
+-- not-null constraint, in case this script already ran before voto
+-- secreto existed (back when every vote always had an identity).
 alter table public.enquete_votos add column if not exists unidade text;
+alter table public.enquete_votos alter column user_id drop not null;
 
 create unique index if not exists enquete_votos_enquete_user_idx on public.enquete_votos (enquete_id, user_id);
--- Votação é por unidade, não por login: duas pessoas da mesma unidade
--- não podem responder duas vezes a mesma enquete. Parcial (só quando
--- unidade não é nula) porque o síndico/subsíndico pode não ter uma
--- unidade cadastrada — nesse caso só a regra por usuário acima vale.
+-- Essas duas, mais a dupla em enquete_participantes abaixo, seguem
+-- valendo pra voto NÃO secreto (onde user_id/unidade vêm preenchidos) —
+-- redundante com enquete_participantes, mas inofensivo. Pra voto
+-- secreto, user_id/unidade são NULL aqui e nunca disparam esses
+-- índices (coluna nula nunca conflita em índice único no Postgres).
 create unique index if not exists enquete_votos_enquete_unidade_idx
   on public.enquete_votos (enquete_id, unidade) where unidade is not null;
 alter table public.enquete_votos enable row level security;
 
+-- Visão própria (seu voto, só quando não secreto — user_id nunca é
+-- preenchido num voto secreto) ou do síndico/subsíndico com "editar" em
+-- enquetes (auditoria: em voto secreto essa mesma linha não tem
+-- user_id/unidade, então mostra só a opção, nunca em quem).
 drop policy if exists "Members can view enquete_votos" on public.enquete_votos;
 create policy "Members can view enquete_votos"
   on public.enquete_votos for select
-  using (public.membro_tem_modulo(condominio_id, 'enquetes'));
+  using (user_id = auth.uid() or public.membro_tem_permissao(condominio_id, 'enquetes', 'editar'));
 
+-- Sem policy nem grant de insert: todo voto passa por votar_enquete()
+-- (security definer), que decide se grava user_id/unidade (não
+-- secreto) ou não (secreto) — não dá pra inserir direto pelo cliente.
 drop policy if exists "Members can insert enquete_votos" on public.enquete_votos;
-create policy "Members can insert enquete_votos"
-  on public.enquete_votos for insert
-  with check (user_id = auth.uid() and public.membro_tem_permissao(condominio_id, 'enquetes', 'criar'));
+revoke insert on public.enquete_votos from authenticated;
 
-grant select, insert on public.enquete_votos to authenticated;
+grant select on public.enquete_votos to authenticated;
+
+-- Atalho: unidade do próprio usuário autenticado num condomínio (síndico
+-- não tem linha em membros, então retorna null pra ele — esperado, ele
+-- não representa uma unidade). Usado só pra "essa unidade já votou"
+-- nas políticas de enquete_participantes — precisa vir ANTES da tabela
+-- abaixo, que referencia essa função numa policy (mesma regra de
+-- ordenação explicada no topo do arquivo).
+create or replace function public.minha_unidade(p_condominio_id uuid)
+returns text
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select unidade from public.membros
+  where condominio_id = p_condominio_id and user_id = auth.uid()
+  limit 1;
+$$;
+
+-- "Quem votou" — existe pra TODA enquete (secreta ou não), nunca tem a
+-- opção escolhida (fica só em enquete_votos). É o que permite ao
+-- síndico auditar participação numa enquete secreta ("fulano votou")
+-- sem nunca conseguir ligar isso ao voto em si.
+create table if not exists public.enquete_participantes (
+  id uuid primary key default gen_random_uuid(),
+  enquete_id uuid not null references public.enquetes (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  unidade text,
+  nome text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists enquete_participantes_enquete_user_idx on public.enquete_participantes (enquete_id, user_id);
+create unique index if not exists enquete_participantes_enquete_unidade_idx
+  on public.enquete_participantes (enquete_id, unidade) where unidade is not null;
+alter table public.enquete_participantes enable row level security;
+
+-- Vê a própria linha, a de quem mora na mesma unidade (pra saber "minha
+-- unidade já votou" mesmo quando foi outro morador que votou), ou tudo
+-- se tiver "editar" em enquetes (auditoria do síndico/subsíndico).
+drop policy if exists "Members can view enquete_participantes" on public.enquete_participantes;
+create policy "Members can view enquete_participantes"
+  on public.enquete_participantes for select
+  using (
+    user_id = auth.uid()
+    or (unidade is not null and unidade = public.minha_unidade(condominio_id))
+    or public.membro_tem_permissao(condominio_id, 'enquetes', 'editar')
+  );
+
+-- Sem grant de insert: só votar_enquete() grava aqui.
+grant select on public.enquete_participantes to authenticated;
+
+-- Contagem por opção — qualquer um com "visualizar" em enquetes pode
+-- chamar, inclusive numa enquete secreta (ela não expõe identidade
+-- nenhuma, só o total por opção).
+create or replace function public.resultado_enquete(p_enquete_id uuid)
+returns table(opcao text, quantidade bigint)
+language plpgsql
+security definer
+set search_path = public
+stable
+as $$
+declare
+  v_condominio_id uuid;
+begin
+  select condominio_id into v_condominio_id from public.enquetes where id = p_enquete_id;
+  if v_condominio_id is null or not public.membro_tem_modulo(v_condominio_id, 'enquetes') then
+    raise exception 'Sem acesso a esta enquete.';
+  end if;
+  return query
+    select v.opcao, count(*) as quantidade
+    from public.enquete_votos v
+    where v.enquete_id = p_enquete_id
+    group by v.opcao;
+end;
+$$;
+grant execute on function public.resultado_enquete(uuid) to authenticated;
+
+-- Único caminho pra registrar um voto — decide se a enquete é secreta
+-- (lido de enquetes.secreto, não confia em nada que o cliente mande) e
+-- grava enquete_votos com ou sem identidade de acordo. Sempre grava em
+-- enquete_participantes (com identidade), pra permitir auditoria de
+-- quem votou mesmo numa enquete secreta. Os dois inserts acontecem
+-- dentro da mesma função — nunca existe um estado "votou mas não
+-- registrou participação" ou vice-versa.
+create or replace function public.votar_enquete(p_enquete_id uuid, p_opcao text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_condominio_id uuid;
+  v_secreto boolean;
+  v_status text;
+  v_unidade text;
+  v_nome text;
+begin
+  select condominio_id, secreto, status into v_condominio_id, v_secreto, v_status
+  from public.enquetes where id = p_enquete_id;
+
+  if v_condominio_id is null then
+    raise exception 'Enquete não encontrada.';
+  end if;
+  if v_status <> 'aberta' then
+    raise exception 'Essa enquete não está mais aberta.';
+  end if;
+  if not public.membro_tem_permissao(v_condominio_id, 'enquetes', 'criar') then
+    raise exception 'Você não tem permissão para responder enquetes.';
+  end if;
+  if coalesce(p_opcao, '') = '' then
+    raise exception 'Opção inválida.';
+  end if;
+
+  select unidade, nome into v_unidade, v_nome
+  from public.membros
+  where condominio_id = v_condominio_id and user_id = auth.uid();
+
+  insert into public.enquete_participantes (enquete_id, condominio_id, user_id, unidade, nome)
+  values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, v_nome);
+
+  if v_secreto then
+    insert into public.enquete_votos (enquete_id, condominio_id, opcao)
+    values (p_enquete_id, v_condominio_id, p_opcao);
+  else
+    insert into public.enquete_votos (enquete_id, condominio_id, user_id, unidade, opcao)
+    values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, p_opcao);
+  end if;
+end;
+$$;
+grant execute on function public.votar_enquete(uuid, text) to authenticated;
 
 -- Livro de atas / documentos institucionais: arquivo (PDF em geral) com
 -- um tipo pra organizar. Mesmo padrão de bucket privado de
