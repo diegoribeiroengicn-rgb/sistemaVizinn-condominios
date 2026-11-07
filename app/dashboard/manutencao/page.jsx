@@ -12,7 +12,7 @@ import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import { calcularStatusPrazo, PRAZO_BADGE_STYLES } from "@/lib/chamados";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 import PreviaMensagem from "@/components/PreviaMensagem";
-import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
+import { previaEmail } from "@/lib/mensagemPreview";
 import { CATEGORIAS_SUGERIDAS, CRITERIOS_AVALIACAO } from "@/lib/fornecedores";
 import { ESTAGIOS_SUGERIDOS } from "@/lib/lembretes";
 
@@ -809,10 +809,7 @@ export default function ManutencaoPage() {
                 />
               )}
               {form.notificarMoradores && (
-                <PreviaMensagem
-                  whatsapp={previaWhatsapp("manutencao_aviso", { titulo: form.titulo || "Manutenção programada", mensagem: form.descricao })}
-                  email={previaEmail("manutencao_aviso", { titulo: form.titulo || "Manutenção programada", mensagem: form.descricao })}
-                />
+                <PreviaMensagem email={previaEmail("manutencao_aviso", { titulo: form.titulo || "Manutenção programada", mensagem: form.descricao })} />
               )}
             </div>
             <div className="sm:col-span-2">

@@ -9,7 +9,6 @@ import { requireAdmin } from "@/lib/adminAuth";
 // Limites configuráveis por env var pra acompanhar upgrades de plano
 // sem precisar mexer em código.
 const LIMITE_EMAILS_MENSAL = Number(process.env.RESEND_LIMITE_MENSAL) || 3000;
-const LIMITE_WHATSAPP_MENSAL = Number(process.env.WHATSAPP_LIMITE_MENSAL) || 1000;
 // Supabase não expõe uso real do banco (tamanho/conexões) sem uma chave
 // extra da API de gerenciamento, que não está configurada — usamos
 // quantidade de condomínios como um proxy calibrável manualmente.
@@ -51,7 +50,6 @@ export async function GET(request) {
     { count: totalMoradores },
     { count: totalMembros },
     { count: emailsEsteMes },
-    { count: whatsappEsteMes },
     { count: totalNotificacoesLog },
     { count: totalAuditoria },
     { count: totalChamados },
@@ -64,11 +62,6 @@ export async function GET(request) {
       .from("notificacoes_log")
       .select("*", { count: "exact", head: true })
       .eq("canal", "email")
-      .gte("created_at", inicioMesIso),
-    supabaseAdmin
-      .from("notificacoes_log")
-      .select("*", { count: "exact", head: true })
-      .eq("canal", "whatsapp")
       .gte("created_at", inicioMesIso),
     supabaseAdmin.from("notificacoes_log").select("*", { count: "exact", head: true }),
     supabaseAdmin.from("auditoria").select("*", { count: "exact", head: true }),
@@ -83,12 +76,6 @@ export async function GET(request) {
       label: "Resend — e-mails enviados este mês",
       usado: emailsEsteMes || 0,
       limite: LIMITE_EMAILS_MENSAL,
-    }),
-    itemUso({
-      servico: "whatsapp",
-      label: "WhatsApp (Meta) — mensagens enviadas este mês",
-      usado: whatsappEsteMes || 0,
-      limite: LIMITE_WHATSAPP_MENSAL,
     }),
     itemUso({
       servico: "supabase",

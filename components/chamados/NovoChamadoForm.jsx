@@ -2,7 +2,7 @@
 
 import SeletorCanalNotificacao from "@/components/SeletorCanalNotificacao";
 import PreviaMensagem from "@/components/PreviaMensagem";
-import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
+import { previaEmail } from "@/lib/mensagemPreview";
 import {
   CATEGORIA_SUGESTOES,
   PRIORIDADE_LABELS,
@@ -210,10 +210,7 @@ export default function NovoChamadoForm({
             />
           )}
           {form.moradorId && form.notificarMorador && (
-            <PreviaMensagem
-              whatsapp={previaWhatsapp("chamado_morador", { titulo_chamado: form.titulo })}
-              email={previaEmail("chamado_morador", { titulo_chamado: form.titulo })}
-            />
+            <PreviaMensagem email={previaEmail("chamado_morador", { titulo_chamado: form.titulo })} />
           )}
         </div>
       )}

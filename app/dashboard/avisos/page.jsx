@@ -10,7 +10,7 @@ import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 import PreviaMensagem from "@/components/PreviaMensagem";
-import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
+import { previaEmail } from "@/lib/mensagemPreview";
 
 const emptyForm = {
   titulo: "",
@@ -183,10 +183,7 @@ export default function AvisosPage() {
                 />
               )}
               {form.notificarMoradores && (
-                <PreviaMensagem
-                  whatsapp={previaWhatsapp("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
-                  email={previaEmail("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })}
-                />
+                <PreviaMensagem email={previaEmail("aviso_publicado", { titulo: form.titulo || "Novo aviso", mensagem: form.mensagem })} />
               )}
             </div>
             <div className="rounded-lg border border-navy-100 p-3">
