@@ -5,6 +5,7 @@ import { authedFetch } from "@/lib/adminFetch";
 import { PLANS } from "@/lib/plans";
 import AdminSaturacaoPainel from "@/components/AdminSaturacaoPainel";
 import AdminFaturamentoPainel from "@/components/AdminFaturamentoPainel";
+import AdminRelatorioBoletosPainel from "@/components/AdminRelatorioBoletosPainel";
 import AdminCrescimentoGrafico from "@/components/AdminCrescimentoGrafico";
 import AdminDominioDestaque from "@/components/AdminDominioDestaque";
 
@@ -159,6 +160,10 @@ export default function AdminDashboardContent() {
 
       <section>
         <AdminSaturacaoPainel />
+      </section>
+
+      <section>
+        <AdminRelatorioBoletosPainel />
       </section>
     </div>
   );
