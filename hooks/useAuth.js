@@ -8,6 +8,9 @@ import { ALL_MODULOS } from "@/lib/permissoes";
 const AuthContext = createContext({
   user: null,
   condominio: null,
+  condominiosDoDono: [],
+  temProPlusMulticondominios: false,
+  trocarCondominio: () => {},
   member: null,
   role: null,
   permissoes: {},
@@ -25,15 +28,25 @@ const AuthContext = createContext({
 // lib/adminAuth.js), which checks the private ADMIN_EMAILS env var.
 const ADMIN_EMAILS = parseEmailList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
 
+// Chave de localStorage pra lembrar qual condomínio ficou ativo pro
+// Pro+ Multicondomínios (síndico/administradora com mais de 1
+// condomínio) — por usuário, pra não vazar a escolha de uma conta pra
+// outra no mesmo navegador.
+function chaveCondominioAtivo(userId) {
+  return `aquihabitto_condominio_ativo_${userId}`;
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [condominio, setCondominio] = useState(null);
+  const [condominiosDoDono, setCondominiosDoDono] = useState([]);
+  const [temProPlusMulticondominios, setTemProPlusMulticondominios] = useState(false);
   const [member, setMember] = useState(null);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [accessError, setAccessError] = useState(false);
 
   // Resolves the signed-in user to either:
-  // - a síndico/administradora (owns a row in condominios), or
+  // - a síndico/administradora (owns 1+ linhas em condominios), ou
   // - a delimited member (condômino/porteiro/conselheiro, has a row in
   //   membros pointing at someone else's condominio)
   // Row Level Security is what actually enforces this split server-side;
@@ -42,6 +55,12 @@ export function AuthProvider({ children }) {
   // the membro query embeds its condominio in the same round trip instead
   // of a separate follow-up query.
   //
+  // Um dono pode ter mais de 1 condomínio (Pro+ Multicondomínios) — por
+  // isso não tem mais `.limit(1)` aqui. `condominioIdPreferido` é a
+  // escolha salva no localStorage de uma sessão anterior; se não bater
+  // com nenhum dos condomínios desse dono (ou não existir), cai no mais
+  // antigo, mesmo comportamento de sempre.
+  //
   // `erro: true` no retorno é diferente de "não achou nada": significa
   // que a consulta em si falhou (rede, timeout, erro transitório do
   // Supabase) — nesse caso NÃO dá pra concluir que a conta não tem
@@ -49,21 +68,36 @@ export function AuthProvider({ children }) {
   // tratar como "conta órfã" era a causa da tela de "não encontramos
   // seu condomínio" aparecendo pra contas normais em qualquer soluço de
   // rede — ver AccessGate.jsx.
-  const fetchAccess = useCallback(async (userId) => {
-    if (!supabase || !userId) return { condominio: null, member: null, erro: false };
+  const fetchAccess = useCallback(async (userId, condominioIdPreferido) => {
+    if (!supabase || !userId) {
+      return { condominio: null, condominios: [], proPlus: false, member: null, erro: false };
+    }
 
     const [ownedResult, membroResult] = await Promise.all([
-      // .limit(1) é defensivo pro "Pro+ Multicondomínios" (futuro): um
-      // dono já pode ter mais de 1 condomínio no banco (o índice único
-      // que impedia isso foi removido), mas o dashboard de trocar entre
-      // eles ainda não existe — até lá, sempre entra no mais antigo em
-      // vez de quebrar o login com múltiplas linhas.
-      supabase.from("condominios").select("*").eq("owner_id", userId).order("created_at", { ascending: true }).limit(1).maybeSingle(),
+      supabase.from("condominios").select("*").eq("owner_id", userId).order("created_at", { ascending: true }),
       supabase.from("membros").select("*, condominios(*)").eq("user_id", userId).maybeSingle(),
     ]);
 
     if (ownedResult.error) console.error("Erro ao buscar condomínio:", ownedResult.error.message);
-    if (ownedResult.data) return { condominio: ownedResult.data, member: null, erro: false };
+    if (ownedResult.data && ownedResult.data.length > 0) {
+      const lista = ownedResult.data;
+      const escolhido = (condominioIdPreferido && lista.find((c) => c.id === condominioIdPreferido)) || lista[0];
+
+      // Pro+ Multicondomínios é por dono (contas_sindico), não por
+      // condomínio — só vale a pena buscar quando há mais de 1, já que
+      // com 1 só o seletor nunca aparece de qualquer forma.
+      let proPlus = false;
+      if (lista.length > 1) {
+        const { data: conta } = await supabase
+          .from("contas_sindico")
+          .select("pro_plus_multicondominios")
+          .eq("user_id", userId)
+          .maybeSingle();
+        proPlus = Boolean(conta?.pro_plus_multicondominios);
+      }
+
+      return { condominio: escolhido, condominios: lista, proPlus, member: null, erro: false };
+    }
 
     // Um síndico/dono nunca tem linha em "membros" — pra ele, essa busca
     // vir vazia é sempre esperado, erro ou não. Então, se foi a busca de
@@ -74,20 +108,46 @@ export function AuthProvider({ children }) {
     // exigir as DUAS falharem juntas (como antes) deixava passar
     // exatamente esse caso, o mais frequente.
     if (ownedResult.error) {
-      return { condominio: null, member: null, erro: true };
+      return { condominio: null, condominios: [], proPlus: false, member: null, erro: true };
     }
 
     if (membroResult.error) {
       console.error("Erro ao buscar acesso:", membroResult.error.message);
-      return { condominio: null, member: null, erro: true };
+      return { condominio: null, condominios: [], proPlus: false, member: null, erro: true };
     }
 
     const membro = membroResult.data;
-    if (!membro) return { condominio: null, member: null, erro: false };
+    if (!membro) return { condominio: null, condominios: [], proPlus: false, member: null, erro: false };
 
     const { condominios: condo, ...member } = membro;
-    return { condominio: condo || null, member, erro: false };
+    return { condominio: condo || null, condominios: [], proPlus: false, member, erro: false };
   }, []);
+
+  const aplicarAcesso = useCallback((userId, resultado) => {
+    setCondominio(resultado.condominio);
+    setCondominiosDoDono(resultado.condominios);
+    setTemProPlusMulticondominios(resultado.proPlus);
+    setMember(resultado.member);
+    setAccessError(resultado.erro);
+    if (resultado.condominio && typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(chaveCondominioAtivo(userId), resultado.condominio.id);
+      } catch {
+        // localStorage pode falhar (modo privado, cota cheia) — a troca
+        // de condomínio simplesmente não persiste entre sessões, sem
+        // quebrar o resto do app.
+      }
+    }
+  }, []);
+
+  function condominioPreferidoSalvo(userId) {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem(chaveCondominioAtivo(userId));
+    } catch {
+      return null;
+    }
+  }
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -101,12 +161,8 @@ export function AuthProvider({ children }) {
       if (!active) return;
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { condominio: c, member: m, erro } = await fetchAccess(session.user.id);
-        if (active) {
-          setCondominio(c);
-          setMember(m);
-          setAccessError(erro);
-        }
+        const resultado = await fetchAccess(session.user.id, condominioPreferidoSalvo(session.user.id));
+        if (active) aplicarAcesso(session.user.id, resultado);
       }
       setLoading(false);
     });
@@ -114,10 +170,10 @@ export function AuthProvider({ children }) {
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        const { condominio: c, member: m, erro } = await fetchAccess(session.user.id);
-        setCondominio(c);
-        setMember(m);
-        setAccessError(erro);
+        const resultado = await fetchAccess(session.user.id, condominioPreferidoSalvo(session.user.id));
+        aplicarAcesso(session.user.id, resultado);
+        const c = resultado.condominio;
+        const m = resultado.member;
         if (event === "SIGNED_IN" && c) {
           const usuarioNome = m?.nome || session.user.user_metadata?.full_name || session.user.email;
           const papel = m?.papel || "sindico";
@@ -154,6 +210,8 @@ export function AuthProvider({ children }) {
         }
       } else {
         setCondominio(null);
+        setCondominiosDoDono([]);
+        setTemProPlusMulticondominios(false);
         setMember(null);
         setAccessError(false);
       }
@@ -163,23 +221,40 @@ export function AuthProvider({ children }) {
       active = false;
       listener?.subscription?.unsubscribe();
     };
-  }, [fetchAccess]);
+  }, [fetchAccess, aplicarAcesso]);
 
   const logout = useCallback(async () => {
     if (!supabase) return;
     await supabase.auth.signOut();
     setUser(null);
     setCondominio(null);
+    setCondominiosDoDono([]);
+    setTemProPlusMulticondominios(false);
     setMember(null);
   }, []);
 
   const refreshCondominio = useCallback(async () => {
     if (!user) return;
-    const { condominio: c, member: m, erro } = await fetchAccess(user.id);
-    setCondominio(c);
-    setMember(m);
-    setAccessError(erro);
-  }, [user, fetchAccess]);
+    const resultado = await fetchAccess(user.id, condominio?.id || condominioPreferidoSalvo(user.id));
+    aplicarAcesso(user.id, resultado);
+  }, [user, condominio?.id, fetchAccess, aplicarAcesso]);
+
+  // Troca o condomínio ativo sem precisar de novo login — só vale pro
+  // dono (síndico) com mais de 1 condomínio e Pro+ Multicondomínios
+  // ativo; ignora silenciosamente qualquer outra tentativa.
+  const trocarCondominio = useCallback(
+    (condominioId) => {
+      const alvo = condominiosDoDono.find((c) => c.id === condominioId);
+      if (!alvo || !user) return;
+      setCondominio(alvo);
+      try {
+        window.localStorage.setItem(chaveCondominioAtivo(user.id), alvo.id);
+      } catch {
+        // ver comentário em aplicarAcesso
+      }
+    },
+    [condominiosDoDono, user]
+  );
 
   const isAdmin = useMemo(
     () => Boolean(user?.email) && ADMIN_EMAILS.includes(user.email.toLowerCase()),
@@ -219,6 +294,9 @@ export function AuthProvider({ children }) {
     () => ({
       user,
       condominio,
+      condominiosDoDono,
+      temProPlusMulticondominios,
+      trocarCondominio,
       member,
       role,
       permissoes,
@@ -233,6 +311,9 @@ export function AuthProvider({ children }) {
     [
       user,
       condominio,
+      condominiosDoDono,
+      temProPlusMulticondominios,
+      trocarCondominio,
       member,
       role,
       permissoes,
