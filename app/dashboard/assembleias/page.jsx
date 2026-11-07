@@ -31,8 +31,12 @@ export default function AssembleiasPage() {
   const [votando, setVotando] = useState(null);
   const [auditoriaAbertaId, setAuditoriaAbertaId] = useState(null);
 
-  const podeGerenciar = temPermissao("assembleias", "criar");
-  const podeEditar = temPermissao("assembleias", "editar");
+  // "criar" é o que o condômino tem por padrão pra poder VOTAR — não
+  // confundir com gerenciar (criar/editar assembleia e pauta, encerrar,
+  // ver auditoria), que exige "editar" (só síndico/subsíndico têm por
+  // padrão). Usar "criar" aqui seria dar os controles de gerenciar pra
+  // qualquer condômino, só porque ele tem permissão de votar.
+  const podeGerenciar = temPermissao("assembleias", "editar");
 
   // Nunca mexe em `error` aqui: load() é chamada logo depois de um erro
   // de voto ser registrado (ver handleVotar), e se ela limpasse o erro
@@ -65,7 +69,7 @@ export default function AssembleiasPage() {
         })
       ),
       supabase.from("assembleia_participantes").select("*").eq("condominio_id", condominio.id),
-      podeEditar
+      podeGerenciar
         ? supabase.from("assembleia_votos").select("*").eq("condominio_id", condominio.id)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -88,7 +92,7 @@ export default function AssembleiasPage() {
     }
 
     setLoading(false);
-  }, [condominio?.id, podeEditar]);
+  }, [condominio?.id, podeGerenciar]);
 
   useEffect(() => {
     load();
@@ -328,7 +332,7 @@ export default function AssembleiasPage() {
                               </p>
                             )}
 
-                            {podeEditar && (
+                            {podeGerenciar && (
                               <div className="mt-2 border-t border-navy-100 pt-2">
                                 <button
                                   onClick={() => setAuditoriaAbertaId((id) => (id === p.id ? null : p.id))}
