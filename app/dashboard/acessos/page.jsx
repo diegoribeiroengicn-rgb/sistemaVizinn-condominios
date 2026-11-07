@@ -75,9 +75,13 @@ function PermissoesEditor({ permissoes, onChange }) {
         })}
       </div>
 
-      {/* Telas médias e grandes: grade completa módulo x ação. */}
-      <div className="hidden rounded-xl border border-navy-100 md:block">
-        <table className="w-full text-sm">
+      {/* Telas médias e grandes: grade completa módulo x ação. Com ~20
+          módulos e cabeçalhos de ação longos (ex: "Corrigir horários já
+          registrados"), a tabela pode ficar mais larga que o modal —
+          overflow-x-auto garante uma barra de rolagem em vez de cortar
+          colunas. */}
+      <div className="hidden overflow-x-auto rounded-xl border border-navy-100 md:block">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-navy-50/50 text-left text-navy-500">
             <tr>
               <th className="px-3 py-2 font-medium">Módulo</th>
@@ -787,7 +791,7 @@ export default function AcessosPage() {
 
       {editing && editForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-midnight/40 p-4">
-          <div className="card w-full max-w-2xl">
+          <div className="card max-h-[90vh] w-full max-w-2xl overflow-y-auto">
             <h2 className="font-display text-lg font-bold text-navy-900">
               Editar acesso de {editing.nome}
             </h2>
