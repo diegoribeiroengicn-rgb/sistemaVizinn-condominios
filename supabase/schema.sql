@@ -3383,11 +3383,22 @@ create table if not exists public.enquete_votos (
   enquete_id uuid not null references public.enquetes (id) on delete cascade,
   condominio_id uuid not null references public.condominios (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
+  unidade text,
   opcao text not null,
   created_at timestamptz not null default now()
 );
 
+-- Safe to re-run: adds the column if this script already ran before
+-- "unidade" existed here.
+alter table public.enquete_votos add column if not exists unidade text;
+
 create unique index if not exists enquete_votos_enquete_user_idx on public.enquete_votos (enquete_id, user_id);
+-- Votação é por unidade, não por login: duas pessoas da mesma unidade
+-- não podem responder duas vezes a mesma enquete. Parcial (só quando
+-- unidade não é nula) porque o síndico/subsíndico pode não ter uma
+-- unidade cadastrada — nesse caso só a regra por usuário acima vale.
+create unique index if not exists enquete_votos_enquete_unidade_idx
+  on public.enquete_votos (enquete_id, unidade) where unidade is not null;
 alter table public.enquete_votos enable row level security;
 
 drop policy if exists "Members can view enquete_votos" on public.enquete_votos;

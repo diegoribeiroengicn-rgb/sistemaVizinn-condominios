@@ -9,7 +9,7 @@ import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 const emptyForm = { pergunta: "", opcoes: ["", ""], dataLimite: "" };
 
 export default function EnquetesPage() {
-  const { condominio, user, temPermissao } = useAuth();
+  const { condominio, user, member, temPermissao } = useAuth();
   const [enquetes, setEnquetes] = useState([]);
   const [votos, setVotos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -88,10 +88,21 @@ export default function EnquetesPage() {
       enquete_id: enquete.id,
       condominio_id: condominio.id,
       user_id: user.id,
+      unidade: member?.unidade || null,
       opcao,
     });
     setVotando(null);
-    if (insertError) return setError("Não foi possível responder — você já respondeu essa enquete?");
+    if (insertError) {
+      if (insertError.code === "23505") {
+        setError("Essa unidade já respondeu essa enquete.");
+      } else if (insertError.code === "42501") {
+        setError("Você não tem permissão para responder enquetes — fale com o síndico.");
+      } else {
+        setError(`Não foi possível responder: ${insertError.message}`);
+      }
+      load();
+      return;
+    }
     load();
   }
 
@@ -174,7 +185,11 @@ export default function EnquetesPage() {
           <div className="space-y-3">
             {enquetes.map((enq) => {
               const votosDaEnquete = votos.filter((v) => v.enquete_id === enq.id);
-              const meuVoto = votosDaEnquete.find((v) => v.user_id === user?.id);
+              // "Meu voto" cobre tanto o próprio login quanto qualquer outro
+              // morador da mesma unidade — a unidade só responde uma vez.
+              const meuVoto = votosDaEnquete.find(
+                (v) => v.user_id === user?.id || (member?.unidade && v.unidade === member.unidade)
+              );
               return (
                 <div key={enq.id} className="card space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -227,6 +242,11 @@ export default function EnquetesPage() {
                       );
                     })}
                   </div>
+                  {meuVoto && (
+                    <p className="text-xs text-navy-400">
+                      {meuVoto.user_id === user?.id ? "Você" : "Sua unidade"} respondeu: {meuVoto.opcao}
+                    </p>
+                  )}
                 </div>
               );
             })}
