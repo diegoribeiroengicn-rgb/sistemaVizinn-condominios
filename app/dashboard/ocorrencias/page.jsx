@@ -10,7 +10,7 @@ import BotaoExcluirComAuditoria from "@/components/BotaoExcluirComAuditoria";
 import { useAvisoSaidaSemSalvar } from "@/hooks/useAvisoSaidaSemSalvar";
 import SeletorCanalNotificacao, { canaisDoValor } from "@/components/SeletorCanalNotificacao";
 import PreviaMensagem from "@/components/PreviaMensagem";
-import { previaWhatsapp, previaEmail } from "@/lib/mensagemPreview";
+import { previaEmail } from "@/lib/mensagemPreview";
 
 const emptyForm = {
   titulo: "",
@@ -232,10 +232,6 @@ export default function OcorrenciasPage() {
               )}
               {form.notificarMorador && form.motivoMorador === "encomenda" && (
                 <PreviaMensagem
-                  whatsapp={previaWhatsapp("encomenda_chegou", {
-                    nome_condominio: condominio?.nome,
-                    mensagem: form.descricao.trim() || "Retire na portaria quando puder.",
-                  })}
                   email={previaEmail("encomenda_chegou", {
                     nome_condominio: condominio?.nome,
                     mensagem: form.descricao.trim() || "Retire na portaria quando puder.",
@@ -243,10 +239,7 @@ export default function OcorrenciasPage() {
                 />
               )}
               {form.notificarMorador && form.motivoMorador === "outro" && (
-                <PreviaMensagem
-                  whatsapp={previaWhatsapp("ocorrencia_morador", { titulo: form.titulo, mensagem: form.descricao })}
-                  email={previaEmail("ocorrencia_morador", { titulo: form.titulo, mensagem: form.descricao })}
-                />
+                <PreviaMensagem email={previaEmail("ocorrencia_morador", { titulo: form.titulo, mensagem: form.descricao })} />
               )}
               {form.notificarMorador && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -292,10 +285,6 @@ export default function OcorrenciasPage() {
               )}
               {form.notificarTodos && (
                 <PreviaMensagem
-                  whatsapp={previaWhatsapp("ocorrencia_aviso_geral", {
-                    titulo: form.titulo || "Ocorrência registrada",
-                    mensagem: form.descricao,
-                  })}
                   email={previaEmail("ocorrencia_aviso_geral", {
                     titulo: form.titulo || "Ocorrência registrada",
                     mensagem: form.descricao,
