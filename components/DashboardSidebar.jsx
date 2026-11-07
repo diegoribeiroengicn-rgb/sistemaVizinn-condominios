@@ -101,7 +101,7 @@ const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
 const SIDEBAR_COLLAPSE_KEY = "aquihabitto-sidebar-collapsed";
 
 export default function DashboardSidebar() {
-  const { user, condominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
+  const { user, condominio, condominiosDoDono, trocarCondominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
   const pathname = usePathname();
   const { dirty } = useFormDirty();
   const [collapsed, setCollapsed] = useState(false);
@@ -203,6 +203,42 @@ export default function DashboardSidebar() {
           )}
         </Link>
       </div>
+
+      {/* Seletor de condomínio ativo — só aparece pra quem tem mais de 1
+          (Pro+ Multicondomínios). Com 1 só, renderiza nada, igual sempre
+          foi. Trocar aqui não pede login de novo: é só o mesmo dono
+          apontando pra outra linha de `condominios`, RLS já isola cada
+          uma. */}
+      {condominiosDoDono.length > 1 && (
+        <div className="px-2 pb-2">
+          {!collapsed ? (
+            <select
+              value={condominio?.id || ""}
+              onChange={(e) => trocarCondominio(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm font-medium text-white"
+            >
+              {condominiosDoDono.map((c) => (
+                <option key={c.id} value={c.id} className="text-navy-900">
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={condominio?.id || ""}
+              onChange={(e) => trocarCondominio(e.target.value)}
+              title="Trocar condomínio"
+              className="w-full rounded-xl border border-white/10 bg-white/10 px-1 py-2 text-xs text-white"
+            >
+              {condominiosDoDono.map((c) => (
+                <option key={c.id} value={c.id} className="text-navy-900">
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <nav className="sidebar-scroll flex-1 space-y-0.5 overflow-y-auto px-2">
         {navItems.map((item) => {
