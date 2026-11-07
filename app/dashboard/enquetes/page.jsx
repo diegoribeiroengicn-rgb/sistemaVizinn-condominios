@@ -134,21 +134,24 @@ export default function EnquetesPage() {
   async function handleVotar(enquete, opcao) {
     setVotando(enquete.id);
     setError("");
-    const { error: rpcError } = await supabase.rpc("votar_enquete", {
-      p_enquete_id: enquete.id,
-      p_opcao: opcao,
-    });
-    setVotando(null);
-    if (rpcError) {
-      if (rpcError.code === "23505") {
-        setError("Essa unidade já respondeu essa enquete.");
-      } else {
-        setError(`Não foi possível responder: ${rpcError.message}`);
+    try {
+      const { error: rpcError } = await supabase.rpc("votar_enquete", {
+        p_enquete_id: enquete.id,
+        p_opcao: opcao,
+      });
+      if (rpcError) {
+        if (rpcError.code === "23505") {
+          setError("Essa unidade já respondeu essa enquete.");
+        } else {
+          setError(`Não foi possível responder: ${rpcError.message}`);
+        }
       }
+    } catch (err) {
+      setError(`Não foi possível responder: ${err.message || "erro desconhecido"}`);
+    } finally {
+      setVotando(null);
       load();
-      return;
     }
-    load();
   }
 
   if (!condominio) return <p className="text-navy-500">Carregando condomínio...</p>;
