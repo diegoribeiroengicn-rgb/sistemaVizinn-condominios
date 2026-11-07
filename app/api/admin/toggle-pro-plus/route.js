@@ -23,11 +23,27 @@ export async function POST(request) {
     .single();
   if (condominioError) return NextResponse.json({ error: condominioError.message }, { status: 500 });
 
+  // 14 dias de teste grátis só na primeira vez que esse dono ativa o
+  // Pro+ — se já tinha uma data de trial registrada (mesmo já
+  // vencida), não reseta. Evita reativar o trial desligando e ligando
+  // de novo.
+  const { data: contaExistente } = await supabaseAdmin
+    .from("contas_sindico")
+    .select("pro_plus_trial_fim")
+    .eq("user_id", condominio.owner_id)
+    .maybeSingle();
+
+  const trialFim =
+    ativo && !contaExistente?.pro_plus_trial_fim
+      ? new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      : contaExistente?.pro_plus_trial_fim || null;
+
   const { error } = await supabaseAdmin.from("contas_sindico").upsert(
     {
       user_id: condominio.owner_id,
       pro_plus_multicondominios: ativo,
       pro_plus_desde: ativo ? new Date().toISOString() : null,
+      pro_plus_trial_fim: trialFim,
     },
     { onConflict: "user_id" }
   );
