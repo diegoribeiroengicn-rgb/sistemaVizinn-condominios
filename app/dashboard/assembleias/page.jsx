@@ -138,21 +138,24 @@ export default function AssembleiasPage() {
   async function handleVotar(pauta, opcao) {
     setVotando(pauta.id);
     setError("");
-    const { error: rpcError } = await supabase.rpc("votar_pauta", {
-      p_pauta_id: pauta.id,
-      p_opcao: opcao,
-    });
-    setVotando(null);
-    if (rpcError) {
-      if (rpcError.code === "23505") {
-        setError("Essa unidade já votou nessa pauta.");
-      } else {
-        setError(`Não foi possível registrar o voto: ${rpcError.message}`);
+    try {
+      const { error: rpcError } = await supabase.rpc("votar_pauta", {
+        p_pauta_id: pauta.id,
+        p_opcao: opcao,
+      });
+      if (rpcError) {
+        if (rpcError.code === "23505") {
+          setError("Essa unidade já votou nessa pauta.");
+        } else {
+          setError(`Não foi possível registrar o voto: ${rpcError.message}`);
+        }
       }
+    } catch (err) {
+      setError(`Não foi possível registrar o voto: ${err.message || "erro desconhecido"}`);
+    } finally {
+      setVotando(null);
       load();
-      return;
     }
-    load();
   }
 
   if (!condominio) return <p className="text-navy-500">Carregando condomínio...</p>;
