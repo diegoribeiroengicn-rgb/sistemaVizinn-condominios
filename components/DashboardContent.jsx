@@ -69,6 +69,7 @@ export default function DashboardContent() {
   const podeFornecedoresEditar = temPermissao("fornecedores", "editar");
   const podeColaboradores = temPermissao("colaboradores", "visualizar");
   const podeOcorrencias = temPermissao("ocorrencias", "visualizar");
+  const podeEnquetes = temPermissao("enquetes", "visualizar");
   const podeAvisosCriar = temPermissao("avisos", "criar");
   const nomeUsuario = member?.nome || user?.user_metadata?.full_name || user?.email || "Síndico";
 
@@ -106,6 +107,7 @@ export default function DashboardContent() {
         .eq("condominio_id", condominio.id);
     if (podeColaboradores) queries.colaboradores = supabase.from("colaboradores").select("status").eq("condominio_id", condominio.id);
     if (podeOcorrencias) queries.ocorrencias = supabase.from("ocorrencias").select("id").eq("condominio_id", condominio.id);
+    if (podeEnquetes) queries.enquetes = supabase.from("enquetes").select("status").eq("condominio_id", condominio.id);
     // Conta moradores (papel "condômino") de fato cadastrados em Acessos —
     // o campo condominios.unidades_ativas nunca é atualizado automaticamente,
     // então usamos a contagem real em vez dele.
@@ -122,7 +124,7 @@ export default function DashboardContent() {
       dados[k] = resultados[i].data || [];
     });
     setIndicadores(dados);
-  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podeColaboradores, podeOcorrencias]);
+  }, [condominio?.id, podeChamados, podeManutencao, podeFinanceiro, podeFornecedores, podeColaboradores, podeOcorrencias, podeEnquetes]);
 
   useEffect(() => {
     load();
@@ -173,6 +175,8 @@ export default function DashboardContent() {
   const fornecedoresEmAvaliacao = indicadores?.fornecedores?.filter((f) => f.status === "em_avaliacao") || [];
 
   const colaboradoresAtivos = indicadores?.colaboradores?.filter((c) => c.status === "ativo") || [];
+
+  const enquetesEmAndamento = indicadores?.enquetes?.filter((e) => e.status === "aberta") || [];
 
   // Ocorrência "precisa de atenção" = ainda não gerou nenhum chamado — não
   // existe campo de status (aberta/encerrada) na tabela hoje, então usamos
@@ -561,6 +565,15 @@ export default function DashboardContent() {
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Colaboradores</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Indicador href="/dashboard/colaboradores" label="Ativos" value={colaboradoresAtivos.length} />
+          </div>
+        </section>
+      )}
+
+      {podeEnquetes && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-navy-400">Enquetes</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Indicador href="/dashboard/enquetes" label="Em andamento" value={enquetesEmAndamento.length} />
           </div>
         </section>
       )}

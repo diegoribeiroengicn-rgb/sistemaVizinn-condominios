@@ -3639,8 +3639,14 @@ create policy "Members can view enquete_participantes"
 grant select on public.enquete_participantes to authenticated;
 
 -- Contagem por opção — qualquer um com "visualizar" em enquetes pode
--- chamar, inclusive numa enquete secreta (ela não expõe identidade
--- nenhuma, só o total por opção).
+-- chamar. Numa enquete secreta ainda ABERTA, devolve vazio de
+-- propósito: mostrar a contagem por opção em tempo real permitiria
+-- cruzar o momento em que alguém aparece em "quem votou"
+-- (enquete_participantes) com o momento em que um contador sobe, e
+-- descobrir o voto de quem está sendo observado — óbvio demais no
+-- primeiro voto (0→1 sem ambiguidade nenhuma), mas vale pra qualquer
+-- voto acompanhado ao vivo. Uma vez encerrada, não tem mais o que
+-- observar "ao vivo", então a contagem passa a aparecer normalmente.
 create or replace function public.resultado_enquete(p_enquete_id uuid)
 returns table(opcao text, quantidade bigint)
 language plpgsql
@@ -3650,10 +3656,16 @@ stable
 as $$
 declare
   v_condominio_id uuid;
+  v_secreto boolean;
+  v_status text;
 begin
-  select condominio_id into v_condominio_id from public.enquetes where id = p_enquete_id;
+  select condominio_id, secreto, status into v_condominio_id, v_secreto, v_status
+  from public.enquetes where id = p_enquete_id;
   if v_condominio_id is null or not public.membro_tem_modulo(v_condominio_id, 'enquetes') then
     raise exception 'Sem acesso a esta enquete.';
+  end if;
+  if v_secreto and v_status = 'aberta' then
+    return;
   end if;
   return query
     select v.opcao, count(*) as quantidade
@@ -3671,6 +3683,14 @@ grant execute on function public.resultado_enquete(uuid) to authenticated;
 -- quem votou mesmo numa enquete secreta. Os dois inserts acontecem
 -- dentro da mesma função — nunca existe um estado "votou mas não
 -- registrou participação" ou vice-versa.
+--
+-- Trocar o voto: só é possível numa enquete NÃO secreta — aí a própria
+-- pessoa pode votar de novo enquanto a enquete estiver aberta, e o
+-- "on conflict" atualiza a linha existente em vez de criar outra.
+-- Numa enquete SECRETA isso não é possível por design: pra trocar o
+-- voto o sistema precisaria achar qual era o voto anterior da pessoa,
+-- e essa ligação deliberadamente nunca é gravada (é o que garante o
+-- segredo) — então ali o voto é definitivo assim que registrado.
 create or replace function public.votar_enquete(p_enquete_id uuid, p_opcao text)
 returns void
 language plpgsql
@@ -3683,6 +3703,7 @@ declare
   v_status text;
   v_unidade text;
   v_nome text;
+  v_ja_votou boolean;
 begin
   select condominio_id, secreto, status into v_condominio_id, v_secreto, v_status
   from public.enquetes where id = p_enquete_id;
@@ -3700,19 +3721,32 @@ begin
     raise exception 'Opção inválida.';
   end if;
 
+  select exists (
+    select 1 from public.enquete_participantes
+    where enquete_id = p_enquete_id and user_id = auth.uid()
+  ) into v_ja_votou;
+
+  if v_ja_votou and v_secreto then
+    raise exception 'Voto secreto não pode ser alterado depois de registrado.';
+  end if;
+
   select unidade, nome into v_unidade, v_nome
   from public.membros
   where condominio_id = v_condominio_id and user_id = auth.uid();
 
   insert into public.enquete_participantes (enquete_id, condominio_id, user_id, unidade, nome)
-  values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, v_nome);
+  values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, v_nome)
+  on conflict (enquete_id, user_id) do update
+    set unidade = excluded.unidade, nome = excluded.nome;
 
   if v_secreto then
     insert into public.enquete_votos (enquete_id, condominio_id, opcao)
     values (p_enquete_id, v_condominio_id, p_opcao);
   else
     insert into public.enquete_votos (enquete_id, condominio_id, user_id, unidade, opcao)
-    values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, p_opcao);
+    values (p_enquete_id, v_condominio_id, auth.uid(), v_unidade, p_opcao)
+    on conflict (enquete_id, user_id) do update
+      set opcao = excluded.opcao, unidade = excluded.unidade, created_at = now();
   end if;
 end;
 $$;
