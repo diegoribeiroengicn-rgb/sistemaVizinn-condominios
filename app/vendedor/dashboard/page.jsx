@@ -10,6 +10,166 @@ import { TIPO_COMISSAO_LABELS, STATUS_COMISSAO_LABELS, STATUS_COMISSAO_STYLES } 
 import { PLANS } from "@/lib/plans";
 import VendedorAcademia from "@/components/VendedorAcademia";
 import VendedorTetoAdesao from "@/components/VendedorTetoAdesao";
+import { gerarPropostaComercialPdf } from "@/lib/propostaComercial";
+
+const emptyProposta = {
+  prospectNome: "",
+  condominioNome: "",
+  tipo: "plano",
+  planoId: PLANS[1]?.id || "growth",
+  faixaId: "",
+  validadeDias: 7,
+};
+
+function GerarPropostaModal({ vendedorNome, onClose }) {
+  const [form, setForm] = useState(emptyProposta);
+  const [taxas, setTaxas] = useState({});
+  const [faixas, setFaixas] = useState([]);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    fetch("/api/public/taxas-adesao").then((r) => r.json()).then((j) => setTaxas(j.taxas || {})).catch(() => {});
+    fetch("/api/public/multicondominios-faixas")
+      .then((r) => r.json())
+      .then((j) => setFaixas((j.faixas || []).slice().sort((a, b) => a.ordem - b.ordem)))
+      .catch(() => {});
+  }, []);
+
+  async function handleGerar(e) {
+    e.preventDefault();
+    setErro("");
+    if (!form.prospectNome.trim() && !form.condominioNome.trim()) {
+      setErro("Informe o nome do condomínio ou do responsável.");
+      return;
+    }
+
+    let item;
+    if (form.tipo === "plano") {
+      const plano = PLANS.find((p) => p.id === form.planoId) || PLANS[1];
+      item = {
+        titulo: `Plano ${plano.name}`,
+        precoMensal: plano.price,
+        taxaAdesao: taxas[plano.id] ?? null,
+        descricao: plano.description,
+        features: plano.features,
+      };
+    } else {
+      const faixa = faixas.find((f) => f.id === form.faixaId);
+      if (!faixa) {
+        setErro("Selecione uma faixa de preço.");
+        return;
+      }
+      const max = faixa.equivalentes_max != null ? Number(faixa.equivalentes_max) : null;
+      const label = max == null ? `A partir de ${faixa.equivalentes_min} condomínios` : faixa.equivalentes_min === max ? `${faixa.equivalentes_min} condomínios` : `${faixa.equivalentes_min} a ${max} condomínios`;
+      item = {
+        titulo: "Plataforma Multicondomínios",
+        precoMensal: faixa.mensalidade,
+        taxaAdesao: null,
+        descricao: `${label} de até 30 unidades cada (considerando a equivalência de porte).`,
+        features: [
+          "Gestão de vários condomínios numa única conta",
+          "Dashboard consolidado com indicadores de todos os condomínios",
+          "Troque de condomínio sem precisar sair e entrar de novo",
+          "Cadastro de novos condomínios direto pelo próprio dashboard",
+          "Pagamento via boleto ou cartão, como preferir",
+        ],
+      };
+    }
+
+    setGerando(true);
+    try {
+      await gerarPropostaComercialPdf({
+        prospectNome: form.prospectNome.trim(),
+        condominioNome: form.condominioNome.trim(),
+        vendedorNome,
+        validadeDias: form.validadeDias,
+        item,
+      });
+      onClose();
+    } catch (err) {
+      setErro(err.message || "Não foi possível gerar a proposta.");
+    } finally {
+      setGerando(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto">
+        <h2 className="font-display text-lg font-bold text-navy-900">Gerar proposta comercial (PDF)</h2>
+        <p className="mt-1 text-sm text-navy-500">Gera um PDF na hora, com os preços públicos atuais. Não cadastra nada.</p>
+        {erro && <p className="mt-3 text-sm text-coral-700">{erro}</p>}
+        <form onSubmit={handleGerar} className="mt-4 space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-navy-500">Nome do condomínio</label>
+              <input className="input-field" value={form.condominioNome} onChange={(e) => setForm((f) => ({ ...f, condominioNome: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-navy-500">Responsável / contato</label>
+              <input className="input-field" value={form.prospectNome} onChange={(e) => setForm((f) => ({ ...f, prospectNome: e.target.value }))} />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-navy-500">Tipo de proposta</label>
+            <select className="input-field" value={form.tipo} onChange={(e) => setForm((f) => ({ ...f, tipo: e.target.value }))}>
+              <option value="plano">Plano único (Starter/Growth/Pro)</option>
+              <option value="multicondominios">Plataforma Multicondomínios</option>
+            </select>
+          </div>
+
+          {form.tipo === "plano" ? (
+            <div>
+              <label className="text-xs text-navy-500">Plano</label>
+              <select className="input-field" value={form.planoId} onChange={(e) => setForm((f) => ({ ...f, planoId: e.target.value }))}>
+                {PLANS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — {formatBRL(p.price)}/mês — até {p.unitLimit} unidades
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-navy-500">Faixa de preço</label>
+              <select className="input-field" value={form.faixaId} onChange={(e) => setForm((f) => ({ ...f, faixaId: e.target.value }))}>
+                <option value="">Selecione...</option>
+                {faixas.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.equivalentes_min}
+                    {f.equivalentes_max != null && f.equivalentes_max !== f.equivalentes_min ? ` a ${f.equivalentes_max}` : ""} condomínios — {formatBRL(f.mensalidade)}/mês
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs text-navy-500">Validade da proposta (dias)</label>
+            <input
+              type="number"
+              min="1"
+              className="input-field"
+              value={form.validadeDias}
+              onChange={(e) => setForm((f) => ({ ...f, validadeDias: e.target.value }))}
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="submit" className="btn-primary" disabled={gerando}>
+              {gerando ? "Gerando..." : "Gerar PDF"}
+            </button>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={gerando}>
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const emptyCondominio = {
   condominioNome: "",
@@ -252,6 +412,7 @@ function PainelVendedor() {
   const [error, setError] = useState("");
   const [copiado, setCopiado] = useState(false);
   const [cadastrando, setCadastrando] = useState(false);
+  const [gerandoProposta, setGerandoProposta] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -327,9 +488,14 @@ function PainelVendedor() {
           </div>
         </div>
 
-        <button onClick={() => setCadastrando(true)} className="btn-primary w-full sm:w-auto">
-          + Cadastrar condomínio (venda fechada por fora)
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => setCadastrando(true)} className="btn-primary w-full sm:w-auto">
+            + Cadastrar condomínio (venda fechada por fora)
+          </button>
+          <button onClick={() => setGerandoProposta(true)} className="btn-secondary w-full sm:w-auto">
+            Gerar proposta comercial (PDF)
+          </button>
+        </div>
 
         <div className="card space-y-4">
           <div>
@@ -457,6 +623,9 @@ function PainelVendedor() {
 
       {cadastrando && (
         <CadastrarCondominioModal onClose={() => setCadastrando(false)} onCriado={load} />
+      )}
+      {gerandoProposta && (
+        <GerarPropostaModal vendedorNome={detalhe.vendedor.nome} onClose={() => setGerandoProposta(false)} />
       )}
     </div>
   );
