@@ -60,6 +60,15 @@ export default function MeuFinanceiroPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-navy-600">{formatarMoeda(c.valor)}</p>
+                {c.itens?.length > 0 && (
+                  <ul className="mt-1 space-y-0.5 text-xs text-navy-500">
+                    {c.itens.map((item, idx) => (
+                      <li key={idx}>
+                        {item.descricao}: {formatarMoeda(item.valor)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p className="mt-1 text-xs text-navy-400">
                   {c.data_vencimento && `Vencimento: ${new Date(`${c.data_vencimento}T00:00:00`).toLocaleDateString("pt-BR")}`}
                   {c.data_recebimento && ` · Pago em: ${new Date(`${c.data_recebimento}T00:00:00`).toLocaleDateString("pt-BR")}`}

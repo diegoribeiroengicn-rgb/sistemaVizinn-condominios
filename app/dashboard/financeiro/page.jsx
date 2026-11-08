@@ -74,6 +74,7 @@ const emptyContaReceber = {
   boletoReferencia: "",
   pagadorCpfCnpj: "",
   pagadorEmail: "",
+  itens: [],
 };
 
 function inicioPeriodo(periodo, dataBase) {
@@ -336,31 +337,52 @@ export default function FinanceiroPage() {
     if (!condominio?.id || !formReceber.descricao.trim() || !formReceber.valor) return;
     setSubmittingReceber(true);
     setError("");
-    const { error: insertError } = await supabase.from("contas_receber").insert({
-      condominio_id: condominio.id,
-      descricao: formReceber.descricao.trim(),
-      unidade: formReceber.unidade.trim() || null,
-      responsavel_financeiro: formReceber.responsavelFinanceiro.trim() || null,
-      categoria: formReceber.categoria.trim() || null,
-      data_competencia: formReceber.dataCompetencia || null,
-      data_vencimento: formReceber.dataVencimento || null,
-      data_recebimento: formReceber.dataRecebimento || null,
-      valor: Number(formReceber.valor),
-      valor_recebido: formReceber.valorRecebido ? Number(formReceber.valorRecebido) : null,
-      desconto: formReceber.desconto ? Number(formReceber.desconto) : null,
-      juros_multa: formReceber.jurosMulta ? Number(formReceber.jurosMulta) : null,
-      forma_pagamento: formReceber.formaPagamento.trim() || null,
-      status: formReceber.status,
-      observacoes: formReceber.observacoes.trim() || null,
-      boleto_referencia: formReceber.boletoReferencia.trim() || null,
-      pagador_cpf_cnpj: formReceber.pagadorCpfCnpj.trim() || null,
-      pagador_email: formReceber.pagadorEmail.trim() || null,
-    });
-    setSubmittingReceber(false);
+    const itensValidos = formReceber.itens.filter((it) => it.descricao.trim() && Number(it.valor) > 0);
+    const { data: novaConta, error: insertError } = await supabase
+      .from("contas_receber")
+      .insert({
+        condominio_id: condominio.id,
+        descricao: formReceber.descricao.trim(),
+        unidade: formReceber.unidade.trim() || null,
+        responsavel_financeiro: formReceber.responsavelFinanceiro.trim() || null,
+        categoria: formReceber.categoria.trim() || null,
+        data_competencia: formReceber.dataCompetencia || null,
+        data_vencimento: formReceber.dataVencimento || null,
+        data_recebimento: formReceber.dataRecebimento || null,
+        valor: Number(formReceber.valor),
+        valor_recebido: formReceber.valorRecebido ? Number(formReceber.valorRecebido) : null,
+        desconto: formReceber.desconto ? Number(formReceber.desconto) : null,
+        juros_multa: formReceber.jurosMulta ? Number(formReceber.jurosMulta) : null,
+        forma_pagamento: formReceber.formaPagamento.trim() || null,
+        status: formReceber.status,
+        observacoes: formReceber.observacoes.trim() || null,
+        boleto_referencia: formReceber.boletoReferencia.trim() || null,
+        pagador_cpf_cnpj: formReceber.pagadorCpfCnpj.trim() || null,
+        pagador_email: formReceber.pagadorEmail.trim() || null,
+      })
+      .select("id")
+      .single();
     if (insertError) {
+      setSubmittingReceber(false);
       setError(insertError.message);
       return;
     }
+    if (itensValidos.length > 0) {
+      const { error: itensError } = await supabase.from("contas_receber_itens").insert(
+        itensValidos.map((it) => ({
+          conta_receber_id: novaConta.id,
+          condominio_id: condominio.id,
+          descricao: it.descricao.trim(),
+          valor: Number(it.valor),
+        }))
+      );
+      if (itensError) {
+        setSubmittingReceber(false);
+        setError(itensError.message);
+        return;
+      }
+    }
+    setSubmittingReceber(false);
     setFormReceber(emptyContaReceber);
     load();
   }

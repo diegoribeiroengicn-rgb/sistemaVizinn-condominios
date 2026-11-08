@@ -40,5 +40,21 @@ export async function GET(request) {
     .order("data_vencimento", { ascending: false, nullsFirst: false });
   if (contasError) return NextResponse.json({ error: contasError.message }, { status: 500 });
 
-  return NextResponse.json({ contas: contas || [] });
+  const contaIds = (contas || []).map((c) => c.id);
+  let itensPorConta = {};
+  if (contaIds.length > 0) {
+    const { data: itens, error: itensError } = await supabaseAdmin
+      .from("contas_receber_itens")
+      .select("conta_receber_id, descricao, valor")
+      .in("conta_receber_id", contaIds);
+    if (itensError) return NextResponse.json({ error: itensError.message }, { status: 500 });
+    itensPorConta = (itens || []).reduce((acc, it) => {
+      (acc[it.conta_receber_id] = acc[it.conta_receber_id] || []).push({ descricao: it.descricao, valor: it.valor });
+      return acc;
+    }, {});
+  }
+
+  return NextResponse.json({
+    contas: (contas || []).map((c) => ({ ...c, itens: itensPorConta[c.id] || [] })),
+  });
 }
