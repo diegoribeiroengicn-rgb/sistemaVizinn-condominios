@@ -3937,3 +3937,43 @@ create table if not exists public.boleto_tarifa_lancamentos (
 create index if not exists boleto_tarifa_lancamentos_condominio_id_idx on public.boleto_tarifa_lancamentos (condominio_id);
 alter table public.boleto_tarifa_lancamentos enable row level security;
 grant all on public.boleto_tarifa_lancamentos to service_role;
+
+-- Itens discriminados da cobrança (seção 5.1/5.2 do prompt de
+-- upgrade): cota condominial, rateio, água, gás, fundo de reserva
+-- etc., como linhas separadas dentro de uma mesma conta_receber.
+create table if not exists public.contas_receber_itens (
+  id uuid primary key default gen_random_uuid(),
+  conta_receber_id uuid not null references public.contas_receber (id) on delete cascade,
+  condominio_id uuid not null references public.condominios (id) on delete cascade,
+  descricao text not null,
+  valor numeric not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists contas_receber_itens_conta_receber_id_idx on public.contas_receber_itens (conta_receber_id);
+create index if not exists contas_receber_itens_condominio_id_idx on public.contas_receber_itens (condominio_id);
+
+alter table public.contas_receber_itens enable row level security;
+
+drop policy if exists "Members with financeiro can view contas_receber_itens" on public.contas_receber_itens;
+create policy "Members with financeiro can view contas_receber_itens"
+  on public.contas_receber_itens for select
+  using (public.membro_tem_modulo(condominio_id, 'financeiro'));
+
+drop policy if exists "Members with financeiro can insert contas_receber_itens" on public.contas_receber_itens;
+create policy "Members with financeiro can insert contas_receber_itens"
+  on public.contas_receber_itens for insert
+  with check (public.membro_tem_permissao(condominio_id, 'financeiro', 'criar'));
+
+drop policy if exists "Members with financeiro can update contas_receber_itens" on public.contas_receber_itens;
+create policy "Members with financeiro can update contas_receber_itens"
+  on public.contas_receber_itens for update
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'editar'));
+
+drop policy if exists "Members with financeiro can delete contas_receber_itens" on public.contas_receber_itens;
+create policy "Members with financeiro can delete contas_receber_itens"
+  on public.contas_receber_itens for delete
+  using (public.membro_tem_permissao(condominio_id, 'financeiro', 'excluir'));
+
+grant select, insert, update, delete on public.contas_receber_itens to authenticated;
+grant all on public.contas_receber_itens to service_role;
