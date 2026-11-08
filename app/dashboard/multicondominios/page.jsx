@@ -16,6 +16,57 @@ import { PLANS } from "@/lib/plans";
 
 const NOVO_CONDOMINIO_VAZIO = { nome: "", cnpj: "", endereco: "", responsavelNome: "", responsavelTelefone: "", planoId: "growth" };
 
+function ExtratoSaldoAsaas() {
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+
+  const carregar = useCallback(async () => {
+    setErro("");
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch("/api/multicondominios/extrato", { headers: { Authorization: `Bearer ${token}` } });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erro ao carregar o extrato.");
+      setDados(json);
+    } catch (err) {
+      setErro(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    carregar();
+  }, [carregar]);
+
+  if (erro) return <div className="card"><p className="text-sm text-coral-700">{erro}</p></div>;
+  if (!dados) return <div className="card"><p className="text-sm text-navy-400">Carregando extrato de saldo...</p></div>;
+
+  return (
+    <div className="card">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Saldo disponível (Asaas)</h2>
+        {dados.totalSaldo != null && (
+          <p className="font-display text-lg font-bold text-navy-900">{formatarMoeda(dados.totalSaldo)}</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        {dados.condominios.map((c) => (
+          <div key={c.condominioId} className="flex items-center justify-between border-b border-navy-50 py-1.5 text-sm last:border-0">
+            <span className="text-navy-700">{c.nome}</span>
+            {!c.ativo ? (
+              <span className="text-xs text-navy-400">cobrança via boleto não ativada</span>
+            ) : c.saldo == null ? (
+              <span className="text-xs text-navy-400">indisponível agora</span>
+            ) : (
+              <span className="font-semibold text-navy-900">{formatarMoeda(c.saldo)}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function NovoCondominioForm({ onCriado }) {
   const [form, setForm] = useState(NOVO_CONDOMINIO_VAZIO);
   const [salvando, setSalvando] = useState(false);
@@ -387,6 +438,8 @@ export default function MulticondominiosPage() {
               </tbody>
             </table>
           </div>
+
+          <ExtratoSaldoAsaas />
         </>
       )}
     </div>
