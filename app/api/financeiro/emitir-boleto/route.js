@@ -15,12 +15,23 @@ export async function POST(request) {
 
   const { data: conta, error: contaError } = await supabaseAdmin
     .from("contas_receber")
-    .select("id, descricao, valor, data_vencimento, pagador_cpf_cnpj, pagador_email, responsavel_financeiro")
+    .select("id, descricao, valor, data_vencimento, pagador_cpf_cnpj, pagador_email, responsavel_financeiro, asaas_charge_id, boleto_url, boleto_linha_digitavel")
     .eq("id", contaReceberId)
     .eq("condominio_id", condominioId)
     .maybeSingle();
   if (contaError) return NextResponse.json({ error: contaError.message }, { status: 500 });
   if (!conta) return NextResponse.json({ error: "Conta a receber não encontrada." }, { status: 404 });
+  if (conta.asaas_charge_id) {
+    // Idempotência: um clique duplo ou um retry não pode gerar um
+    // segundo boleto/segunda cobrança pra mesma conta — devolve o
+    // boleto já emitido em vez de chamar o Asaas de novo.
+    return NextResponse.json({
+      success: true,
+      jaEmitido: true,
+      boletoUrl: conta.boleto_url,
+      linhaDigitavel: conta.boleto_linha_digitavel,
+    });
+  }
   if (!conta.pagador_cpf_cnpj) {
     return NextResponse.json({ error: "Preencha o CPF/CNPJ do pagador nesta conta antes de emitir o boleto." }, { status: 400 });
   }
