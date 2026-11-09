@@ -242,6 +242,11 @@ export default function AssembleiasPage() {
           <div className="space-y-4">
             {assembleias.map((a) => {
               const pautasDaAssembleia = pautas.filter((p) => p.assembleia_id === a.id);
+              // resultado_pauta() já devolve vazio nesse caso (trava no
+              // banco, não só aqui) — isso só decide COMO mostrar: "(0)"
+              // de verdade vs. escondido de propósito, mesmo cuidado
+              // já aplicado em enquetes contra correlação por tempo.
+              const resultadosOcultos = a.secreto && a.status === "aberta";
               return (
                 <div key={a.id} className="card space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
@@ -274,6 +279,13 @@ export default function AssembleiasPage() {
                           ? "🔒 Voto secreto — sua resposta não fica vinculada ao seu usuário em nenhum lugar do sistema. Nem o síndico consegue ver o que você escolheu, só que você (ou sua unidade) já participou."
                           : "Voto não secreto — o síndico pode ver, na auditoria, quem votou em cada opção."}
                       </p>
+                      {resultadosOcultos && (
+                        <p className="mt-1 text-xs text-navy-400">
+                          Resultados ficam ocultos enquanto a assembleia está aberta — isso evita que alguém descubra
+                          como você votou observando o placar mudar em tempo real. Tudo aparece assim que o síndico
+                          encerrar.
+                        </p>
+                      )}
                     </div>
                     {podeGerenciar && a.status === "aberta" && (
                       <button onClick={() => handleEncerrar(a)} className="text-xs font-semibold text-navy-500 hover:underline">
@@ -321,7 +333,7 @@ export default function AssembleiasPage() {
                                     disabled={Boolean(meuParticipante) || votando === p.id || a.status !== "aberta"}
                                     className="rounded-full border border-navy-200 px-3 py-1.5 text-sm font-medium text-navy-700 transition hover:bg-navy-50 disabled:cursor-not-allowed disabled:opacity-60"
                                   >
-                                    {opcao} <span className="opacity-70">({qtd})</span>
+                                    {opcao} {!resultadosOcultos && <span className="opacity-70">({qtd})</span>}
                                   </button>
                                 );
                               })}
