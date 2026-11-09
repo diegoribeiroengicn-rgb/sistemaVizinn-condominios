@@ -1895,16 +1895,16 @@ create table if not exists public.multicondominios_faixas (
 -- tabela estiver vazia (não sobrescreve ajustes já feitos pelo admin).
 insert into public.multicondominios_faixas (equivalentes_min, equivalentes_max, mensalidade, ordem)
 select * from (values
-  (2, 2, 100.00, 1),
-  (3, 3, 139.00, 2),
-  (4, 5, 179.00, 3),
-  (6, 10, 299.00, 4),
-  (11, 20, 499.00, 5),
-  (21, 35, 749.00, 6),
-  (36, 50, 999.00, 7),
-  (51, 75, 1299.00, 8),
-  (76, 100, 1599.00, 9),
-  (101, null, 2000.00, 10)
+  (2, 2, 150.00, 1),
+  (3, 3, 210.00, 2),
+  (4, 5, 270.00, 3),
+  (6, 10, 450.00, 4),
+  (11, 20, 750.00, 5),
+  (21, 35, 1125.00, 6),
+  (36, 50, 1500.00, 7),
+  (51, 75, 1950.00, 8),
+  (76, 100, 2400.00, 9),
+  (101, null, 3000.00, 10)
 ) as seed(equivalentes_min, equivalentes_max, mensalidade, ordem)
 where not exists (select 1 from public.multicondominios_faixas);
 

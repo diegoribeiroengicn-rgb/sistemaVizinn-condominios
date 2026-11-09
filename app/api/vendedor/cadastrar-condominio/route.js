@@ -101,6 +101,7 @@ export async function POST(request) {
           items: [{ price: priceId }],
           trial_period_days: TRIAL_PERIOD_DAYS,
           metadata: { planId: plan.id },
+          payment_settings: { payment_method_types: ["card", "boleto"], save_default_payment_method: "on_subscription" },
         });
       }
     } catch (erroStripe) {

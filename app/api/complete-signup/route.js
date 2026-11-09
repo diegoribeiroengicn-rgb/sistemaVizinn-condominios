@@ -112,6 +112,12 @@ export async function POST(request) {
         items: [{ price: priceId }],
         trial_period_days: TRIAL_PERIOD_DAYS,
         metadata: { planId: plan.id },
+        // Aceita boleto além de cartão pra mensalidade recorrente — se o
+        // método padrão do cliente for boleto, o Stripe gera um boleto
+        // novo automaticamente em cada fatura/mês (recurso nativo deles,
+        // não é gambiarra nossa). Precisa estar habilitado em "Payment
+        // methods" no Dashboard do Stripe pra aparecer de verdade.
+        payment_settings: { payment_method_types: ["card", "boleto"], save_default_payment_method: "on_subscription" },
       });
     } else {
       console.warn(`Sem price id para o plano "${plan.id}" (env ${plan.priceEnv}); assinatura não criada.`);

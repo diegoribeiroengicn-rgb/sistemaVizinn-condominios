@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PLANS } from "@/lib/plans";
+import { encontrarFaixa } from "@/lib/multicondominios";
 
 export default function Pricing({ onSelectPlan }) {
   // Mesma fonte de dados do dashboard do síndico e do painel admin
   // (/admin/pagamentos → aba Multicondomínios) — nunca diverge do que
   // é cobrado de verdade.
   const [faixasMulti, setFaixasMulti] = useState([]);
+  const [numCondominios, setNumCondominios] = useState(2);
 
   useEffect(() => {
     fetch("/api/public/multicondominios-faixas")
@@ -19,13 +21,15 @@ export default function Pricing({ onSelectPlan }) {
       .catch(() => {});
   }, []);
 
-  function labelFaixa(f) {
-    const min = Number(f.equivalentes_min);
-    const max = f.equivalentes_max != null ? Number(f.equivalentes_max) : null;
-    if (max == null) return `A partir de ${min} condomínios`;
-    if (min === max) return `${min} condomínios`;
-    return `${min} a ${max} condomínios`;
-  }
+  // Simplificação pra calculadora pública: trata "número de
+  // condomínios" como a própria equivalência (vale exatamente pra
+  // condomínios de até 30 unidades cada — ver calcularEquivalencia em
+  // lib/multicondominios.js; prédios maiores pesam mais, por isso o
+  // aviso abaixo do valor).
+  const faixaEscolhida = useMemo(
+    () => encontrarFaixa(Number(numCondominios) || 0, faixasMulti),
+    [numCondominios, faixasMulti]
+  );
 
   return (
     <section className="bg-navy-50/40 py-20" id="planos">
@@ -113,30 +117,50 @@ export default function Pricing({ onSelectPlan }) {
                 <li className="flex items-center gap-2">
                   <span className="text-coral">✓</span> Pagamento via boleto ou cartão, como preferir
                 </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-coral">✓</span> Sem taxa de adesão — só a mensalidade
+                </li>
               </ul>
             </div>
-            <a href="#contato" className="btn-secondary flex-none text-center">
-              Solicitar proposta comercial
-            </a>
           </div>
 
           {faixasMulti.length > 0 && (
             <div className="mt-6 border-t border-navy-100 pt-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Faixas de preço</p>
-              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                {faixasMulti.map((f) => (
-                  <div key={f.id} className="rounded-lg bg-navy-50/60 px-3 py-2 text-center">
-                    <p className="text-xs text-navy-500">{labelFaixa(f)}</p>
-                    <p className="font-display text-base font-bold text-navy-900">
-                      R$ {Number(f.mensalidade).toFixed(2).replace(".", ",")}
+              <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Calcule sua mensalidade</p>
+              <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
+                <div>
+                  <label htmlFor="num-condominios" className="text-sm text-navy-600">
+                    Quantos condomínios você administra?
+                  </label>
+                  <input
+                    id="num-condominios"
+                    type="number"
+                    min="2"
+                    step="1"
+                    className="input-field mt-1 w-32"
+                    value={numCondominios}
+                    onChange={(e) => setNumCondominios(e.target.value)}
+                  />
+                </div>
+                <div>
+                  {faixaEscolhida ? (
+                    <p>
+                      <span className="font-display text-3xl font-bold text-navy-900">
+                        R$ {Number(faixaEscolhida.mensalidade).toFixed(2).replace(".", ",")}
+                      </span>
+                      <span className="text-navy-500">/mês</span>
                     </p>
-                    <p className="text-[11px] text-navy-400">/mês</p>
-                  </div>
-                ))}
+                  ) : (
+                    <p className="text-sm text-navy-400">Informe 2 ou mais condomínios pra ver o valor.</p>
+                  )}
+                </div>
+                <a href="#contato" className="btn-primary sm:ml-auto">
+                  Começar agora
+                </a>
               </div>
               <p className="mt-3 text-xs text-navy-400">
                 Considerando condomínios de até 30 unidades cada. Prédios maiores contam como mais de uma unidade
-                equivalente — fale com a gente pra simular o seu caso.
+                equivalente — o valor exato é confirmado na ativação da sua conta.
               </p>
             </div>
           )}
