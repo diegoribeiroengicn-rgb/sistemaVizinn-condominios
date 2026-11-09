@@ -3386,8 +3386,12 @@ create policy "Members can view assembleia_participantes"
 grant select on public.assembleia_participantes to authenticated;
 
 -- Contagem por opção de uma pauta — qualquer um com "visualizar" em
--- assembleias pode chamar, inclusive numa assembleia secreta (ela não
--- expõe identidade nenhuma, só o total por opção).
+-- assembleias pode chamar. Mesmo cuidado do resultado_enquete(): numa
+-- assembleia secreta E ainda aberta, devolve vazio — mostrar a
+-- contagem em tempo real permitiria cruzar o momento em que alguém
+-- aparece em "quem votou" (assembleia_participantes) com o momento em
+-- que um contador sobe, e descobrir o voto de quem está sendo
+-- observado. Uma vez encerrada, a contagem passa a aparecer normal.
 create or replace function public.resultado_pauta(p_pauta_id uuid)
 returns table(opcao text, quantidade bigint)
 language plpgsql
@@ -3397,10 +3401,19 @@ stable
 as $$
 declare
   v_condominio_id uuid;
+  v_secreto boolean;
+  v_status text;
 begin
-  select condominio_id into v_condominio_id from public.assembleia_pautas where id = p_pauta_id;
+  select ap.condominio_id, a.secreto, a.status
+    into v_condominio_id, v_secreto, v_status
+  from public.assembleia_pautas ap
+  join public.assembleias a on a.id = ap.assembleia_id
+  where ap.id = p_pauta_id;
   if v_condominio_id is null or not public.membro_tem_modulo(v_condominio_id, 'assembleias') then
     raise exception 'Sem acesso a esta pauta.';
+  end if;
+  if v_secreto and v_status = 'aberta' then
+    return;
   end if;
   return query
     select v.opcao, count(*) as quantidade
