@@ -102,7 +102,18 @@ const ROLE_LABELS = { sindico: "Síndico", ...PAPEL_LABELS };
 const SIDEBAR_COLLAPSE_KEY = "aquihabitto-sidebar-collapsed";
 
 export default function DashboardSidebar() {
-  const { user, condominio, condominiosDoDono, trocarCondominio, role, modulosVisiveis, isAdmin, logout, temPermissao } = useAuth();
+  const {
+    user,
+    condominio,
+    condominiosDoDono,
+    temProPlusMulticondominios,
+    trocarCondominio,
+    role,
+    modulosVisiveis,
+    isAdmin,
+    logout,
+    temPermissao,
+  } = useAuth();
   const pathname = usePathname();
   const { dirty } = useFormDirty();
   const [collapsed, setCollapsed] = useState(false);
